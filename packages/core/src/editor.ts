@@ -58,6 +58,22 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   // Cumulative rotation angle (always rotate from original to avoid progressive shrinking)
   private cumulativeRotation = 0;
 
+  // Base-image geometry captured at cumulativeRotation === 0. Annotation
+  // positions are always rotated from this fixed baseline by the FULL
+  // cumulative angle (never the per-step delta) so repeated rotations
+  // don't accumulate floating-point drift.
+  private rotationImageBaseline: { cx: number; cy: number; scale: number } | null = null;
+
+  // Cached decoded copy of the processed original image. Built once on
+  // `loadImage` so repeated rotations don't have to re-run
+  // `processImage` (HEIC/EXIF) and re-decode the bytes on every step —
+  // a major win for 10–15 MB photos.
+  private processedSourceImage: HTMLImageElement | null = null;
+
+  // Loader overlay shown during long-running operations like rotating
+  // a huge image. Mounted/removed on the wrapperEl.
+  private loaderEl: HTMLDivElement | null = null;
+
   constructor(container: HTMLElement, config?: Partial<RpEditorConfig>) {
     super();
     this.container = container;
@@ -86,6 +102,15 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
 
       // Load image into Fabric.js
       await this.loadImageOntoCanvas(dataUrl);
+
+      // Fresh image — establish the rotation baseline at cum=0
+      this.cumulativeRotation = 0;
+      this.rotationImageBaseline = null;
+
+      // Cache the decoded source image for fast rotations.
+      this.processedSourceImage = await this.loadHtmlImage(dataUrl).catch(
+        () => null,
+      );
 
       // Initialize modules
       this.initializeModules();
@@ -234,8 +259,12 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     const { dataUrl } = await processImage(this.originalImageBlob, this.config.maxResolution);
     this.fabricCanvas.clear();
     await this.loadImageOntoCanvas(dataUrl);
+    this.processedSourceImage = await this.loadHtmlImage(dataUrl).catch(
+      () => null,
+    );
     this.zoomLevel = 1;
     this.cumulativeRotation = 0;
+    this.rotationImageBaseline = null;
     this.fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
     this.historyModule?.initialize();
     this.setMode('move');
@@ -429,6 +458,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   destroy(): void {
     this.isDestroyed = true;
     this.deactivateCurrentMode();
+    this.hideLoader();
     this.toolbar?.destroy();
     this.fabricCanvas?.dispose();
     this.removeAllListeners();
@@ -441,6 +471,8 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.fabricCanvas = null;
     this.baseImage = null;
     this.originalImageBlob = null;
+    this.processedSourceImage = null;
+    this.rotationImageBaseline = null;
     this.cropModule = null;
     this.drawModule = null;
     this.textModule = null;
@@ -519,59 +551,88 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   private async loadImageOntoCanvas(dataUrl: string): Promise<void> {
     return new Promise((resolve, reject) => {
       fabric.Image.fromURL(dataUrl, (img: fabric.Image) => {
-        if (!img || !this.fabricCanvas || !this.wrapperEl) {
+        if (!img) {
           reject(new Error('Failed to load image onto canvas'));
           return;
         }
-
-        // Mark as base image (not an annotation)
-        (img as any)._rpBaseImage = true;
-        img.selectable = false;
-        img.evented = false;
-
-        // Calculate the available space in the wrapper
-        const wrapperRect = this.wrapperEl.getBoundingClientRect();
-        const availW = Math.floor(wrapperRect.width) || 800;
-        const availH = Math.floor(wrapperRect.height) || 500;
-        const imgW = img.width || availW;
-        const imgH = img.height || availH;
-
-        // Scale image to fit within the available area (uniform scale)
-        const scale = Math.min(availW / imgW, availH / imgH, 1);
-        const displayW = Math.round(imgW * scale);
-        const displayH = Math.round(imgH * scale);
-
-        // Resize the Fabric canvas to exactly match the scaled image
-        this.fabricCanvas.setWidth(displayW);
-        this.fabricCanvas.setHeight(displayH);
-
-        // Place image at origin with explicit scaleX/scaleY (avoid
-        // scaleToWidth/scaleToHeight which both do uniform scaling
-        // and the second call overrides the first).
-        img.set({
-          left: 0,
-          top: 0,
-          originX: 'left',
-          originY: 'top',
-          scaleX: displayW / imgW,
-          scaleY: displayH / imgH,
-        });
-
-        // Remove old base image if exists
-        const oldBase = this.fabricCanvas.getObjects().find(
-          (o: any) => o._rpBaseImage
-        );
-        if (oldBase) {
-          this.fabricCanvas.remove(oldBase);
+        try {
+          this.installBaseImage(img);
+          resolve();
+        } catch (err) {
+          reject(err as Error);
         }
-
-        this.baseImage = img;
-        this.fabricCanvas.add(img);
-        img.sendToBack();
-        this.fabricCanvas.renderAll();
-        resolve();
       }, { crossOrigin: 'anonymous' });
     });
+  }
+
+  /**
+   * Fast path used by `rotate()`: skip the PNG `toDataURL` + re-decode
+   * roundtrip by handing an already-rendered HTML element (image or
+   * canvas) straight to Fabric. On 10–15 MB photos this cuts ~hundreds
+   * of ms per rotation vs. going through a data URL.
+   */
+  private loadImageElementOntoCanvas(
+    element: HTMLImageElement | HTMLCanvasElement,
+  ): void {
+    const img = new fabric.Image(element as any, { crossOrigin: 'anonymous' });
+    this.installBaseImage(img);
+  }
+
+  /**
+   * Shared mount logic: size the canvas to the wrapper, place the image
+   * at the origin with an explicit uniform scale, and replace any prior
+   * base image while leaving annotations intact.
+   */
+  private installBaseImage(img: fabric.Image): void {
+    if (!this.fabricCanvas || !this.wrapperEl) {
+      throw new Error('Editor canvas not initialized');
+    }
+
+    // Mark as base image (not an annotation)
+    (img as any)._rpBaseImage = true;
+    img.selectable = false;
+    img.evented = false;
+
+    // Calculate the available space in the wrapper
+    const wrapperRect = this.wrapperEl.getBoundingClientRect();
+    const availW = Math.floor(wrapperRect.width) || 800;
+    const availH = Math.floor(wrapperRect.height) || 500;
+    const imgW = img.width || availW;
+    const imgH = img.height || availH;
+
+    // Scale image to fit within the available area (uniform scale)
+    const scale = Math.min(availW / imgW, availH / imgH, 1);
+    const displayW = Math.round(imgW * scale);
+    const displayH = Math.round(imgH * scale);
+
+    // Resize the Fabric canvas to exactly match the scaled image
+    this.fabricCanvas.setWidth(displayW);
+    this.fabricCanvas.setHeight(displayH);
+
+    // Place image at origin with explicit scaleX/scaleY (avoid
+    // scaleToWidth/scaleToHeight which both do uniform scaling
+    // and the second call overrides the first).
+    img.set({
+      left: 0,
+      top: 0,
+      originX: 'left',
+      originY: 'top',
+      scaleX: displayW / imgW,
+      scaleY: displayH / imgH,
+    });
+
+    // Remove old base image if exists
+    const oldBase = this.fabricCanvas.getObjects().find(
+      (o: any) => o._rpBaseImage,
+    );
+    if (oldBase) {
+      this.fabricCanvas.remove(oldBase);
+    }
+
+    this.baseImage = img;
+    this.fabricCanvas.add(img);
+    img.sendToBack();
+    this.fabricCanvas.renderAll();
   }
 
   private initializeModules(): void {
@@ -748,6 +809,16 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     // every tail in the new coordinate system.
     this.calloutModule?.refreshAllTails();
 
+    // Crop replaced the base image, so any cached rotation baselines
+    // (per-annotation or image-level) no longer correspond to a real
+    // unrotated state. Reset rotation tracking so the next rotate()
+    // captures a fresh baseline against the cropped image.
+    this.cumulativeRotation = 0;
+    this.rotationImageBaseline = null;
+    for (const obj of oldAnnotations) {
+      delete (obj as any)._rpRotBaseline;
+    }
+
     this.zoomLevel = 1;
     this.fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
     this.fabricCanvas.requestRenderAll();
@@ -803,50 +874,296 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   private async rotate(degrees: number): Promise<void> {
     if (!this.fabricCanvas || !this.originalImageBlob) return;
 
-    // Accumulate rotation — always rotate from the original image so
-    // repeated rotations never cause progressive quality/size loss.
-    this.cumulativeRotation = ((this.cumulativeRotation + degrees) % 360 + 360) % 360;
+    this.showLoader();
+    // Yield to the browser so the loader actually paints BEFORE the
+    // heavy synchronous work (canvas resize, large drawImage, Fabric
+    // render) blocks the main thread.
+    await this.nextPaint();
+    try {
+      await this.rotateInternal(degrees);
+    } finally {
+      this.hideLoader();
+    }
+  }
+
+  private async rotateInternal(degrees: number): Promise<void> {
+    if (!this.fabricCanvas || !this.originalImageBlob) return;
+
+    // Pre-rotation cumulative angle and new cumulative angle. We always
+    // rotate from the ORIGINAL image so repeated rotations never cause
+    // progressive quality loss, but annotations are positioned from a
+    // fixed baseline by the FULL cumulative angle to avoid drift.
+    const prevCum = this.cumulativeRotation;
+    const newCum = (((prevCum + degrees) % 360) + 360) % 360;
 
     this.deactivateCurrentMode();
 
-    // Process original image (HEIC conversion, EXIF correction, downscale)
-    const { dataUrl } = await processImage(this.originalImageBlob, this.config.maxResolution);
+    // Snapshot existing annotations BEFORE the canvas swap. We DO NOT
+    // call canvas.clear() — that would wipe every annotation.
+    const oldAnnotations = this.fabricCanvas.getObjects().filter(
+      (o: any) => o._rpAnnotation,
+    );
 
-    if (this.cumulativeRotation === 0) {
-      // Full circle — just reload the original
-      this.fabricCanvas.clear();
-      this.fabricCanvas.backgroundColor = 'transparent';
-      await this.loadImageOntoCanvas(dataUrl);
+    // Capture old base-image geometry (canvas-pixel space) so we can
+    // convert each annotation's CURRENT state back to its cum=0
+    // baseline (the very first time we see it).
+    const oldGeom = this.computeImageGeometry();
+
+    // The very first rotation after load/reset/crop establishes the
+    // image baseline. At that moment prevCum is 0, so the current
+    // image geometry IS the cum=0 geometry.
+    if (this.rotationImageBaseline === null) {
+      this.rotationImageBaseline = { ...oldGeom };
+    }
+
+    // Ensure every annotation has a `_rpRotBaseline` capturing its
+    // state at cum=0.
+    for (const obj of oldAnnotations) {
+      const anyObj = obj as any;
+      if (anyObj._rpRotBaseline) continue;
+      anyObj._rpRotBaseline = this.computeRotationBaseline(
+        obj as fabric.Object,
+        prevCum,
+        oldGeom,
+      );
+    }
+
+    // Commit the new cumulative angle.
+    this.cumulativeRotation = newCum;
+
+    // Resolve the source image to rotate from. We cache the decoded
+    // copy across rotations so we don't re-run processImage (HEIC, EXIF
+    // correction, downscale) + re-decode the bytes every step.
+    let sourceImg = this.processedSourceImage;
+    if (!sourceImg) {
+      const { dataUrl } = await processImage(
+        this.originalImageBlob,
+        this.config.maxResolution,
+      );
+      sourceImg = await this.loadHtmlImage(dataUrl);
+      this.processedSourceImage = sourceImg;
+    }
+
+    this.fabricCanvas.backgroundColor = 'transparent';
+
+    if (newCum === 0) {
+      // Full circle — reload the cached source directly (no PNG roundtrip).
+      this.loadImageElementOntoCanvas(sourceImg);
     } else {
-      // Rotate from original by the cumulative angle
-      const img = await this.loadHtmlImage(dataUrl);
+      // Render the rotated copy onto an off-screen canvas, then hand
+      // the canvas STRAIGHT to Fabric (skip toDataURL/decode roundtrip
+      // — saves hundreds of ms on large photos).
       const rotCanvas = document.createElement('canvas');
-
-      const radians = (this.cumulativeRotation * Math.PI) / 180;
+      const radians = (newCum * Math.PI) / 180;
       const absCos = Math.abs(Math.cos(radians));
       const absSin = Math.abs(Math.sin(radians));
-      rotCanvas.width = Math.ceil(img.width * absCos + img.height * absSin);
-      rotCanvas.height = Math.ceil(img.width * absSin + img.height * absCos);
+      rotCanvas.width = Math.ceil(
+        sourceImg.width * absCos + sourceImg.height * absSin,
+      );
+      rotCanvas.height = Math.ceil(
+        sourceImg.width * absSin + sourceImg.height * absCos,
+      );
 
       const ctx = rotCanvas.getContext('2d')!;
       ctx.translate(rotCanvas.width / 2, rotCanvas.height / 2);
       ctx.rotate(radians);
-      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+      ctx.drawImage(sourceImg, -sourceImg.width / 2, -sourceImg.height / 2);
 
-      const rotatedDataUrl = rotCanvas.toDataURL('image/png');
-      rotCanvas.width = 1;
-      rotCanvas.height = 1;
-
-      this.fabricCanvas.clear();
-      this.fabricCanvas.backgroundColor = 'transparent';
-      await this.loadImageOntoCanvas(rotatedDataUrl);
+      this.loadImageElementOntoCanvas(rotCanvas);
     }
+
+    // Post-load image geometry.
+    const newGeom = this.computeImageGeometry();
+
+    // Apply the FULL cumulative rotation to every annotation, sourced
+    // from its fixed baseline — no per-step accumulation.
+    const radNew = (newCum * Math.PI) / 180;
+    const cosA = Math.cos(radNew);
+    const sinA = Math.sin(radNew);
+    const baseline = this.rotationImageBaseline!;
+    const factor = baseline.scale > 0 ? newGeom.scale / baseline.scale : 1;
+
+    for (const obj of oldAnnotations) {
+      this.applyRotationFromBaseline(
+        obj as fabric.Object,
+        baseline,
+        newGeom,
+        cosA,
+        sinA,
+        factor,
+        newCum,
+      );
+    }
+
+    // Callouts render their tail onto an off-screen canvas sized to
+    // the main canvas. Repaint every tail in the new coordinate system.
+    this.calloutModule?.refreshAllTails();
 
     this.zoomLevel = 1;
     this.fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+    this.fabricCanvas.requestRenderAll();
 
     this.historyModule?.saveState();
     this.setMode('move');
+  }
+
+  /**
+   * Visual center + uniform display scale of the current base image
+   * in canvas-pixel space.
+   */
+  private computeImageGeometry(): { cx: number; cy: number; scale: number } {
+    if (!this.fabricCanvas) return { cx: 0, cy: 0, scale: 1 };
+    if (!this.baseImage) {
+      return {
+        cx: this.fabricCanvas.getWidth() / 2,
+        cy: this.fabricCanvas.getHeight() / 2,
+        scale: 1,
+      };
+    }
+    const scale = (this.baseImage as any).scaleX || 1;
+    const scaleY = (this.baseImage as any).scaleY || scale;
+    const dispW = (this.baseImage.width || 0) * scale;
+    const dispH = (this.baseImage.height || 0) * scaleY;
+    return {
+      cx: (this.baseImage.left || 0) + dispW / 2,
+      cy: (this.baseImage.top || 0) + dispH / 2,
+      scale,
+    };
+  }
+
+  /**
+   * Build a baseline snapshot describing the annotation as it would
+   * appear at cumulativeRotation === 0. If `prevCum` is non-zero the
+   * snapshot is recovered by inverse-rotating the object's current
+   * state around the current image center.
+   *
+   * Stored fields depend on the object type:
+   *   - rpArrow: endpoints in baseline canvas coords + base stroke/head sizes
+   *   - everything else: visual center + base scale + base angle
+   */
+  private computeRotationBaseline(
+    obj: fabric.Object,
+    prevCum: number,
+    oldGeom: { cx: number; cy: number; scale: number },
+  ): any {
+    const baseline = this.rotationImageBaseline!;
+    const invRad = (-prevCum * Math.PI) / 180;
+    const cosI = Math.cos(invRad);
+    const sinI = Math.sin(invRad);
+    // Scale factor: oldScale -> baselineScale (i.e. shrink/grow back to
+    // canvas-size at cum=0).
+    const invFactor = oldGeom.scale > 0 ? baseline.scale / oldGeom.scale : 1;
+
+    const mapBack = (px: number, py: number): { x: number; y: number } => {
+      const dx = (px - oldGeom.cx) * invFactor;
+      const dy = (py - oldGeom.cy) * invFactor;
+      const rx = dx * cosI - dy * sinI;
+      const ry = dx * sinI + dy * cosI;
+      return { x: baseline.cx + rx, y: baseline.cy + ry };
+    };
+
+    const anyObj = obj as any;
+
+    if (obj.type === 'rpArrow') {
+      const p1 = mapBack(anyObj.x1, anyObj.y1);
+      const p2 = mapBack(anyObj.x2, anyObj.y2);
+      return {
+        kind: 'arrow',
+        x1: p1.x,
+        y1: p1.y,
+        x2: p2.x,
+        y2: p2.y,
+        strokeWidth: (anyObj.strokeWidth || 1) * invFactor,
+        arrowheadSize: (anyObj.arrowheadSize || 14) * invFactor,
+      };
+    }
+
+    const c = obj.getCenterPoint();
+    const baseCenter = mapBack(c.x, c.y);
+    return {
+      kind: 'generic',
+      cx: baseCenter.x,
+      cy: baseCenter.y,
+      scaleX: (obj.scaleX || 1) * invFactor,
+      scaleY: (obj.scaleY || 1) * invFactor,
+      angle: ((obj.angle || 0) - prevCum + 360) % 360,
+    };
+  }
+
+  /**
+   * Position one annotation by rotating its baseline state by the FULL
+   * cumulative angle around the baseline image center, then mapping
+   * into the new image center + scale.
+   *
+   * Callout pieces (box/border/label/anchor) keep angle=0 so the
+   * axis-aligned tail-rendering logic keeps working and labels stay
+   * readable. The callout-tail object is regenerated by
+   * `refreshAllTails`, so we leave it alone here.
+   */
+  private applyRotationFromBaseline(
+    obj: fabric.Object,
+    baseline: { cx: number; cy: number; scale: number },
+    newGeom: { cx: number; cy: number; scale: number },
+    cosA: number,
+    sinA: number,
+    factor: number,
+    newCum: number,
+  ): void {
+    const anyObj = obj as any;
+
+    if (anyObj._rpType === 'callout-tail') {
+      return;
+    }
+
+    const b = anyObj._rpRotBaseline;
+    if (!b) return;
+
+    const mapForward = (px: number, py: number): { x: number; y: number } => {
+      const dx = px - baseline.cx;
+      const dy = py - baseline.cy;
+      const rx = dx * cosA - dy * sinA;
+      const ry = dx * sinA + dy * cosA;
+      return {
+        x: newGeom.cx + rx * factor,
+        y: newGeom.cy + ry * factor,
+      };
+    };
+
+    if (b.kind === 'arrow') {
+      const p1 = mapForward(b.x1, b.y1);
+      const p2 = mapForward(b.x2, b.y2);
+      anyObj.x1 = p1.x;
+      anyObj.y1 = p1.y;
+      anyObj.x2 = p2.x;
+      anyObj.y2 = p2.y;
+      anyObj.strokeWidth = b.strokeWidth * factor;
+      anyObj.arrowheadSize = b.arrowheadSize * factor;
+      anyObj._updateBBox?.();
+      anyObj._lastLeft = anyObj.left;
+      anyObj._lastTop = anyObj.top;
+      anyObj.setCoords();
+      return;
+    }
+
+    const isCalloutPiece = typeof anyObj._rpType === 'string'
+      && anyObj._rpType.startsWith('callout');
+
+    obj.set({
+      scaleX: b.scaleX * factor,
+      scaleY: b.scaleY * factor,
+    });
+
+    if (!isCalloutPiece) {
+      obj.set({ angle: ((b.angle + newCum) % 360 + 360) % 360 });
+    }
+
+    const newCenter = mapForward(b.cx, b.cy);
+    obj.setPositionByOrigin(
+      new fabric.Point(newCenter.x, newCenter.y),
+      'center',
+      'center',
+    );
+    obj.setCoords();
   }
 
   private setupGestureHandlers(): void {
@@ -1015,5 +1332,79 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   private async base64ToBlob(base64: string, mimeType: string): Promise<Blob> {
     const response = await fetch(base64);
     return response.blob();
+  }
+
+  /**
+   * Show a translucent overlay with a spinner on top of the canvas
+   * wrapper. Used while a slow op (e.g. rotating a very large photo)
+   * is in flight so the UI feels responsive instead of frozen.
+   */
+  private showLoader(): void {
+    if (!this.wrapperEl || this.loaderEl) return;
+    const overlay = document.createElement('div');
+    overlay.className = 'rp-editor-loader';
+    overlay.style.cssText = [
+      'position:absolute',
+      'inset:0',
+      'display:flex',
+      'align-items:center',
+      'justify-content:center',
+      'background:rgba(255,255,255,0.55)',
+      'backdrop-filter:blur(2px)',
+      '-webkit-backdrop-filter:blur(2px)',
+      'z-index:9999',
+      'pointer-events:all',
+      'cursor:progress',
+    ].join(';');
+
+    const spinner = document.createElement('div');
+    spinner.style.cssText = [
+      'width:36px',
+      'height:36px',
+      'border:3px solid rgba(0,0,0,0.15)',
+      'border-top-color:#4a90d9',
+      'border-radius:50%',
+      'animation:rp-editor-spin 0.8s linear infinite',
+    ].join(';');
+
+    // Inject keyframes once.
+    if (!document.getElementById('rp-editor-spin-style')) {
+      const style = document.createElement('style');
+      style.id = 'rp-editor-spin-style';
+      style.textContent =
+        '@keyframes rp-editor-spin{to{transform:rotate(360deg)}}';
+      document.head.appendChild(style);
+    }
+
+    overlay.appendChild(spinner);
+    // Make sure the wrapper is the positioning context.
+    const computed = getComputedStyle(this.wrapperEl);
+    if (computed.position === 'static') {
+      this.wrapperEl.style.position = 'relative';
+    }
+    this.wrapperEl.appendChild(overlay);
+    this.loaderEl = overlay;
+  }
+
+  private hideLoader(): void {
+    if (this.loaderEl) {
+      this.loaderEl.remove();
+      this.loaderEl = null;
+    }
+  }
+
+  /**
+   * Resolve after the next paint so an overlay added immediately
+   * before this call is actually visible before subsequent heavy
+   * synchronous work blocks the main thread.
+   */
+  private nextPaint(): Promise<void> {
+    return new Promise((resolve) => {
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      } else {
+        setTimeout(resolve, 16);
+      }
+    });
   }
 }

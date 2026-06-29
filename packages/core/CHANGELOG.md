@@ -2,6 +2,26 @@
 
 All notable changes to `@rageshpikalmunde/rp-image-editor` will be documented in this file.
 
+## [1.2.0] — 2026-06-29
+
+### Added
+- **Annotations preserved across rotate** — rotating the base image no longer wipes drawings, text, shapes, or callouts. All annotations are re-anchored to the rotated image using a fixed-baseline transform so they stay visually locked to the underlying pixels.
+- **No-drift cumulative rotation** — each annotation now stores a one-time rotation baseline. Every rotate applies the full cumulative angle from that baseline instead of compounding per-step deltas, so annotations no longer drift after multiple 360°+ rotations.
+- **Loader overlay on rotate** — a lightweight spinner overlay (`showLoader()` / `hideLoader()`) is shown while a rotation is in progress so heavy images (10–15 MB+) provide immediate visual feedback. A double `requestAnimationFrame` yield (`nextPaint()`) ensures the overlay actually paints before the synchronous render work starts.
+- **Auto-contrast theme foregrounds** — `mergeConfig()` now derives `headerTextColor`, `toolbarIconColor`, and `cancelButtonTextColor` from the paired background's WCAG relative luminance whenever the caller supplies a custom background but omits the foreground. Eliminates the "invisible dark icons on dark toolbar" trap. Explicit user overrides always win.
+
+### Changed
+- Rotation now skips the `toDataURL('image/png')` + Fabric re-decode round trip. The rotated `HTMLCanvasElement` is passed directly into `new fabric.Image()` and a cached `processedSourceImage` is reused, making rotation dramatically faster on large images.
+- `loadImageOntoCanvas()` refactored to share an `installBaseImage()` helper with the new `loadImageElementOntoCanvas()` fast path.
+- `applyCrop()` now resets `cumulativeRotation`, `rotationImageBaseline`, and per-annotation `_rpRotBaseline` so post-crop rotations start from a clean baseline.
+- Dark-theme polish for the toolbar UI: crop ratio chips, Cancel chip, and Size label use brighter idle borders (`rgba(255,255,255,0.55)`), a faint idle background plate (`rgba(255,255,255,0.08)`), and `font-weight: 600`. Toolbar SVG `stroke-width` bumped from `2` to `2.2` (only when `stroke="currentColor"`) so icons read clearly on dark backgrounds while staying neutral on light themes.
+
+### Fixed
+- Annotations being deleted when the image is rotated (regression from the v1.1.0 rotate pipeline).
+- Annotations visually orbiting their corner instead of their center after rotation (now uses `obj.getCenterPoint()` + `setPositionByOrigin(..., 'center', 'center')`).
+- Cumulative floating-point drift of annotations after rotating past 360° multiple times.
+- Toolbar icons invisible when callers customize `toolbarBackground` without also setting `toolbarIconColor`.
+
 ## [1.1.0] — 2026-06-09
 
 ### Added

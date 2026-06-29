@@ -187,19 +187,61 @@ export class CropModule {
   }
 
   /**
-   * Set the crop aspect ratio
+   * Set the crop aspect ratio.
+   *
+   * Bug fix: previously this kept the current rect width and derived
+   * `height = width / ratio` without checking whether the derived height
+   * still fit inside the image bounds. Picking e.g. 4:3 on a 16:9 photo
+   * produced a rect that overflowed the image vertically — `constrainCropRect`
+   * only clamps position, not size, so the overflow stayed and `Apply Crop`
+   * exported an image with blank strips. The result didn't look like the
+   * chosen aspect ratio.
+   *
+   * Now we shrink (w, h) proportionally so BOTH dimensions fit the image
+   * while exactly matching `ratio`, and we re-centre the rect on its
+   * previous centre so changing the ratio feels stable.
    */
   setAspectRatio(ratio: number | null): void {
     this.aspectRatio = ratio;
     if (this.cropRect && ratio !== null) {
-      const currentW = this.cropRect.width! * (this.cropRect.scaleX || 1);
-      const newH = currentW / ratio;
+      const bounds = this.getImageBounds();
+
+      // Start from current rect width and derive a matching height.
+      let newW = this.cropRect.width! * (this.cropRect.scaleX || 1);
+      let newH = newW / ratio;
+
+      // Fit (newW, newH) inside the image bounds while preserving the ratio.
+      if (newW > bounds.width) {
+        newW = bounds.width;
+        newH = newW / ratio;
+      }
+      if (newH > bounds.height) {
+        newH = bounds.height;
+        newW = newH * ratio;
+      }
+
+      // Keep the rect roughly centred on its previous centre.
+      const prevCx = (this.cropRect.left ?? 0)
+        + (this.cropRect.width! * (this.cropRect.scaleX || 1)) / 2;
+      const prevCy = (this.cropRect.top ?? 0)
+        + (this.cropRect.height! * (this.cropRect.scaleY || 1)) / 2;
+
       this.cropRect.set({
+        left: prevCx - newW / 2,
+        top: prevCy - newH / 2,
+        width: newW,
         height: newH,
         scaleX: 1,
         scaleY: 1,
-        width: currentW,
       });
+
+      // Hide side handles while a ratio is locked — only corner handles
+      // can keep the ratio consistent. Side drags would otherwise appear
+      // broken because `constrainCropScale` snaps the rect back to ratio.
+      this.cropRect.setControlsVisibility({
+        mt: false, mb: false, ml: false, mr: false,
+      });
+
       this.constrainCropRect();
       this.canvas.renderAll();
     } else if (this.cropRect) {

@@ -9,7 +9,7 @@ A lightweight, framework-agnostic image editor plugin built with Fabric.js.
 - **Free crop** and aspect-ratio locked crop — annotations are preserved across crops
 - **Zoom in/out** with pinch-to-zoom gesture support
 - **Drag/pan** image inside the viewport
-- **Rotate** left/right in 45° steps (lossless cumulative rotation from original)
+- **Rotate** left/right in 45° steps — annotations (drawings, text, shapes, callouts) are preserved and stay locked to the underlying pixels, with no cumulative drift past 360°. Fast path skips PNG re-encoding so large 10–15 MB+ images rotate quickly, and a loader overlay is shown while heavy renders are in progress.
 - **Freehand draw** with configurable brush color & width
 - **Add text** with inline editing, color, and font size
 - **Predefined shapes** — Circle (proportion-locked), Ellipse (independent w/h), Square (proportion-locked), and Arrow (with editable start/end endpoints). All shapes are draggable, resizable, undo/redo-able, and erasable.
@@ -22,7 +22,7 @@ A lightweight, framework-agnostic image editor plugin built with Fabric.js.
 - **EXIF orientation** — auto-corrects rotated photos
 - **Smart resolution** — auto-downscales on iOS to stay within Safari canvas limits
 - **Touch gestures** — pinch zoom, drag, tap on mobile
-- **Theming** — fully customizable colors for header, footer, buttons, toolbar
+- **Theming** — fully customizable colors for header, footer, buttons, toolbar. Auto-contrast: when you customize a background without setting its paired text/icon color, a readable foreground is derived from the background's luminance, so dark themes never end up with invisible icons.
 - **Output** — Base64, Blob, and File object
 
 ## Packages

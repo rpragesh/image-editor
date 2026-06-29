@@ -278,8 +278,16 @@ export class Toolbar {
     this.applyBtnStyle(btn);
     this.applyTooltip(btn, def.title);
 
-    btn.querySelector('svg')?.setAttribute('width', '22');
-    btn.querySelector('svg')?.setAttribute('height', '22');
+    const svg = btn.querySelector('svg');
+    if (svg) {
+      svg.setAttribute('width', '22');
+      svg.setAttribute('height', '22');
+      // Bump stroke a touch — stroke-width: 2 on 22×22 looks pale on
+      // dark backgrounds. 2.2 stays crisp on light themes too.
+      if (svg.getAttribute('stroke') === 'currentColor') {
+        svg.setAttribute('stroke-width', '2.2');
+      }
+    }
 
     btn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -374,6 +382,10 @@ export class Toolbar {
 
       childBtn.querySelector('svg')?.setAttribute('width', '22');
       childBtn.querySelector('svg')?.setAttribute('height', '22');
+      const childSvg = childBtn.querySelector('svg');
+      if (childSvg && childSvg.getAttribute('stroke') === 'currentColor') {
+        childSvg.setAttribute('stroke-width', '2.2');
+      }
 
       childBtn.addEventListener('click', (e) => {
         e.preventDefault();
@@ -523,7 +535,7 @@ export class Toolbar {
 
       const label = document.createElement('span');
       label.textContent = 'Size:';
-      label.style.cssText = `color: ${this.theme.toolbarIconColor || '#fff'}; font-size: 12px;`;
+      label.style.cssText = `color: ${this.theme.toolbarIconColor || '#ffffff'}; font-size: 12px; font-weight: 600; letter-spacing: 0.2px;`;
       this.subPanelEl.appendChild(label);
 
       const slider = document.createElement('input');
@@ -586,17 +598,27 @@ export class Toolbar {
     if (!this.subPanelEl) return;
     this.subPanelEl.style.display = 'flex';
 
+    const iconColor = this.theme.toolbarIconColor || '#ffffff';
+    const activeColor = this.theme.toolbarActiveIconColor || '#4a90d9';
+    // Bump border + idle background opacity so chips stay visible on
+    // dark themes where a 0.3-alpha white border is nearly invisible.
+    const idleBorder = 'rgba(255,255,255,0.55)';
+    const idleBg = 'rgba(255,255,255,0.08)';
+
     this.cropRatios.forEach((ratio, idx) => {
       const btn = document.createElement('button');
       btn.textContent = ratio.label;
+      const isActive = idx === 0;
       btn.style.cssText = `
         padding: 6px 12px;
-        border: 1px solid rgba(255,255,255,0.3);
-        background: ${idx === 0 ? (this.theme.toolbarActiveIconColor || '#4a90d9') : 'transparent'};
-        color: ${this.theme.toolbarIconColor || '#ffffff'};
+        border: 1px solid ${isActive ? activeColor : idleBorder};
+        background: ${isActive ? activeColor : idleBg};
+        color: ${isActive ? '#ffffff' : iconColor};
         border-radius: 4px;
         cursor: pointer;
         font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.2px;
         -webkit-tap-highlight-color: transparent;
       `;
 
@@ -605,10 +627,15 @@ export class Toolbar {
         this.callbacks.onCropRatioChange(ratio.value);
         this.subPanelEl!.querySelectorAll('button').forEach((b) => {
           if (!b.classList.contains('rp-crop-action-btn')) {
-            (b as HTMLElement).style.background = 'transparent';
+            const el = b as HTMLElement;
+            el.style.background = idleBg;
+            el.style.borderColor = idleBorder;
+            el.style.color = iconColor;
           }
         });
-        btn.style.background = this.theme.toolbarActiveIconColor || '#4a90d9';
+        btn.style.background = activeColor;
+        btn.style.borderColor = activeColor;
+        btn.style.color = '#ffffff';
       });
 
       this.subPanelEl!.appendChild(btn);
@@ -641,12 +668,13 @@ export class Toolbar {
     cancelCropBtn.className = 'rp-crop-action-btn';
     cancelCropBtn.style.cssText = `
       padding: 6px 14px;
-      border: 1px solid rgba(255,255,255,0.3);
-      background: transparent;
-      color: ${this.theme.toolbarIconColor || '#ffffff'};
+      border: 1px solid ${idleBorder};
+      background: ${idleBg};
+      color: ${iconColor};
       border-radius: 4px;
       cursor: pointer;
       font-size: 12px;
+      font-weight: 600;
     `;
     cancelCropBtn.addEventListener('click', (e) => {
       e.preventDefault();

@@ -1,6 +1,6 @@
 {
   "name": "@rageshpikalmunde/rp-image-editor",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Lightweight JavaScript image editor with crop, zoom, rotate, draw, text, shapes (circle / ellipse / square / arrow), callout annotations, eraser, undo/redo. Annotations are preserved across crop. Grouped toolbar with flyout menus. Native-resolution export. Framework-agnostic — Angular, React, Vue, Ionic, Capacitor. Built on Fabric.js. HEIC, touch gestures, mobile-friendly.",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",

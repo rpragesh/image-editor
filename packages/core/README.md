@@ -5,7 +5,7 @@
 [![license](https://img.shields.io/npm/l/%40rageshpikalmunde%2Frp-image-editor.svg)](https://github.com/rpragesh/image-editor/blob/main/LICENSE)
 [![bundle size](https://img.shields.io/bundlephobia/minzip/%40rageshpikalmunde%2Frp-image-editor)](https://bundlephobia.com/package/@rageshpikalmunde/rp-image-editor)
 
-> A lightweight, framework-agnostic **JavaScript image editor** built on [Fabric.js](http://fabricjs.com/). Crop, zoom, rotate, draw, add text, **shapes (circle / ellipse / square / arrow)**, callout annotations, erase, undo/redo — all in a beautiful modal UI with grouped toolbar. Annotations are preserved across crop, and exports run at the image's native resolution by default. Works with **Angular**, **React**, **Vue**, **Ionic**, **Capacitor**, and plain JavaScript.
+> A lightweight, framework-agnostic **JavaScript image editor** built on [Fabric.js](http://fabricjs.com/). Crop, zoom, rotate, draw, add text, **shapes (circle / ellipse / square / arrow)**, callout annotations, erase, undo/redo — all in a beautiful modal UI with grouped toolbar. **Annotations are preserved across both crop and rotate** (no drift past 360°), exports run at the image's native resolution by default, and themes auto-contrast so customized backgrounds always get a readable foreground. Works with **Angular**, **React**, **Vue**, **Ionic**, **Capacitor**, and plain JavaScript.
 
 **[▶ Live Demo](https://rpragesh.github.io/image-editor/)** — Try it in your browser!
 
@@ -18,7 +18,7 @@
 | ✂️ **Crop** | Free crop and aspect-ratio locked crop — annotations are preserved across crops |
 | 🔍 **Zoom** | Zoom in/out with pinch-to-zoom gesture support |
 | 🖐️ **Pan/Drag** | Drag image inside the viewport |
-| 🔄 **Rotate** | Rotate left/right by 45° steps (lossless cumulative rotation) |
+| 🔄 **Rotate** | Rotate left/right by 45° steps. Annotations are preserved across rotations and stay locked to the underlying pixels (no drift past 360°). Fast path skips PNG re-encoding so large 10–15 MB+ images rotate quickly; a loader overlay is shown during heavy renders. |
 | ✏️ **Freehand Draw** | Configurable brush color & width |
 | 🔤 **Add Text** | Inline editing with color and font size |
 | ⭕ **Shapes** | Circle, Ellipse, Square and Arrow primitives with resize handles. Circle/Square stay proportional, Ellipse resizes freely, Arrow has draggable start/end endpoints |
@@ -34,7 +34,7 @@
 | 📐 **EXIF Orientation** | Auto-corrects rotated photos |
 | ⚡ **Smart Resolution** | Auto-downscales on iOS to stay within Safari canvas limits |
 | 👆 **Touch Gestures** | Pinch zoom, drag, tap on mobile |
-| 🎨 **Theming** | Fully customizable colors for header, footer, buttons, toolbar |
+| 🎨 **Theming** | Fully customizable colors for header, footer, buttons, toolbar. Auto-contrast: customized backgrounds without an explicit text/icon color get a readable foreground derived from luminance. |
 | 📦 **Output** | Base64, Blob, and File object |
 
 ## Installation
@@ -211,6 +211,13 @@ The toolbar is organized into compact items with flyout menus:
 | **Reset** | Standalone | Reset to original image |
 
 ## Theming
+
+All theme tokens are optional. When you customize a background (`headerBackground`,
+`toolbarBackground`, or `footerBackground`) but do **not** set its paired foreground
+(`headerTextColor`, `toolbarIconColor`, `cancelButtonTextColor`), the editor will
+automatically derive a readable foreground from the background's WCAG relative
+luminance — dark backgrounds get white text/icons, light backgrounds get dark.
+Explicit overrides always win.
 
 ```typescript
 const result = await openEditorModal({

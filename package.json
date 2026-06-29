@@ -25,6 +25,6 @@
     "esbuild": "^0.27.4"
   },
   "dependencies": {
-    "@rageshpikalmunde/rp-image-editor": "^1.0.0"
+    "@rageshpikalmunde/rp-image-editor": "^1.2.0"
   }
 }

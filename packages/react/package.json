@@ -1,6 +1,6 @@
 {
   "name": "@rageshpikalmunde/rp-image-editor-react",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "React wrapper for rp-image-editor — use inside Ionic+React apps",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -34,7 +34,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@rageshpikalmunde/rp-image-editor": "^1.1.0"
+    "@rageshpikalmunde/rp-image-editor": "^1.2.0"
   },
   "peerDependencies": {
     "react": ">=17.0.0",
