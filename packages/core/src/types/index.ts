@@ -86,6 +86,24 @@ export interface RpEditorTheme {
   editorBackground?: string;
   toolbarBackground?: string;
   toolbarIconColor?: string;
+  /**
+   * Background color of the selected/active toolbar button.
+   * Defaults to `#1976d2`. Choose a color with strong contrast against
+   * `toolbarBackground` so users can clearly see the current selection.
+   */
+  toolbarActiveBackground?: string;
+  /**
+   * Icon/text color used inside the active toolbar button.
+   * Defaults to `#ffffff`. If left unset while `toolbarActiveBackground`
+   * is customized, a readable foreground is auto-derived from the
+   * background luminance.
+   */
+  toolbarActiveTextColor?: string;
+  /**
+   * @deprecated Use `toolbarActiveBackground` instead. Retained for
+   * backward compatibility — when set, it is used as the active
+   * button background if `toolbarActiveBackground` is not provided.
+   */
   toolbarActiveIconColor?: string;
 
   // Footer
@@ -148,10 +166,11 @@ export type EditorMode =
   | 'shape-ellipse'
   | 'shape-square'
   | 'shape-rectangle'
-  | 'shape-arrow';
+  | 'shape-arrow'
+  | 'shape-polyline';
 
 /** Shape primitive supported by the ShapeModule */
-export type ShapeType = 'circle' | 'ellipse' | 'square' | 'rectangle' | 'arrow';
+export type ShapeType = 'circle' | 'ellipse' | 'square' | 'rectangle' | 'arrow' | 'polyline';
 
 /**
  * Event types emitted by the editor

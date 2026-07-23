@@ -206,11 +206,25 @@ export class CropModule {
     if (this.cropRect && ratio !== null) {
       const bounds = this.getImageBounds();
 
-      // Start from current rect width and derive a matching height.
-      let newW = this.cropRect.width! * (this.cropRect.scaleX || 1);
-      let newH = newW / ratio;
+      // Fit the rect to 80% of the image bounds and then constrain to
+      // the requested ratio — exactly the same recipe `activate()` uses
+      // for the initial rect. The previous approach kept the current
+      // width and derived a new height, which produced surprising
+      // "4:3 is bigger than 16:9" results on near-4:3 images (both
+      // ratios shared the 0.8·imgW width, so the taller 4:3 rect
+      // visually dwarfed the shorter 16:9 rect). Recomputing from the
+      // image bounds gives each ratio the largest rectangle that fits
+      // in 80% of the image, so switching chips feels predictable.
+      let newW = bounds.width * 0.8;
+      let newH = bounds.height * 0.8;
+      if (newW / newH > ratio) {
+        newW = newH * ratio;
+      } else {
+        newH = newW / ratio;
+      }
 
-      // Fit (newW, newH) inside the image bounds while preserving the ratio.
+      // Safety clamp in case an oddly-shaped bounds sneaks a dimension
+      // past 100% of the image.
       if (newW > bounds.width) {
         newW = bounds.width;
         newH = newW / ratio;

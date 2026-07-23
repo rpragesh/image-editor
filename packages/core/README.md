@@ -5,7 +5,7 @@
 [![license](https://img.shields.io/npm/l/%40rageshpikalmunde%2Frp-image-editor.svg)](https://github.com/rpragesh/image-editor/blob/main/LICENSE)
 [![bundle size](https://img.shields.io/bundlephobia/minzip/%40rageshpikalmunde%2Frp-image-editor)](https://bundlephobia.com/package/@rageshpikalmunde/rp-image-editor)
 
-> A lightweight, framework-agnostic **JavaScript image editor** built on [Fabric.js](http://fabricjs.com/). Crop, zoom, rotate, draw, add text, **shapes (circle / ellipse / square / arrow)**, callout annotations, erase, undo/redo — all in a beautiful modal UI with grouped toolbar. **Annotations are preserved across both crop and rotate** (no drift past 360°), exports run at the image's native resolution by default, and themes auto-contrast so customized backgrounds always get a readable foreground. Works with **Angular**, **React**, **Vue**, **Ionic**, **Capacitor**, and plain JavaScript.
+> A lightweight, framework-agnostic **JavaScript image editor** built on [Fabric.js](http://fabricjs.com/). Crop, zoom, rotate, draw, add text, **shapes (circle / ellipse / square / arrow)**, callout annotations, erase, undo/redo — all in a beautiful modal UI with grouped toolbar. **Always-on drag with a translucent ghost preview** keeps the image visible while panning and zooming. **Annotations are preserved across both crop and rotate** (no drift past 360°), exports run at the image's native resolution by default, and themes auto-contrast so customized backgrounds always get a readable foreground. Works with **Angular**, **React**, **Vue**, **Ionic**, **Capacitor**, and plain JavaScript.
 
 **[▶ Live Demo](https://rpragesh.github.io/image-editor/)** — Try it in your browser!
 
@@ -15,14 +15,14 @@
 
 | Feature | Description |
 |---|---|
-| ✂️ **Crop** | Free crop and aspect-ratio locked crop — annotations are preserved across crops |
+| ✂️ **Crop** | Free crop and aspect-ratio locked crop. Initial ratio chip matches the actual rectangle; switching ratios (e.g. 4:3 ↔ 16:9) refits into the same 80% image-bounds envelope so sizes stay consistent. Annotations are preserved across crops. |
 | 🔍 **Zoom** | Zoom in/out with pinch-to-zoom gesture support |
-| 🖐️ **Pan/Drag** | Drag image inside the viewport |
+| 🖐️ **Pan/Drag** | Always-on drag — no need to enable a tool. A translucent **ghost preview** of the image sits behind the canvas so the picture is never hidden while panning past its edges or zooming out. |
 | 🔄 **Rotate** | Rotate left/right by 45° steps. Annotations are preserved across rotations and stay locked to the underlying pixels (no drift past 360°). Fast path skips PNG re-encoding so large 10–15 MB+ images rotate quickly; a loader overlay is shown during heavy renders. |
 | ✏️ **Freehand Draw** | Configurable brush color & width |
 | 🔤 **Add Text** | Inline editing with color and font size |
 | ⭕ **Shapes** | Circle, Ellipse, Square and Arrow primitives with resize handles. Circle/Square stay proportional, Ellipse resizes freely, Arrow has draggable start/end endpoints |
-| 💬 **Callout** | Editable label with draggable tail, min-resize clamping, text constraints (40 chars, word-wrap), mobile double-tap support |
+| 💬 **Callout** | Editable label with draggable tail, min-resize clamping, text constraints (40 chars, word-wrap), mobile double-tap support. **Live color update**: picking a new color from the palette recolors the currently selected callout — same behaviour as shape/text/draw tools. |
 | 🗑️ **Delete** | Delete selected callout/annotation via toolbar trash button |
 | 🧹 **Eraser** | Remove annotations without affecting the image |
 | ↩️ **Undo/Redo** | Configurable stack depth (default: 20) |
@@ -213,11 +213,16 @@ The toolbar is organized into compact items with flyout menus:
 ## Theming
 
 All theme tokens are optional. When you customize a background (`headerBackground`,
-`toolbarBackground`, or `footerBackground`) but do **not** set its paired foreground
-(`headerTextColor`, `toolbarIconColor`, `cancelButtonTextColor`), the editor will
-automatically derive a readable foreground from the background's WCAG relative
-luminance — dark backgrounds get white text/icons, light backgrounds get dark.
-Explicit overrides always win.
+`toolbarBackground`, `toolbarActiveBackground`, or `footerBackground`) but do **not**
+set its paired foreground (`headerTextColor`, `toolbarIconColor`,
+`toolbarActiveTextColor`, `cancelButtonTextColor`), the editor will automatically
+derive a readable foreground from the background's WCAG relative luminance — dark
+backgrounds get white text/icons, light backgrounds get dark. Explicit overrides
+always win.
+
+Use `toolbarActiveBackground` to control the highlight color of the currently
+selected toolbar tool. Pick a color with strong contrast against
+`toolbarBackground` so the active tool stands out clearly to the user.
 
 ```typescript
 const result = await openEditorModal({
@@ -230,7 +235,10 @@ const result = await openEditorModal({
       editorBackground: '#000000',
       toolbarBackground: '#1a1a2e',
       toolbarIconColor: '#cccccc',
-      toolbarActiveIconColor: '#4a90d9',
+      // Highlight color for the currently selected toolbar tool.
+      // Choose a color with strong contrast against `toolbarBackground`.
+      toolbarActiveBackground: '#4a90d9',
+      toolbarActiveTextColor: '#ffffff',
       footerBackground: '#1a1a2e',
       applyButtonBackground: '#4a90d9',
       applyButtonTextColor: '#ffffff',
@@ -242,6 +250,11 @@ const result = await openEditorModal({
   },
 });
 ```
+
+> **Note:** The older `toolbarActiveIconColor` prop is still supported as an
+> alias for `toolbarActiveBackground` for backward compatibility, but new code
+> should prefer the semantically-named `toolbarActiveBackground` /
+> `toolbarActiveTextColor` pair.
 
 ## Browser Support
 

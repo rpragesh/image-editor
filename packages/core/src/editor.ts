@@ -74,6 +74,15 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   // a huge image. Mounted/removed on the wrapperEl.
   private loaderEl: HTMLDivElement | null = null;
 
+  // Translucent "ghost" copy of the base image mounted behind the
+  // Fabric canvas while in move mode. Because the Fabric canvas is
+  // sized exactly to the visible image, panning in move mode would
+  // otherwise clip the image at the canvas edge with no hint of what
+  // will be cropped away on Apply. This ghost extends beyond the
+  // canvas edges at reduced opacity so the user can see the whole
+  // photo, mirroring the dimmed backdrop the crop tool uses.
+  private ghostImageEl: HTMLImageElement | null = null;
+
   constructor(container: HTMLElement, config?: Partial<RpEditorConfig>) {
     super();
     this.container = container;
@@ -179,6 +188,9 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       case 'shape-arrow':
         this.shapeModule?.activate('arrow');
         break;
+      case 'shape-polyline':
+        this.shapeModule?.activate('polyline');
+        break;
     }
 
     this.toolbar?.setActiveMode(mode);
@@ -216,6 +228,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     }
 
     this.toolbar?.updateZoomState(clampedLevel);
+    this.updateGhostImagePosition();
     this.emit('zoom:changed', clampedLevel);
   }
 
@@ -459,6 +472,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.isDestroyed = true;
     this.deactivateCurrentMode();
     this.hideLoader();
+    this.hideGhostImage();
     this.toolbar?.destroy();
     this.fabricCanvas?.dispose();
     this.removeAllListeners();
@@ -633,6 +647,14 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.fabricCanvas.add(img);
     img.sendToBack();
     this.fabricCanvas.renderAll();
+
+    // Keep the translucent ghost preview mounted whenever we have a
+    // base image, so the user can always see what lies beyond the
+    // visible canvas after zooming/panning — regardless of the active
+    // tool. Crop mode explicitly hides it via activateCropMode().
+    if (this.currentMode !== 'crop') {
+      this.showGhostImage();
+    }
   }
 
   private initializeModules(): void {
@@ -752,11 +774,23 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.eraserModule?.deactivate();
     this.calloutModule?.deactivate();
     this.shapeModule?.deactivate();
+    // Also tear down the crop overlay (dashed rect + dimmed backdrop),
+    // otherwise switching away from crop mode — or exporting via the
+    // main Apply button while still in crop mode — leaves those
+    // decorations stuck on the canvas and baked into the output.
+    this.cropModule?.deactivate();
 
     if (this.fabricCanvas) {
       this.fabricCanvas.isDrawingMode = false;
       this.fabricCanvas.defaultCursor = 'default';
       this.fabricCanvas.selection = false;
+    }
+
+    // Restore the ghost image after leaving crop mode (crop hides it
+    // because it has its own dimmed backdrop). Any other mode we're
+    // leaving didn't touch the ghost.
+    if (this.currentMode === 'crop') {
+      this.showGhostImage();
     }
   }
 
@@ -769,7 +803,15 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
 
   private activateCropMode(): void {
     if (!this.baseImage) return;
-    this.cropModule?.activate(this.baseImage);
+    // Crop has its own dimmed backdrop covering everything outside the
+    // crop rect; the ghost would compound with that and look wrong.
+    this.hideGhostImage();
+    // The toolbar visually highlights the first configured ratio chip
+    // (see showCropRatioSelector) — apply that ratio here so the crop
+    // rect actually matches the highlighted label instead of opening
+    // as a Free crop that happens to look like the image's own ratio.
+    const initialRatio = this.config.cropAspectRatios?.[0]?.value ?? null;
+    this.cropModule?.activate(this.baseImage, initialRatio);
   }
 
   private async applyCrop(): Promise<void> {
@@ -1198,6 +1240,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
 
         this.lastPanX = clientX;
         this.lastPanY = clientY;
+        this.updateGhostImagePosition();
       }
     });
 
@@ -1217,6 +1260,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       const pointer = canvas.getPointer(opt.e, true);
       canvas.zoomToPoint(new fabric.Point(pointer.x, pointer.y), newZoom);
       this.zoomLevel = newZoom; this.toolbar?.updateZoomState(newZoom); this.emit('zoom:changed', newZoom);
+      this.updateGhostImagePosition();
 
       opt.e.preventDefault();
       opt.e.stopPropagation();
@@ -1261,6 +1305,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
           this.zoomLevel = newZoom;
           this.toolbar?.updateZoomState(newZoom);
           this.emit('zoom:changed', newZoom);
+          this.updateGhostImagePosition();
         }
         this.lastPinchDistance = dist;
         e.preventDefault();
@@ -1307,6 +1352,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
         });
 
         this.fabricCanvas.renderAll();
+        this.refreshGhostImage();
       }
     });
 
@@ -1318,6 +1364,11 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.baseImage = this.fabricCanvas.getObjects().find(
       (o: any) => o._rpBaseImage
     ) as fabric.Image || null;
+    // Undo/redo swaps the base image object out from under us — rebuild
+    // the ghost so it reflects the restored state.
+    if (this.currentMode !== 'crop') {
+      this.refreshGhostImage();
+    }
   }
 
   private loadHtmlImage(src: string): Promise<HTMLImageElement> {
@@ -1391,6 +1442,136 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       this.loaderEl.remove();
       this.loaderEl = null;
     }
+  }
+
+  /**
+   * Mount a translucent copy of the current base image in the wrapper,
+   * positioned to align with the on-canvas image. Because the Fabric
+   * canvas is sized exactly to the visible image, this "ghost" is what
+   * makes the parts of the image panned outside the canvas still
+   * visible (faded) in move mode — giving the user a preview of what
+   * will be cropped away on Apply, similar to the crop tool's dimmed
+   * backdrop.
+   */
+  private showGhostImage(): void {
+    if (!this.wrapperEl || !this.baseImage) return;
+    this.hideGhostImage();
+
+    const el = this.baseImage.getElement() as
+      | HTMLImageElement
+      | HTMLCanvasElement
+      | undefined;
+    if (!el) return;
+
+    let src: string;
+    try {
+      if (el instanceof HTMLCanvasElement) {
+        src = el.toDataURL();
+      } else {
+        src = (el as HTMLImageElement).src;
+      }
+    } catch {
+      // Tainted canvas or missing element — skip the ghost rather than crash.
+      return;
+    }
+    if (!src) return;
+
+    const ghost = document.createElement('img');
+    ghost.src = src;
+    ghost.draggable = false;
+    ghost.alt = '';
+    ghost.className = 'rp-editor-ghost-image';
+    ghost.style.cssText = [
+      'position:absolute',
+      'top:0',
+      'left:0',
+      'pointer-events:none',
+      'opacity:0.28',
+      'z-index:0',
+      'transform-origin:top left',
+      '-webkit-user-select:none',
+      'user-select:none',
+      '-webkit-user-drag:none',
+    ].join(';');
+
+    // Ensure the Fabric canvas-container renders above the ghost.
+    const fabricContainer = this.wrapperEl.querySelector(
+      '.canvas-container',
+    ) as HTMLElement | null;
+    if (fabricContainer) {
+      if (getComputedStyle(fabricContainer).position === 'static') {
+        fabricContainer.style.position = 'relative';
+      }
+      fabricContainer.style.zIndex = '1';
+    }
+
+    if (getComputedStyle(this.wrapperEl).position === 'static') {
+      this.wrapperEl.style.position = 'relative';
+    }
+
+    this.wrapperEl.insertBefore(ghost, this.wrapperEl.firstChild);
+    this.ghostImageEl = ghost;
+    this.updateGhostImagePosition();
+  }
+
+  private hideGhostImage(): void {
+    if (this.ghostImageEl) {
+      this.ghostImageEl.remove();
+      this.ghostImageEl = null;
+    }
+  }
+
+  /**
+   * Rebuild the ghost image (source + position) — used when the base
+   * image changes (undo/redo, resize) while move mode is active.
+   */
+  private refreshGhostImage(): void {
+    if (!this.ghostImageEl) return;
+    this.showGhostImage();
+  }
+
+  /**
+   * Keep the ghost image aligned with the on-canvas image after any
+   * pan, zoom, or wrapper resize.
+   */
+  private updateGhostImagePosition(): void {
+    if (
+      !this.ghostImageEl ||
+      !this.wrapperEl ||
+      !this.fabricCanvas ||
+      !this.baseImage
+    ) {
+      return;
+    }
+    const wrapperRect = this.wrapperEl.getBoundingClientRect();
+    const canvasW = this.fabricCanvas.getWidth();
+    const canvasH = this.fabricCanvas.getHeight();
+    // The Fabric canvas is centered inside the wrapper via flex.
+    const canvasLeft = Math.max(0, (wrapperRect.width - canvasW) / 2);
+    const canvasTop = Math.max(0, (wrapperRect.height - canvasH) / 2);
+    const vpt = this.fabricCanvas.viewportTransform || [1, 0, 0, 1, 0, 0];
+    const zoom = vpt[0] || 1;
+    const tx = vpt[4] || 0;
+    const ty = vpt[5] || 0;
+
+    const scale = (this.baseImage as any).scaleX || 1;
+    const scaleY = (this.baseImage as any).scaleY || scale;
+    const dispW = (this.baseImage.width || 0) * scale;
+    const dispH = (this.baseImage.height || 0) * scaleY;
+
+    // Image top-left in canvas coords is (baseImage.left, baseImage.top)
+    // — always (0, 0) after installBaseImage. After the viewport
+    // transform, it lands at (tx, ty) on screen, then offset by the
+    // canvas's position inside the wrapper.
+    const left = canvasLeft + tx;
+    const top = canvasTop + ty;
+    const width = dispW * zoom;
+    const height = dispH * zoom;
+
+    this.ghostImageEl.style.left = `${left}px`;
+    this.ghostImageEl.style.top = `${top}px`;
+    this.ghostImageEl.style.width = `${width}px`;
+    this.ghostImageEl.style.height = `${height}px`;
   }
 
   /**

@@ -60,4 +60,7 @@ export const ICONS = {
   rectangle: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="1"/></svg>`,
 
   arrow: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="20" x2="20" y2="4"/><polyline points="11 4 20 4 20 13"/></svg>`,
+
+  // Polyline / free-form line-path — zig-zag with visible vertex handles
+  polyline: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 20 8 10 14 17 21 4"/><circle cx="3" cy="20" r="1.6" fill="currentColor"/><circle cx="8" cy="10" r="1.6" fill="currentColor"/><circle cx="14" cy="17" r="1.6" fill="currentColor"/><circle cx="21" cy="4" r="1.6" fill="currentColor"/></svg>`,
 };

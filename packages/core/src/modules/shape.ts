@@ -259,6 +259,188 @@ function attachArrowEndpointControls(arrow: any): void {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Polyline — custom Fabric object (free-form line-path)             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Internal polyline object — a chain of `points` expressed in **canvas
+ * coordinates**. The user builds it up with successive clicks, and once
+ * finalised each vertex is individually draggable via a custom control.
+ */
+export interface RpPolyline extends fabric.Object {
+    points: { x: number; y: number }[];
+    _updateBBox(): void;
+}
+
+const POLYLINE_TYPE = 'rpPolyline';
+
+let polylineClassRegistered = false;
+
+function registerPolylineClass(): any {
+    if (polylineClassRegistered && (fabric as any).RpPolyline) {
+        return (fabric as any).RpPolyline;
+    }
+
+    const RpPolylineClass = (fabric as any).util.createClass(fabric.Object, {
+        type: POLYLINE_TYPE,
+
+        initialize(this: any, options: any) {
+            options = options || {};
+            this.callSuper('initialize', options);
+            this.points = (options.points || []).map((p: any) => ({ x: p.x, y: p.y }));
+            this.objectCaching = false;
+            this._lastLeft = 0;
+            this._lastTop = 0;
+            this._updateBBox();
+        },
+
+        /**
+         * Recompute the axis-aligned bounding box from the vertex list and
+         * sync the parent left/top/width/height accordingly.
+         */
+        _updateBBox(this: any) {
+            if (!this.points || this.points.length === 0) return;
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            for (const p of this.points) {
+                if (p.x < minX) minX = p.x;
+                if (p.y < minY) minY = p.y;
+                if (p.x > maxX) maxX = p.x;
+                if (p.y > maxY) maxY = p.y;
+            }
+            const pad = (this.strokeWidth || 2) + 4;
+            this.set({
+                left: minX - pad,
+                top: minY - pad,
+                width: Math.max(maxX - minX + pad * 2, 1),
+                height: Math.max(maxY - minY + pad * 2, 1),
+                scaleX: 1,
+                scaleY: 1,
+                angle: 0,
+            });
+            this._lastLeft = this.left;
+            this._lastTop = this.top;
+            this.setCoords();
+        },
+
+        /**
+         * Render the polyline in the object's local (centred) coord system.
+         * Fabric translates the ctx so (0,0) is the object's centre.
+         */
+        _render(this: any, ctx: CanvasRenderingContext2D) {
+            if (!this.points || this.points.length < 2) return;
+
+            // Compute centre in canvas coords so we can offset each vertex
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            for (const p of this.points) {
+                if (p.x < minX) minX = p.x;
+                if (p.y < minY) minY = p.y;
+                if (p.x > maxX) maxX = p.x;
+                if (p.y > maxY) maxY = p.y;
+            }
+            const cx = (minX + maxX) / 2;
+            const cy = (minY + maxY) / 2;
+
+            const stroke = this.stroke || '#ff0000';
+            const sw = this.strokeWidth || 3;
+
+            ctx.save();
+            ctx.lineWidth = sw;
+            ctx.strokeStyle = stroke;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.beginPath();
+            ctx.moveTo(this.points[0].x - cx, this.points[0].y - cy);
+            for (let i = 1; i < this.points.length; i++) {
+                ctx.lineTo(this.points[i].x - cx, this.points[i].y - cy);
+            }
+            ctx.stroke();
+
+            // While the polyline is still being built (before finalisation),
+            // draw small dots at every committed vertex so the user can see
+            // their click points. The very last point in `points` is the
+            // cursor-tracking vertex, so we skip it.
+            //
+            // Once ≥ 3 real vertices exist, the first vertex is drawn a bit
+            // larger and highlighted to signal "click me to close the shape".
+            if ((this as any)._rpBuilding) {
+                const committed = this.points.length - 1; // skip trailing tracking pt
+                const dotR = 4;
+                ctx.lineWidth = 1.5;
+                ctx.strokeStyle = '#ffffff';
+                for (let i = 0; i < committed; i++) {
+                    const isFirst = i === 0;
+                    const isCloseTarget = isFirst && committed >= 3;
+                    const r = isCloseTarget ? dotR + 2 : dotR;
+                    ctx.beginPath();
+                    ctx.arc(this.points[i].x - cx, this.points[i].y - cy, r, 0, Math.PI * 2);
+                    ctx.fillStyle = isCloseTarget ? '#0ea5e9' : '#ffffff';
+                    ctx.fill();
+                    ctx.stroke();
+                }
+            }
+            ctx.restore();
+        },
+
+        /** Serialise the vertex list so undo / redo can reproduce the polyline */
+        toObject(this: any, propertiesToInclude?: string[]) {
+            const base = this.callSuper(
+                'toObject',
+                ['_rpAnnotation', '_rpType', '_rpShapeType'].concat(propertiesToInclude || []),
+            );
+            base.points = (this.points || []).map((p: any) => ({ x: p.x, y: p.y }));
+            return base;
+        },
+    });
+
+    RpPolylineClass.fromObject = function (object: any, callback: any) {
+        const poly = new RpPolylineClass(object);
+        if (callback) callback(poly);
+        return poly;
+    };
+    RpPolylineClass.async = false;
+
+    (fabric as any).RpPolyline = RpPolylineClass;
+    polylineClassRegistered = true;
+    return RpPolylineClass;
+}
+
+/**
+ * Build one draggable Control per vertex and attach them to the polyline
+ * instance. Called after the shape is finalised, and re-called after
+ * JSON re-hydration (undo / redo).
+ */
+function attachPolylineVertexControls(poly: any): void {
+    const controls: Record<string, any> = {};
+    const count = (poly.points || []).length;
+    for (let i = 0; i < count; i++) {
+        const idx = i;
+        controls[`v${idx}`] = new (fabric as any).Control({
+            x: 0,
+            y: 0,
+            cursorStyleHandler: () => 'crosshair',
+            actionName: `polyVertex${idx}`,
+            positionHandler(_dim: any, _finalMatrix: any, fabricObject: any) {
+                const p = fabricObject.points[idx];
+                return new fabric.Point(p.x, p.y);
+            },
+            actionHandler(_eventData: any, transform: any, x: number, y: number) {
+                const t = transform.target as any;
+                if (!t.points[idx]) return false;
+                t.points[idx].x = x;
+                t.points[idx].y = y;
+                t._updateBBox();
+                t.canvas?.requestRenderAll();
+                return true;
+            },
+            render(ctx: CanvasRenderingContext2D, left: number, top: number) {
+                renderEndpointHandle(ctx, left, top);
+            },
+        });
+    }
+    poly.controls = controls;
+}
+
+/* ------------------------------------------------------------------ */
 /*  ShapeModule                                                       */
 /* ------------------------------------------------------------------ */
 
@@ -278,8 +460,9 @@ export class ShapeModule {
     constructor(canvas: fabric.Canvas) {
         this.canvas = canvas;
         registerArrowClass();
-        // When an arrow is added to the canvas (including after undo/redo
-        // restores from JSON) we need to re-attach its custom endpoint
+        registerPolylineClass();
+        // When an arrow or polyline is added to the canvas (including after
+        // undo/redo restores from JSON) we need to re-attach its custom
         // controls and drag-sync handler, because plain JSON deserialisation
         // can't reconstruct functions.
         this.canvas.on('object:added', (e: fabric.IEvent) => {
@@ -288,6 +471,11 @@ export class ShapeModule {
                 attachArrowEndpointControls(obj);
                 this.wireArrowDragSync(obj);
                 obj._rpArrowBound = true;
+            }
+            if (obj && obj.type === POLYLINE_TYPE && !obj._rpPolyBound) {
+                attachPolylineVertexControls(obj);
+                this.wirePolylineDragSync(obj);
+                obj._rpPolyBound = true;
             }
         });
     }
@@ -321,6 +509,14 @@ export class ShapeModule {
         this.canvas.on('mouse:down', this.handleMouseDown);
         this.canvas.on('mouse:move', this.handleMouseMove);
         this.canvas.on('mouse:up', this.handleMouseUp);
+
+        // Polyline uses click-to-add + dblclick/keyboard-to-finish, so we
+        // additionally listen for double-click on the canvas and for the
+        // Enter/Escape keys on the document.
+        if (shape === 'polyline') {
+            this.canvas.on('mouse:dblclick', this.handleDblClick);
+            document.addEventListener('keydown', this.handleKeyDown);
+        }
     }
 
     deactivate(): void {
@@ -328,6 +524,13 @@ export class ShapeModule {
         this.canvas.off('mouse:down', this.handleMouseDown);
         this.canvas.off('mouse:move', this.handleMouseMove);
         this.canvas.off('mouse:up', this.handleMouseUp);
+        this.canvas.off('mouse:dblclick', this.handleDblClick as any);
+        document.removeEventListener('keydown', this.handleKeyDown);
+        // If we were mid-polyline, abandon it (its trailing tracking point
+        // would otherwise leave an orphan segment on the canvas).
+        if (this.currentObject && (this.currentObject as any)._rpShapeType === 'polyline') {
+            this.canvas.remove(this.currentObject);
+        }
         this.canvas.defaultCursor = 'default';
         this.canvas.hoverCursor = 'move';
         this.isActive = false;
@@ -343,13 +546,20 @@ export class ShapeModule {
         this.strokeColor = color;
         const active = this.canvas.getActiveObject() as any;
         if (active && active._rpShapeType) {
-            if (active._rpShapeType === 'arrow') {
+            if (active._rpShapeType === 'arrow' || active._rpShapeType === 'polyline') {
+                // Line-only shapes: only stroke matters
                 active.set({ stroke: color });
             } else {
                 // Filled vs outlined: keep stroke + matching translucent fill for
                 // closed shapes so they remain visible against any background.
                 active.set({ stroke: color, fill: 'transparent' });
             }
+            this.canvas.requestRenderAll();
+        }
+        // Also update the polyline currently being built (before finalise),
+        // so the user sees live colour feedback while clicking points.
+        if (this.currentObject && (this.currentObject as any)._rpShapeType === 'polyline') {
+            (this.currentObject as any).set({ stroke: color });
             this.canvas.requestRenderAll();
         }
     }
@@ -359,9 +569,14 @@ export class ShapeModule {
         const active = this.canvas.getActiveObject() as any;
         if (active && active._rpShapeType) {
             active.set({ strokeWidth: this.strokeWidth });
-            if (active._rpShapeType === 'arrow') {
+            if (active._rpShapeType === 'arrow' || active._rpShapeType === 'polyline') {
                 active._updateBBox?.();
             }
+            this.canvas.requestRenderAll();
+        }
+        if (this.currentObject && (this.currentObject as any)._rpShapeType === 'polyline') {
+            (this.currentObject as any).set({ strokeWidth: this.strokeWidth });
+            (this.currentObject as any)._updateBBox?.();
             this.canvas.requestRenderAll();
         }
     }
@@ -379,6 +594,43 @@ export class ShapeModule {
         if (opt.target && (opt.target as any)._rpShapeType) return;
 
         const pointer = this.canvas.getPointer(opt.e);
+
+        // Polyline: click-to-add-vertex flow.
+        if (this.activeShape === 'polyline') {
+            // The 2nd click of a native dblclick has detail === 2; skip
+            // appending in that case — the dblclick handler will finalise.
+            const detail = (opt.e as MouseEvent)?.detail;
+            if (detail && detail >= 2) return;
+
+            if (!this.currentObject) {
+                // Start a new polyline with two coincident points; the second
+                // acts as a "tracking" vertex that follows the cursor until
+                // the next click commits it.
+                this.currentObject = this.createShape('polyline', pointer.x, pointer.y);
+                if (this.currentObject) {
+                    this.canvas.add(this.currentObject);
+                    this.isDrawing = true;
+                    this.canvas.requestRenderAll();
+                }
+            } else {
+                const poly = this.currentObject as any;
+                // If the user clicks on (or very near) the first vertex and
+                // we already have ≥ 3 real vertices, close the shape and
+                // finalise instead of appending a new vertex.
+                if (this.isNearFirstVertex(poly, pointer.x, pointer.y)) {
+                    this.finalisePolyline(true);
+                    return;
+                }
+                // Otherwise commit the current tracking point (already at the
+                // cursor from handleMouseMove) and append a new tracking point.
+                poly.points.push({ x: pointer.x, y: pointer.y });
+                poly._updateBBox();
+                this.canvas.requestRenderAll();
+            }
+            return;
+        }
+
+        // Drag-to-draw for all other shape types
         this.isDrawing = true;
         this.startX = pointer.x;
         this.startY = pointer.y;
@@ -392,11 +644,37 @@ export class ShapeModule {
     private handleMouseMove = (opt: fabric.IEvent): void => {
         if (!this.isDrawing || !this.currentObject || !this.activeShape) return;
         const pointer = this.canvas.getPointer(opt.e);
+
+        if (this.activeShape === 'polyline') {
+            // Update the trailing (tracking) vertex to follow the cursor.
+            // If the cursor is near the first vertex (and enough real points
+            // exist to close), snap the tracking vertex exactly onto it so
+            // the user sees the closure preview.
+            const poly = this.currentObject as any;
+            if (poly.points.length > 0) {
+                const last = poly.points[poly.points.length - 1];
+                if (this.isNearFirstVertex(poly, pointer.x, pointer.y)) {
+                    last.x = poly.points[0].x;
+                    last.y = poly.points[0].y;
+                } else {
+                    last.x = pointer.x;
+                    last.y = pointer.y;
+                }
+                poly._updateBBox();
+                this.canvas.requestRenderAll();
+            }
+            return;
+        }
+
         this.updateShapeDuringDraw(this.activeShape, pointer.x, pointer.y);
         this.canvas.requestRenderAll();
     };
 
     private handleMouseUp = (): void => {
+        // Polyline drawing is not gesture-based — mouse-up does nothing;
+        // finalisation happens on dblclick, Enter or Escape.
+        if (this.activeShape === 'polyline') return;
+
         if (!this.isDrawing || !this.currentObject) return;
         const obj = this.currentObject as any;
 
@@ -420,6 +698,110 @@ export class ShapeModule {
         this.canvas.fire('object:modified', { target: obj });
         this.currentObject = null;
     };
+
+    /** Double-click while drawing a polyline → finalise it. */
+    private handleDblClick = (_opt: fabric.IEvent): void => {
+        if (this.activeShape !== 'polyline') return;
+        this.finalisePolyline();
+    };
+
+    /** Enter → finalise; Escape → cancel — only while building a polyline. */
+    private handleKeyDown = (e: KeyboardEvent): void => {
+        if (this.activeShape !== 'polyline' || !this.isDrawing || !this.currentObject) return;
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            this.finalisePolyline();
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            this.cancelPolyline();
+        }
+    };
+
+    private finalisePolyline(closed: boolean = false): void {
+        if (!this.currentObject) return;
+        const poly = this.currentObject as any;
+
+        if (closed) {
+            // Snap the trailing tracking vertex exactly onto the first vertex
+            // so the last drawn segment cleanly closes the shape.
+            if (poly.points.length >= 2) {
+                poly.points[poly.points.length - 1] = {
+                    x: poly.points[0].x,
+                    y: poly.points[0].y,
+                };
+            }
+        } else {
+            // Drop the trailing tracking vertex — it just follows the cursor
+            if (poly.points.length > 0) poly.points.pop();
+        }
+
+        this.isDrawing = false;
+
+        if (this.isShapeTooSmall(poly)) {
+            this.canvas.remove(poly);
+            this.currentObject = null;
+            this.canvas.requestRenderAll();
+            return;
+        }
+
+        poly._rpBuilding = false;
+        poly._updateBBox();
+        attachPolylineVertexControls(poly);
+        poly.hasControls = true;
+        poly.selectable = true;
+        poly.evented = true;
+        poly._rpPolyBound = true;
+        this.canvas.setActiveObject(poly);
+        this.canvas.requestRenderAll();
+        this.canvas.fire('object:modified', { target: poly });
+        this.currentObject = null;
+    }
+
+    /**
+     * Is the given pointer close enough to the polyline's first vertex to
+     * count as a "close-shape" click? Only true once we have ≥ 3 committed
+     * vertices (i.e. points.length ≥ 4, counting the trailing tracker).
+     * Threshold is 12 screen pixels regardless of zoom.
+     */
+    private isNearFirstVertex(poly: any, x: number, y: number): boolean {
+        if (!poly.points || poly.points.length < 4) return false;
+        const first = poly.points[0];
+        const dx = x - first.x;
+        const dy = y - first.y;
+        const zoom = this.canvas.getZoom() || 1;
+        const threshold = 12 / zoom;
+        return dx * dx + dy * dy <= threshold * threshold;
+    }
+
+    private cancelPolyline(): void {
+        if (!this.currentObject) return;
+        this.canvas.remove(this.currentObject);
+        this.currentObject = null;
+        this.isDrawing = false;
+        this.canvas.requestRenderAll();
+    }
+
+    /**
+     * Keep a polyline's vertices in sync with its left/top as the user drags
+     * the whole shape. Mirrors `wireArrowDragSync`.
+     */
+    private wirePolylineDragSync(poly: any): void {
+        poly.on('moving', () => {
+            const dx = (poly.left ?? 0) - (poly._lastLeft ?? 0);
+            const dy = (poly.top ?? 0) - (poly._lastTop ?? 0);
+            if (dx === 0 && dy === 0) return;
+            for (const p of poly.points) {
+                p.x += dx;
+                p.y += dy;
+            }
+            poly._lastLeft = poly.left;
+            poly._lastTop = poly.top;
+        });
+        poly.on('modified', () => {
+            poly._lastLeft = poly.left;
+            poly._lastTop = poly.top;
+        });
+    }
 
     /* ============================ factory =============================== */
 
@@ -507,6 +889,27 @@ export class ShapeModule {
             this.wireArrowDragSync(arrow);
             (arrow as any)._rpArrowBound = true;
             obj = arrow as fabric.Object;
+        } else if (type === 'polyline') {
+            // Custom line-path — starts with two coincident points (the second
+            // acts as the cursor-tracking vertex until the next click commits it).
+            const PolyClass = registerPolylineClass();
+            const poly = new PolyClass({
+                points: [{ x, y }, { x, y }],
+                stroke: this.strokeColor,
+                strokeWidth: this.strokeWidth,
+                fill: '',
+                selectable: false,
+                evented: false,
+                hasControls: false, // no controls while being built
+                hasBorders: false,
+                lockRotation: true,
+                hasRotatingPoint: false,
+                objectCaching: false,
+            });
+            (poly as any)._rpBuilding = true;
+            this.wirePolylineDragSync(poly);
+            (poly as any)._rpPolyBound = true;
+            obj = poly as fabric.Object;
         }
 
         if (obj) {
@@ -602,6 +1005,19 @@ export class ShapeModule {
             const dx = obj.x2 - obj.x1;
             const dy = obj.y2 - obj.y1;
             return Math.sqrt(dx * dx + dy * dy) < minSize;
+        }
+        if (obj.type === POLYLINE_TYPE) {
+            // Reject polylines with fewer than 2 real vertices or a
+            // near-zero total path length.
+            const pts = obj.points || [];
+            if (pts.length < 2) return true;
+            let total = 0;
+            for (let i = 1; i < pts.length; i++) {
+                const dx = pts[i].x - pts[i - 1].x;
+                const dy = pts[i].y - pts[i - 1].y;
+                total += Math.sqrt(dx * dx + dy * dy);
+            }
+            return total < minSize;
         }
         return false;
     }

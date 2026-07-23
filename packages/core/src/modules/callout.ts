@@ -89,6 +89,30 @@ export class CalloutModule {
 
   setColor(color: string): void {
     this.calloutColor = color;
+
+    // If a callout is currently selected (any of its parts — box, label,
+    // anchor), recolor it live so the color palette behaves the same way
+    // the shape module does when a shape is selected.
+    const active = this.canvas.getActiveObject() as any;
+    if (!active) return;
+
+    const targetIds = new Set<number>();
+    if (active.type === 'activeSelection') {
+      (active as fabric.ActiveSelection).forEachObject((obj: any) => {
+        if (obj.calloutId != null) targetIds.add(obj.calloutId);
+      });
+    } else if (active.calloutId != null) {
+      targetIds.add(active.calloutId);
+    }
+    if (targetIds.size === 0) return;
+
+    for (const h of this.callouts) {
+      if (!targetIds.has(h.calloutId)) continue;
+      h.color = color;
+      h.bgRect.set({ fill: color });
+      this.redrawTail(h);
+    }
+    this.canvas.requestRenderAll();
   }
 
   setTextColor(color: string): void {

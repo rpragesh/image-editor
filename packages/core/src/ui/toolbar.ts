@@ -54,7 +54,7 @@ const GROUP_EXPANSION: Record<string, string[]> = {
   zoom: ['zoomIn', 'zoomOut'],
   transform: ['rotateLeft', 'rotateRight'],
   annotate: ['draw', 'text', 'callout', 'eraser'],
-  shapes: ['shape-circle', 'shape-ellipse', 'shape-square', 'shape-rectangle', 'shape-arrow'],
+  shapes: ['shape-circle', 'shape-ellipse', 'shape-square', 'shape-rectangle', 'shape-arrow', 'shape-polyline'],
 };
 
 function expandDisabled(raw: string[]): Set<string> {
@@ -232,6 +232,7 @@ export class Toolbar {
           { id: 'shape-square', icon: 'square', title: 'Square', mode: 'shape-square' },
           { id: 'shape-rectangle', icon: 'rectangle', title: 'Rectangle', mode: 'shape-rectangle' },
           { id: 'shape-arrow', icon: 'arrow', title: 'Arrow', mode: 'shape-arrow' },
+          { id: 'shape-polyline', icon: 'polyline', title: 'Line Path (click to add points, double-click to finish)', mode: 'shape-polyline' },
         ],
       },
       { type: 'button', id: 'undo', icon: 'undo', title: 'Undo', action: 'undo' },
@@ -293,6 +294,12 @@ export class Toolbar {
       e.preventDefault();
       e.stopPropagation();
       this.closeFlyout();
+      // Give action-only buttons (undo/redo/reset/etc.) a brief visual
+      // pulse so the user knows their click registered — mode buttons
+      // are already handled by updateActiveButton().
+      if (!def.mode && def.action) {
+        this.flashButton(btn);
+      }
       this.handleButtonClick(def.mode, def.action);
     });
     this.addHoverEffect(btn);
@@ -390,6 +397,15 @@ export class Toolbar {
       childBtn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
+        // For action-only children (zoomIn/Out, rotateLeft/Right, etc.)
+        // pulse both the child button AND the parent group trigger so
+        // the user can see which top-level tool they just invoked.
+        if (!c.mode && c.action) {
+          this.flashButton(childBtn);
+          const wrapper = panel.parentElement;
+          const groupBtn = wrapper?.querySelector('.rp-editor-group-btn') as HTMLElement | null;
+          if (groupBtn) this.flashButton(groupBtn);
+        }
         // Keep flyout open — only close on outside click
         this.handleButtonClick(c.mode, c.action);
       });
@@ -423,6 +439,70 @@ export class Toolbar {
     }
   }
 
+  private getActiveBackground(): string {
+    return (
+      this.theme.toolbarActiveBackground ||
+      this.theme.toolbarActiveIconColor ||
+      '#1976d2'
+    );
+  }
+
+  private getActiveTextColor(): string {
+    return this.theme.toolbarActiveTextColor || '#ffffff';
+  }
+
+  /**
+   * Apply the visual "active" treatment (bold background + contrasting
+   * icon + subtle glow) to a toolbar button so the current selection is
+   * unmistakable — matches the look used inside the flyout menus.
+   */
+  private applyActiveStyle(el: HTMLElement): void {
+    const bg = this.getActiveBackground();
+    el.style.background = bg;
+    el.style.color = this.getActiveTextColor();
+    el.style.boxShadow = `0 0 0 1px ${bg}, 0 1px 4px rgba(0,0,0,0.18)`;
+  }
+
+  private clearActiveStyle(el: HTMLElement): void {
+    el.style.background = 'transparent';
+    el.style.color = this.theme.toolbarIconColor || '#ffffff';
+    el.style.boxShadow = 'none';
+  }
+
+  /**
+   * Briefly apply the active highlight to a button so the user gets a
+   * visible confirmation that a one-shot action (undo/redo/reset/zoom/
+   * rotate) was received. Skipped for buttons that are already in the
+   * permanent active state.
+   */
+  private flashButton(el: HTMLElement): void {
+    // If this button is already the current active mode (or is a group
+    // with an active child) it is already highlighted — no need to flash.
+    const isActiveMode = !!el.dataset.mode && el.dataset.mode === this.activeMode;
+    const isGroupActive =
+      el.classList.contains('rp-editor-group-btn') && this.isGroupActive(el);
+    if (isActiveMode || isGroupActive) return;
+
+    this.applyActiveStyle(el);
+
+    const prev = (el as any).__rpFlashTimer as number | undefined;
+    if (prev) clearTimeout(prev);
+    (el as any).__rpFlashTimer = window.setTimeout(() => {
+      (el as any).__rpFlashTimer = null;
+      // Re-evaluate: the mode may have changed while the flash was
+      // pending. Only revert when the button is no longer active.
+      const stillActiveMode =
+        !!el.dataset.mode && el.dataset.mode === this.activeMode;
+      const stillGroupActive =
+        el.classList.contains('rp-editor-group-btn') && this.isGroupActive(el);
+      if (stillActiveMode || stillGroupActive) {
+        this.applyActiveStyle(el);
+      } else {
+        this.clearActiveStyle(el);
+      }
+    }, 800);
+  }
+
   private updateActiveButton(): void {
     if (!this.toolbarEl) return;
     // Top-level and flyout buttons
@@ -430,12 +510,11 @@ export class Toolbar {
     buttons.forEach((btn) => {
       const el = btn as HTMLElement;
       const isActive = el.dataset.mode === this.activeMode;
-      el.style.background = isActive
-        ? (this.theme.toolbarActiveIconColor || '#4a90d9')
-        : 'transparent';
-      el.style.color = isActive
-        ? '#ffffff'
-        : (this.theme.toolbarIconColor || '#ffffff');
+      if (isActive) {
+        this.applyActiveStyle(el);
+      } else {
+        this.clearActiveStyle(el);
+      }
     });
 
     // Highlight group trigger when a child mode is active
@@ -448,8 +527,7 @@ export class Toolbar {
       if (!flyout) return;
       const hasActiveChild = flyout.querySelector(`[data-mode="${this.activeMode}"]`) != null;
       if (hasActiveChild) {
-        groupEl.style.background = this.theme.toolbarActiveIconColor || '#4a90d9';
-        groupEl.style.color = '#ffffff';
+        this.applyActiveStyle(groupEl);
       }
     });
   }
@@ -475,7 +553,8 @@ export class Toolbar {
       this.activeMode === 'shape-ellipse' ||
       this.activeMode === 'shape-square' ||
       this.activeMode === 'shape-rectangle' ||
-      this.activeMode === 'shape-arrow';
+      this.activeMode === 'shape-arrow' ||
+      this.activeMode === 'shape-polyline';
 
     if (this.activeMode === 'draw' || this.activeMode === 'text' || this.activeMode === 'callout' || isShapeMode) {
       this.showColorPicker();
@@ -491,6 +570,28 @@ export class Toolbar {
     if (!this.subPanelEl) return;
     this.subPanelEl.style.display = 'flex';
 
+    const toolbarBg = this.theme.toolbarBackground || '#2d2d2d';
+    const activeRing = this.getActiveBackground();
+    // Neutral idle border works on both light and dark toolbars — a
+    // 0.3-alpha white border was invisible on light themes.
+    const idleBorder = '1px solid rgba(0,0,0,0.25)';
+    // Two-tone ring: inner ring matches the toolbar so it "notches"
+    // the swatch away from its background, outer ring uses the theme's
+    // active color so the current selection is unmistakable regardless
+    // of the swatch color (even white/black).
+    const selectedShadow = `0 0 0 2px ${toolbarBg}, 0 0 0 4px ${activeRing}, 0 1px 3px rgba(0,0,0,0.25)`;
+
+    const applyIdle = (el: HTMLElement) => {
+      el.style.border = idleBorder;
+      el.style.boxShadow = 'none';
+      el.style.transform = 'scale(1)';
+    };
+    const applySelected = (el: HTMLElement) => {
+      el.style.border = idleBorder;
+      el.style.boxShadow = selectedShadow;
+      el.style.transform = 'scale(1.1)';
+    };
+
     this.colorPalette.forEach((color) => {
       const swatch = document.createElement('button');
       swatch.className = 'rp-color-swatch';
@@ -498,23 +599,21 @@ export class Toolbar {
         width: 28px;
         height: 28px;
         border-radius: 50%;
-        border: 2px solid rgba(255,255,255,0.3);
+        border: ${idleBorder};
         background: ${color};
         cursor: pointer;
         padding: 0;
         -webkit-tap-highlight-color: transparent;
-        transition: transform 0.15s, border-color 0.15s;
+        transition: transform 0.15s, box-shadow 0.15s;
       `;
 
       swatch.addEventListener('click', (e) => {
         e.preventDefault();
         this.callbacks.onColorChange(color);
         this.subPanelEl!.querySelectorAll('.rp-color-swatch').forEach((s) => {
-          (s as HTMLElement).style.borderColor = 'rgba(255,255,255,0.3)';
-          (s as HTMLElement).style.transform = 'scale(1)';
+          applyIdle(s as HTMLElement);
         });
-        swatch.style.borderColor = '#ffffff';
-        swatch.style.transform = 'scale(1.2)';
+        applySelected(swatch);
       });
 
       this.subPanelEl!.appendChild(swatch);
@@ -527,7 +626,8 @@ export class Toolbar {
       this.activeMode === 'shape-ellipse' ||
       this.activeMode === 'shape-square' ||
       this.activeMode === 'shape-rectangle' ||
-      this.activeMode === 'shape-arrow';
+      this.activeMode === 'shape-arrow' ||
+      this.activeMode === 'shape-polyline';
     if (this.activeMode === 'draw' || isShapeMode) {
       const separator = document.createElement('div');
       separator.style.cssText = 'width: 1px; height: 24px; background: rgba(255,255,255,0.2); margin: 0 8px;';
@@ -599,7 +699,8 @@ export class Toolbar {
     this.subPanelEl.style.display = 'flex';
 
     const iconColor = this.theme.toolbarIconColor || '#ffffff';
-    const activeColor = this.theme.toolbarActiveIconColor || '#4a90d9';
+    const activeColor = this.getActiveBackground();
+    const activeTextColor = this.getActiveTextColor();
     // Bump border + idle background opacity so chips stay visible on
     // dark themes where a 0.3-alpha white border is nearly invisible.
     const idleBorder = 'rgba(255,255,255,0.55)';
@@ -613,7 +714,7 @@ export class Toolbar {
         padding: 6px 12px;
         border: 1px solid ${isActive ? activeColor : idleBorder};
         background: ${isActive ? activeColor : idleBg};
-        color: ${isActive ? '#ffffff' : iconColor};
+        color: ${isActive ? activeTextColor : iconColor};
         border-radius: 4px;
         cursor: pointer;
         font-size: 12px;
@@ -635,7 +736,7 @@ export class Toolbar {
         });
         btn.style.background = activeColor;
         btn.style.borderColor = activeColor;
-        btn.style.color = '#ffffff';
+        btn.style.color = activeTextColor;
       });
 
       this.subPanelEl!.appendChild(btn);
@@ -713,19 +814,22 @@ export class Toolbar {
   private addHoverEffect(btn: HTMLElement): void {
     btn.addEventListener('mouseenter', () => {
       const mode = btn.dataset.mode;
-      if (!(mode && this.activeMode === mode)) {
-        btn.style.background = 'rgba(255,255,255,0.1)';
+      const isActiveMode = mode && this.activeMode === mode;
+      const isGroupHighlighted =
+        btn.classList.contains('rp-editor-group-btn') && this.isGroupActive(btn);
+      if (!isActiveMode && !isGroupHighlighted) {
+        btn.style.background = 'rgba(127,127,127,0.18)';
       }
     });
     btn.addEventListener('mouseleave', () => {
       const mode = btn.dataset.mode;
-      if (!(mode && this.activeMode === mode)) {
-        // Re-check group highlight
-        const isGroupHighlighted = btn.classList.contains('rp-editor-group-btn') &&
-          this.isGroupActive(btn);
-        btn.style.background = isGroupHighlighted
-          ? (this.theme.toolbarActiveIconColor || '#4a90d9')
-          : 'transparent';
+      const isActiveMode = mode && this.activeMode === mode;
+      const isGroupHighlighted =
+        btn.classList.contains('rp-editor-group-btn') && this.isGroupActive(btn);
+      if (isActiveMode || isGroupHighlighted) {
+        this.applyActiveStyle(btn);
+      } else {
+        btn.style.background = 'transparent';
       }
     });
   }

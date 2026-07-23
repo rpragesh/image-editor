@@ -42,6 +42,8 @@ export const DEFAULT_CONFIG: Required<
     editorBackground: '#e0e0e0',
     toolbarBackground: '#fafafa',
     toolbarIconColor: '#333333',
+    toolbarActiveBackground: '#1976d2',
+    toolbarActiveTextColor: '#ffffff',
     toolbarActiveIconColor: '#1976d2',
     footerBackground: '#f5f5f5',
     cancelButtonBackground: 'transparent',
@@ -140,11 +142,24 @@ export function mergeConfig(userConfig?: Partial<RpEditorConfig>): typeof DEFAUL
     ...userTheme,
   };
 
+  // Legacy alias: `toolbarActiveIconColor` used to represent the active
+  // button background. If the caller only provided the old prop, promote
+  // it to the new `toolbarActiveBackground` so both stay in sync.
+  if (userTheme.toolbarActiveIconColor && userTheme.toolbarActiveBackground == null) {
+    mergedTheme.toolbarActiveBackground = userTheme.toolbarActiveIconColor;
+  }
+  // And vice-versa — keep the legacy field mirrored so any downstream
+  // consumers reading it still get a sensible value.
+  if (userTheme.toolbarActiveBackground && userTheme.toolbarActiveIconColor == null) {
+    mergedTheme.toolbarActiveIconColor = userTheme.toolbarActiveBackground;
+  }
+
   // Background → foreground pairs to auto-balance. Only kicks in when the
   // caller set the background but left the paired foreground undefined.
   const pairs: Array<[bgKey: keyof typeof mergedTheme, fgKey: keyof typeof mergedTheme]> = [
     ['headerBackground', 'headerTextColor'],
     ['toolbarBackground', 'toolbarIconColor'],
+    ['toolbarActiveBackground', 'toolbarActiveTextColor'],
     ['footerBackground', 'cancelButtonTextColor'],
   ];
   for (const [bgKey, fgKey] of pairs) {

@@ -2,6 +2,17 @@
 
 All notable changes to `@rageshpikalmunde/rp-image-editor` will be documented in this file.
 
+## [1.3.0] — 2026-07-23
+
+### Added
+- **Translucent ghost preview for pan / zoom** — a low-opacity copy of the base image is now mounted behind the Fabric canvas and follows every viewport transform (mouse move, wheel zoom, pinch, `setZoom`, resize observer, `refreshBaseImageRef`, `installBaseImage`). When the user pans past the image bounds or zooms out, the "outside" area no longer shows a solid background hiding the picture — the ghost provides continuous visual context of where the image is.
+- **Always-on drag** — panning the image no longer requires selecting the drag tool from the toolbar. The ghost preview stays visible by default so users always understand where the image is positioned inside the viewport.
+- **Live callout color updates** — changing the color from the toolbar color picker while a callout is selected now recolors the callout's box fill and tail on the fly, matching the existing behaviour of the shape module. Works for single selection and multi-select (`activeSelection`). New callouts still adopt the current color as before.
+
+### Fixed
+- **Initial crop aspect-ratio chip was inconsistent with the actual rectangle** — activating crop mode now honours the first entry of `cropAspectRatios` (e.g. 4:3) instead of falling back to a free crop while the chip visually reads as "active".
+- **Crop rectangle size drifted between aspect ratios** — switching from 4:3 to 16:9 (or any other ratio) no longer keeps the current width and recomputes height, which used to make 4:3 look larger than 16:9. `setAspectRatio()` now fits the rectangle into 80% × 80% of the image bounds using the same algorithm as the initial activation and preserves the rect's center point.
+
 ## [1.2.0] — 2026-06-29
 
 ### Added
