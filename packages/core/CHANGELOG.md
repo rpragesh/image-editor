@@ -2,6 +2,13 @@
 
 All notable changes to `@rageshpikalmunde/rp-image-editor` will be documented in this file.
 
+## [1.4.1] — 2026-07-24
+
+### Fixed — docs
+- Removed a stale `demo/screenshot.png` reference from the README that was rendering as a broken image on npm. The **Try the Live Demo** CTA above it already gives a one-click preview of the editor.
+
+No code changes. Bundle is byte-identical to `1.4.0`.
+
 ## [1.4.0] — 2026-07-24
 
 Major configurability + i18n release. Every addition is backward-compatible; consumers who upgrade without touching config get the same UI as 1.3.0.

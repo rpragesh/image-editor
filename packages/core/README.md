@@ -11,8 +11,6 @@
 
 > One click — the editor opens with a sample image already loaded. No signup, no upload. Draw, crop, rotate, add callouts, apply filters — try every tool right in your browser.
 
-![rp-image-editor screenshot](https://raw.githubusercontent.com/rpragesh/image-editor/main/demo/screenshot.png)
-
 ## Features
 
 | Feature | Description |
