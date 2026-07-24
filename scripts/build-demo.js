@@ -41,5 +41,31 @@ fs.copyFileSync(
   path.join(DEMO, 'rp-image-editor.bundle.js.map'),
 );
 
+// Mirror sample image (if present) both ways so the "Try with sample" button
+// on the demo page works in both `demo/` (local `npx serve`) and `docs/`
+// (GitHub Pages). Drop any of the accepted filenames below into either folder;
+// it will be synced. The runtime loader probes the same list in order.
+const SAMPLE_CANDIDATES = ['sample.png', 'sample.jpg', 'sample.jpeg', 'sample.webp'];
+let mirroredSample = null;
+for (const name of SAMPLE_CANDIDATES) {
+  const inDemo = path.join(DEMO, name);
+  const inDocs = path.join(DOCS, name);
+  if (fs.existsSync(inDemo)) {
+    fs.copyFileSync(inDemo, inDocs);
+    mirroredSample = 'docs/' + name;
+    break;
+  } else if (fs.existsSync(inDocs)) {
+    fs.copyFileSync(inDocs, inDemo);
+    mirroredSample = 'demo/' + name;
+    break;
+  }
+}
+if (mirroredSample) {
+  console.log('Demo sample mirrored: ' + mirroredSample);
+} else {
+  console.log('Note: no sample image found in demo/ or docs/. Drop one of ['
+    + SAMPLE_CANDIDATES.join(', ') + '] in to enable the "Try with sample" button.');
+}
+
 console.log('Demo bundle built: docs/rp-image-editor.bundle.js');
 console.log('Demo bundle mirrored: demo/rp-image-editor.bundle.js');

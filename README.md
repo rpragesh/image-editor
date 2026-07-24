@@ -2,7 +2,11 @@
 
 A lightweight, framework-agnostic image editor plugin built with Fabric.js.
 
-**[Live Demo](https://rpragesh.github.io/image-editor/)** · [npm](https://www.npmjs.com/package/@rageshpikalmunde/rp-image-editor) · [GitHub](https://github.com/rpragesh/image-editor)
+### 🚀 **[▶ Try the Live Demo →](https://rpragesh.github.io/image-editor/)**
+
+> One click — the editor opens with a sample image already loaded. No signup, no upload. Try every tool immediately.
+
+[npm](https://www.npmjs.com/package/@rageshpikalmunde/rp-image-editor) · [GitHub](https://github.com/rpragesh/image-editor) · [Changelog](packages/core/CHANGELOG.md)
 
 ## Features
 
@@ -23,6 +27,8 @@ A lightweight, framework-agnostic image editor plugin built with Fabric.js.
 - **Smart resolution** — auto-downscales on iOS to stay within Safari canvas limits
 - **Touch gestures** — pinch zoom, drag, tap on mobile
 - **Theming** — fully customizable colors for header, footer, buttons, toolbar. Auto-contrast: when you customize a background without setting its paired text/icon color, a readable foreground is derived from the background's luminance, so dark themes never end up with invisible icons.
+- **Internationalization (i18n)** — bundled translations for **15 languages** (`da, de, en, es, fr, it, ko, nl, pl, pt, sv, th, tr, vi, zh`) selectable via a single `language` config key. `sp` aliases to `es`; regional variants like `de-DE` or `pt_BR` are folded automatically. Per-key `labels` overrides let you rebrand individual strings or add languages beyond the built-in set.
+- **Configurable defaults** — customize filter preset lists & labels, callout defaults (text / color / font size / max chars / auto line-break), header subtitle, and empty-state title/subtitle without touching source.
 - **Output** — Base64, Blob, and File object
 
 ## Packages
@@ -103,6 +109,139 @@ function ImageUploader() {
 
   return <input type="file" accept="image/*" onChange={handleFile} />;
 }
+```
+
+## Internationalization
+
+Swap the whole shell to any of the 15 bundled languages with one config key:
+
+```ts
+await openEditorModal({
+  image: file,
+  config: { language: 'de' },   // → top bar, rails, props panel, callouts … all in German
+});
+```
+
+| Code | Language | | Code | Language | | Code | Language |
+|---|---|---|---|---|---|---|---|
+| `da` | Dansk       | | `en` | English    | | `it` | Italiano   |
+| `de` | Deutsch     | | `es` | Español    | | `ko` | 한국어      |
+| `fr` | Français    | | `nl` | Nederlands | | `pl` | Polski     |
+| `pt` | Português   | | `sv` | Svenska    | | `th` | ไทย        |
+| `tr` | Türkçe      | | `vi` | Tiếng Việt | | `zh` | 中文       |
+
+- `sp` is accepted as a convenience alias for `es`.
+- Regional variants (`de-DE`, `pt_BR`, `zh-CN`, …) are folded to the primary tag.
+- Unknown or missing codes fall back to English.
+
+### Per-key label overrides
+
+Use `config.labels` (deep-partial `LocalePack`) to rebrand individual strings, or to provide a translation for a language that isn't in the built-in set:
+
+```ts
+await openEditorModal({
+  image: file,
+  config: {
+    language: 'en',
+    labels: {
+      tool: { callout: 'Annotation' },
+      props: {
+        title: { callout: 'Annotation' },
+        deleteSelected: 'Remove',
+      },
+    },
+  },
+});
+```
+
+**Precedence** (highest wins): explicit `theme` / `strings` / `filterPresetLabels` / `calloutDefaults` → `labels` → `language` pack → English fallback.
+
+## More configurability
+
+Beyond theming and i18n, v1.4 exposes the following config keys:
+
+| Key | What it does |
+|---|---|
+| `filterPresets` | Whitelist and order the built-in one-click filter tiles. |
+| `filterPresetLabels` | Rename individual filter tiles (e.g. `{ grayscale: 'Mono' }`). |
+| `calloutDefaults` | Defaults for new callouts: `text`, `color`, `textColor`, `fontSize`, `maxChars`, `lineBreakAt`. |
+| `strings.emptyStateTitle` / `strings.emptyStateSubtitle` | Customize the drop-zone copy. Pass `''` for the subtitle to hide the row. |
+| `theme.headerSubtitle` | Customize the subtitle rendered under the header title. Pass `''` to hide it. |
+
+See [`packages/core/CHANGELOG.md`](packages/core/CHANGELOG.md) for the full 1.4.0 release notes.
+
+## Upgrading from 1.3.0
+
+**Nothing in your existing code has to change.** 1.4.0 is 100% backward-compatible — every new config key is optional and every default value matches 1.3.0. If you install 1.4.0 and touch nothing, you get the same English UI, the same toolbar, the same filter tiles in the same order, and the same callout defaults you had in 1.3.0.
+
+### 1. Bump the versions
+
+```bash
+npm install @rageshpikalmunde/rp-image-editor@^1.4.0
+# and if you use the framework wrappers (they peer-depend on core ^1.4.0):
+npm install @rageshpikalmunde/rp-image-editor-react@^1.4.0
+npm install @rageshpikalmunde/rp-image-editor-angular@^1.4.0
+```
+
+### 2. Opt into the new features (all optional)
+
+Add any subset of the new keys to your existing `config` object. You do **not** need to remove or restructure anything you already pass:
+
+```typescript
+await openEditorModal({
+  image: file,
+  config: {
+    // ...everything you already had in 1.3.0 still works, unchanged...
+
+    // Localize the UI to any of 15 bundled languages
+    language: 'de',
+
+    // Per-key label overrides (rebrand, or translate to a language not bundled)
+    labels: { tool: { callout: 'Annotation' } },
+
+    // Whitelist / reorder the filter tiles, and rename them
+    filterPresets: ['none', 'grayscale', 'vintage'],
+    filterPresetLabels: { grayscale: 'B&W' },
+
+    // Defaults for newly-placed callouts
+    calloutDefaults: { text: 'Note', fontSize: 18, maxChars: 60 },
+
+    // Empty-state copy (drop-zone title/subtitle). Pass '' to hide the subtitle.
+    strings: {
+      emptyStateTitle: 'Drop a photo here',
+      emptyStateSubtitle: '',
+    },
+
+    // Header subtitle (below the header title). Pass '' to hide the row.
+    theme: { headerSubtitle: 'Edit and annotate' },
+  },
+});
+```
+
+### Hiding tools you don't want (including Filters)
+
+Every toolbar tile is addressable by id via `disabledFeatures`. To remove the **Filters** tile from the menu entirely:
+
+```typescript
+await openEditorModal({
+  image: file,
+  config: {
+    disabledFeatures: ['filters'],           // hide the Filters tile
+    // disabledFeatures: ['filters', 'adjust'], // hide Filters + Adjust
+  },
+});
+```
+
+See the [core README's Disabling Features](packages/core/README.md#disabling-features) section for the full list of tool ids and group aliases.
+
+### Rolling back
+
+Every 1.4.0 change is additive — no data, export, or storage format changed — so you can downgrade at any time with no code changes:
+
+```bash
+npm install @rageshpikalmunde/rp-image-editor@1.3.0
+npm install @rageshpikalmunde/rp-image-editor-react@1.3.0
+npm install @rageshpikalmunde/rp-image-editor-angular@1.3.0
 ```
 
 ## License

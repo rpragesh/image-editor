@@ -1,66 +1,140 @@
 /**
- * SVG icons for the editor toolbar
+ * Icon set — single-weight 1.5px stroke, 20×20 viewBox, currentColor.
+ * All icons are inline SVG strings so the bundle stays dependency-free.
+ * Consumers can override sizes via CSS (SVGs inherit width/height from
+ * their parent `.rp-ie-icon` wrapper).
  */
-export const ICONS = {
-  move: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>`,
 
-  crop: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.13 1L6 16a2 2 0 002 2h15"/><path d="M1 6.13L16 6a2 2 0 012 2v15"/></svg>`,
+const S = (body: string): string =>
+  `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${body}</svg>`;
 
-  zoomIn: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>`,
+const F = (body: string): string =>
+  `<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">${body}</svg>`;
 
-  zoomOut: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>`,
+export const ICONS: Record<string, string> = {
+  // Brand mark (used in top bar next to the title)
+  logo: S(
+    '<rect x="2.5" y="2.5" width="15" height="15" rx="3.5"/><path d="M6 13l2.5-3 2.5 3 3.5-4.5"/><circle cx="7.5" cy="7" r="1"/>',
+  ),
 
-  rotateLeft: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 105.64-12.37L1 10"/></svg>`,
+  // Left rail tools
+  select: S('<path d="M4 3l12 5-5 2-2 5-5-12z"/>'),
+  move: S(
+    '<path d="M10 3v14M3 10h14"/><path d="M7 6l3-3 3 3M14 7l3 3-3 3M7 14l3 3 3-3M6 7l-3 3 3 3"/>',
+  ),
+  crop: S(
+    '<path d="M6 2v12a1 1 0 001 1h11"/><path d="M2 6h12a1 1 0 011 1v11"/>',
+  ),
+  draw: S(
+    '<path d="M14.5 3.5l2 2-9.5 9.5L4 16l1-3 9.5-9.5z"/><path d="M13 5l2 2"/>',
+  ),
+  eraser: S(
+    '<path d="M15.5 4.5l-11 11a2 2 0 000 2.8h4.4l8-8-1.4-1.4"/><path d="M9.5 10.5l4 4"/><path d="M6 18h12"/>',
+  ),
+  text: S(
+    '<path d="M4 5V4h12v1"/><path d="M10 4v13"/><path d="M8 17h4"/>',
+  ),
+  shapes: S(
+    '<circle cx="6.5" cy="7" r="3.5"/><rect x="9" y="9" width="8" height="8" rx="1"/>',
+  ),
+  stickers: S(
+    '<path d="M12 2.5a7.5 7.5 0 105.5 12.5L12 17V2.5z" transform="translate(0.5 0)"/><circle cx="7.5" cy="8" r="1"/><circle cx="11.5" cy="8" r="1"/><path d="M7 11.5c1 1 3 1 4 0"/>',
+  ),
+  filters: S(
+    '<circle cx="7" cy="10" r="5"/><circle cx="13" cy="10" r="5"/><path d="M10 5.5a5 5 0 010 9"/>',
+  ),
+  adjust: S(
+    '<path d="M4 5h9"/><circle cx="15" cy="5" r="1.5"/><path d="M4 10h5"/><circle cx="11" cy="10" r="1.5"/><path d="M4 15h9"/><circle cx="15" cy="15" r="1.5"/>',
+  ),
 
-  rotateRight: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-5.64-12.37L23 10"/></svg>`,
+  // Right quick-rail (contextual, Draw shown)
+  pen: S(
+    '<path d="M14 3l3 3-9 9-4 1 1-4 9-9z"/><path d="M12 5l3 3"/>',
+  ),
 
-  draw: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>`,
+  // Top-bar / actions
+  undo: S(
+    '<path d="M4 8h9a4 4 0 010 8h-3"/><path d="M7 5L4 8l3 3"/>',
+  ),
+  redo: S(
+    '<path d="M16 8H7a4 4 0 000 8h3"/><path d="M13 5l3 3-3 3"/>',
+  ),
+  zoomIn: S(
+    '<circle cx="9" cy="9" r="5.5"/><path d="M13 13l4 4"/><path d="M9 6.5v5M6.5 9h5"/>',
+  ),
+  zoomOut: S(
+    '<circle cx="9" cy="9" r="5.5"/><path d="M13 13l4 4"/><path d="M6.5 9h5"/>',
+  ),
+  zoom: S('<circle cx="9" cy="9" r="5.5"/><path d="M13 13l4 4"/>'),
+  fit: S(
+    '<path d="M3 7V3h4"/><path d="M17 7V3h-4"/><path d="M3 13v4h4"/><path d="M17 13v4h-4"/>',
+  ),
+  fullscreen: S(
+    '<path d="M3 8V3h5"/><path d="M17 8V3h-5"/><path d="M3 12v5h5"/><path d="M17 12v5h-5"/>',
+  ),
+  fullscreenExit: S(
+    '<path d="M8 3v5H3"/><path d="M12 3v5h5"/><path d="M8 17v-5H3"/><path d="M12 17v-5h5"/>',
+  ),
+  hundred: S(
+    '<path d="M4 6l2-2v12"/><circle cx="12" cy="10" r="4"/>',
+  ),
+  apply: S('<path d="M4 10.5l4 4 8-9"/>'),
+  close: S('<path d="M5 5l10 10M15 5L5 15"/>'),
+  chevronDown: S('<path d="M5 8l5 5 5-5"/>'),
+  chevronUp: S('<path d="M5 12l5-5 5 5"/>'),
 
-  text: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>`,
+  // Transforms
+  rotateLeft: S(
+    '<path d="M3 5v4h4"/><path d="M3 9a7 7 0 117 7"/>',
+  ),
+  rotateRight: S(
+    '<path d="M17 5v4h-4"/><path d="M17 9a7 7 0 10-7 7"/>',
+  ),
+  flipH: S(
+    '<path d="M10 3v14"/><path d="M5 6l-2 4 2 4z"/><path d="M15 6l2 4-2 4z"/>',
+  ),
+  flipV: S(
+    '<path d="M3 10h14"/><path d="M6 5l4-2 4 2z"/><path d="M6 15l4 2 4-2z"/>',
+  ),
+  reset: S(
+    '<path d="M3 4v4h4"/><path d="M3 8a7 7 0 116.5 9.5"/>',
+  ),
 
-  eraser: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H7L3 16c-.8-.8-.8-2 0-2.8L14.6 1.6c.8-.8 2-.8 2.8 0l5 5c.8.8.8 2 0 2.8L15 16"/><line x1="6" y1="20" x2="20" y2="20"/></svg>`,
+  // Shapes sub-picker
+  circle: S('<circle cx="10" cy="10" r="6.5"/>'),
+  ellipse: S('<ellipse cx="10" cy="10" rx="7" ry="4.5"/>'),
+  square: S('<rect x="4" y="4" width="12" height="12" rx="1"/>'),
+  rectangle: S('<rect x="3" y="6" width="14" height="8" rx="1"/>'),
+  arrow: S('<path d="M4 16L16 4"/><path d="M9 4h7v7"/>'),
+  polyline: S(
+    '<path d="M3 16l4-7 4 5 6-9"/><circle cx="3" cy="16" r="1.3" fill="currentColor" stroke="none"/><circle cx="7" cy="9" r="1.3" fill="currentColor" stroke="none"/><circle cx="11" cy="14" r="1.3" fill="currentColor" stroke="none"/><circle cx="17" cy="5" r="1.3" fill="currentColor" stroke="none"/>',
+  ),
+  callout: S(
+    '<path d="M17 12a2 2 0 01-2 2H8l-3 3v-3H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2z"/>',
+  ),
 
-  // Distinct undo icon — curved arrow pointing left
-  undo: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 8 1 14 7 14"/><path d="M1 14l5.1-5.1A7 7 0 0118 10v0a7 7 0 01-7 7H7"/></svg>`,
+  // Misc
+  delete: S(
+    '<path d="M4 6h12"/><path d="M8 6V4h4v2"/><path d="M5 6l1 10a1 1 0 001 1h6a1 1 0 001-1l1-10"/><path d="M8.5 9v6M11.5 9v6"/>',
+  ),
+  plus: S('<path d="M10 4v12M4 10h12"/>'),
+  lock: S(
+    '<rect x="4" y="9" width="12" height="8" rx="1.5"/><path d="M7 9V6a3 3 0 016 0v3"/>',
+  ),
+  wand: S(
+    '<path d="M13 3l1.5 1.5"/><path d="M15 5l2 2"/><path d="M4 17L14 7"/><path d="M13 7l-2-2"/><path d="M15 9l2-2"/>',
+  ),
+  info: S('<circle cx="10" cy="10" r="7"/><path d="M10 9v4"/><circle cx="10" cy="6.5" r="0.5" fill="currentColor" stroke="none"/>'),
+  colors: S(
+    '<circle cx="10" cy="10" r="7"/><circle cx="7" cy="8" r="1.2" fill="currentColor" stroke="none"/><circle cx="10" cy="6" r="1.2" fill="currentColor" stroke="none"/><circle cx="13" cy="8" r="1.2" fill="currentColor" stroke="none"/><circle cx="13.5" cy="11.5" r="1.2" fill="currentColor" stroke="none"/>',
+  ),
 
-  // Distinct redo icon — curved arrow pointing right
-  redo: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 8 23 14 17 14"/><path d="M23 14l-5.1-5.1A7 7 0 006 10v0a7 7 0 007 7h4"/></svg>`,
+  // Empty-state illustration for the canvas stage
+  imagePlaceholder: S(
+    '<rect x="2.5" y="3.5" width="15" height="13" rx="2"/><circle cx="7" cy="8" r="1.3"/><path d="M3 14l4-4 3 3 3-3 4 5"/>',
+  ),
 
-  reset: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 2v6h6"/><path d="M2.66 15.57a10 10 0 10.57-8.38"/></svg>`,
-
-  callout: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/><line x1="9" y1="9" x2="15" y2="9"/></svg>`,
-
-  delete: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>`,
-
-  // Group icons for flyout menus
-  zoom: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
-
-  transform: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 105.64-12.37L1 10"/><line x1="12" y1="7" x2="12" y2="13"/><line x1="9" y1="10" x2="15" y2="10"/></svg>`,
-
-  annotate: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>`,
-
-  // Chevron down indicator for groups
-  chevronDown: `<svg viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 1 5 5 9 1"/></svg>`,
-
-  flipH: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="2" x2="12" y2="22"/><polyline points="5 12 2 15 5 18"/><polyline points="19 12 22 15 19 18"/><rect x="6" y="6" width="4" height="12" rx="1"/></svg>`,
-
-  flipV: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="12" x2="22" y2="12"/><polyline points="12 5 15 2 18 5"/><polyline points="12 19 15 22 18 19"/><rect x="6" y="6" width="12" height="4" rx="1"/></svg>`,
-
-  colors: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 22c5.52 0 10-4.48 10-10S17.52 2 12 2 2 6.48 2 12c0 2.76 1.12 5.26 2.93 7.07l2.14-2.14c-.51-1.07-.07-1.93.93-1.93h8c1 0 1.44.86.93 1.93l2.14 2.14c.51-.51.93-.93.93-1.07"/></svg>`,
-
-  // Shape primitives
-  shapes: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5"/><rect x="11" y="11" width="10" height="10" rx="1"/></svg>`,
-
-  circle: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg>`,
-
-  ellipse: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="12" rx="10" ry="6"/></svg>`,
-
-  square: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="1"/></svg>`,
-
-  rectangle: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="1"/></svg>`,
-
-  arrow: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="20" x2="20" y2="4"/><polyline points="11 4 20 4 20 13"/></svg>`,
-
-  // Polyline / free-form line-path — zig-zag with visible vertex handles
-  polyline: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 20 8 10 14 17 21 4"/><circle cx="3" cy="20" r="1.6" fill="currentColor"/><circle cx="8" cy="10" r="1.6" fill="currentColor"/><circle cx="14" cy="17" r="1.6" fill="currentColor"/><circle cx="21" cy="4" r="1.6" fill="currentColor"/></svg>`,
+  spinner: F(
+    '<path d="M10 2a8 8 0 018 8h-2a6 6 0 00-6-6V2z"/>',
+  ),
 };

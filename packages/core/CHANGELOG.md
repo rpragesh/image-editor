@@ -2,6 +2,54 @@
 
 All notable changes to `@rageshpikalmunde/rp-image-editor` will be documented in this file.
 
+## [1.4.0] — 2026-07-24
+
+Major configurability + i18n release. Every addition is backward-compatible; consumers who upgrade without touching config get the same UI as 1.3.0.
+
+### Added — theme / chrome
+- **`theme.headerSubtitle`** — customize the subtitle rendered under the header title. Pass `''` to hide the row entirely. Default: `'Edit your image with ease'`.
+
+### Added — filters
+- **`filterPresets`** — whitelist and order the built-in one-click filter tiles. Accepts any subset of `'none' | 'grayscale' | 'sepia' | 'vintage' | 'cool' | 'warm' | 'invert'`. Unknown ids are dropped silently; an empty result falls back to the canonical order.
+- **`filterPresetLabels`** — rename individual filter preset tiles without changing behaviour. Partial `Record<ImageFilterPreset, string>`; missing keys use the built-in label.
+
+### Added — callouts
+- **`calloutDefaults`** — configure the defaults applied to newly-placed callouts:
+  - `text` — initial label text (default `'Label'`)
+  - `color` — box background (falls back to `defaultBrushColor`)
+  - `textColor` — label text color (default `'#ffffff'`)
+  - `fontSize` — label font size in pixels (default `20`)
+  - `maxChars` — character cap for the label (default `40`)
+  - `lineBreakAt` — auto-linebreak position (default `15`)
+
+### Added — empty state
+- **`strings.emptyStateTitle`** — override the empty-state title (default `'Drop an image or click to upload'`).
+- **`strings.emptyStateSubtitle`** — override the empty-state subtitle (default `'Supported: PNG, JPEG, HEIC'`). Pass `''` to hide the row.
+
+### Added — internationalisation (15 languages)
+- **`config.language`** — two-letter code that swaps every user-facing string in the editor shell (top bar, rails, empty state, props panel, filter tiles, callout defaults) to a bundled translation. Supported: `da, de, en, es, fr, it, ko, nl, pl, pt, sv, th, tr, vi, zh`.
+  - `sp` is accepted as a convenience alias for `es`.
+  - Regional variants such as `de-DE`, `pt_BR`, `zh-CN` are folded to their primary tag.
+  - Unknown or missing codes fall back to English.
+- **`config.labels`** — deep-partial per-key overrides layered on top of the resolved language pack. Use to:
+  - rebrand individual labels (e.g. rename `'Callout'` → `'Annotation'`)
+  - translate to a language not in the built-in set (pass a full `labels` object with no `language`; missing keys fall through to English)
+  - mix and match (e.g. `language: 'de'` plus a few local tweaks)
+- **New public exports:**
+  - `getLocalePack(input?)`, `resolveLanguage(input?)` — runtime helpers
+  - Types: `LanguageCode`, `LocalePack`, `LocalePackOverrides`
+
+### Precedence rules
+For any given string the editor resolves it in this order (highest wins):
+
+1. Explicit field on `theme`, `strings`, `filterPresetLabels`, or `calloutDefaults`
+2. `config.labels` per-key override
+3. Language pack selected via `config.language`
+4. English fallback pack
+
+### Changed
+- `DEFAULT_CONFIG.theme` no longer hard-codes English values for `headerTitle`, `cancelButtonText`, or `applyButtonText`. Those fields are now filled by the resolved locale pack so language selection actually takes effect. Consumers that overrode any of these strings on `theme` are unaffected — per-key overrides still win.
+
 ## [1.3.0] — 2026-07-23
 
 ### Added

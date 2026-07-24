@@ -7,7 +7,9 @@
 
 > A lightweight, framework-agnostic **JavaScript image editor** built on [Fabric.js](http://fabricjs.com/). Crop, zoom, rotate, draw, add text, **shapes (circle / ellipse / square / arrow)**, callout annotations, erase, undo/redo — all in a beautiful modal UI with grouped toolbar. **Always-on drag with a translucent ghost preview** keeps the image visible while panning and zooming. **Annotations are preserved across both crop and rotate** (no drift past 360°), exports run at the image's native resolution by default, and themes auto-contrast so customized backgrounds always get a readable foreground. Works with **Angular**, **React**, **Vue**, **Ionic**, **Capacitor**, and plain JavaScript.
 
-**[▶ Live Demo](https://rpragesh.github.io/image-editor/)** — Try it in your browser!
+### 🚀 **[▶ Try the Live Demo →](https://rpragesh.github.io/image-editor/)**
+
+> One click — the editor opens with a sample image already loaded. No signup, no upload. Draw, crop, rotate, add callouts, apply filters — try every tool right in your browser.
 
 ![rp-image-editor screenshot](https://raw.githubusercontent.com/rpragesh/image-editor/main/demo/screenshot.png)
 
@@ -35,6 +37,11 @@
 | ⚡ **Smart Resolution** | Auto-downscales on iOS to stay within Safari canvas limits |
 | 👆 **Touch Gestures** | Pinch zoom, drag, tap on mobile |
 | 🎨 **Theming** | Fully customizable colors for header, footer, buttons, toolbar. Auto-contrast: customized backgrounds without an explicit text/icon color get a readable foreground derived from luminance. |
+| 🌐 **i18n (15 languages)** | Bundled translations for `da, de, en, es, fr, it, ko, nl, pl, pt, sv, th, tr, vi, zh` selectable via `language`. `sp` aliases to `es`; regional variants (`de-DE`, `pt_BR`, `zh-CN`, …) fold to the primary tag. |
+| 🏷️ **Label overrides** | `labels` (deep-partial `LocalePack`) lets you rebrand individual strings or add languages beyond the built-in set. |
+| 🎚️ **Filter presets config** | Whitelist / reorder the built-in filter tiles via `filterPresets`, or rename them via `filterPresetLabels`. |
+| 💬 **Callout defaults config** | Override the initial `text`, `color`, `textColor`, `fontSize`, `maxChars`, and `lineBreakAt` for new callouts. |
+| 📝 **Empty-state copy** | Customize the drop-zone title/subtitle via `strings.emptyStateTitle` / `strings.emptyStateSubtitle` (empty string hides the subtitle). |
 | 📦 **Output** | Base64, Blob, and File object |
 
 ## Installation
@@ -168,9 +175,79 @@ interface RpEditorConfig {
   colorPalette?: string[];
   showToolbar?: boolean;           // Default: true
   disabledFeatures?: string[];     // Default: [] — see below
+  filterPresets?: ImageFilterPreset[];                    // Whitelist / order the filter tiles
+  filterPresetLabels?: Partial<Record<ImageFilterPreset, string>>;  // Rename individual tiles
+  calloutDefaults?: {              // Defaults for newly-placed callouts
+    text?: string;                 // Default: 'Label' (localised by `language`)
+    color?: string;                // Default: matches defaultBrushColor
+    textColor?: string;            // Default: '#ffffff'
+    fontSize?: number;             // Default: 20
+    maxChars?: number;             // Default: 40
+    lineBreakAt?: number;          // Default: 15
+  };
+  strings?: {                      // Empty-state copy
+    emptyStateTitle?: string;      // Default: 'Drop an image or click to upload'
+    emptyStateSubtitle?: string;   // Default: 'Supported: PNG, JPEG, HEIC' (pass '' to hide)
+  };
   theme?: RpEditorTheme;
   locale?: string;
+  language?: LanguageCode;         // Two-letter code — see "Internationalization" below
+  labels?: LocalePackOverrides;    // Deep-partial per-key overrides on top of the language pack
 }
+```
+
+## Internationalization
+
+Swap every user-facing string in the editor shell to any of 15 bundled languages with a single config key:
+
+```typescript
+await openEditorModal({
+  image: file,
+  config: { language: 'de' },   // header, rails, props panel, callouts … all German
+});
+```
+
+**Supported codes:** `da, de, en, es, fr, it, ko, nl, pl, pt, sv, th, tr, vi, zh`
+
+- `sp` is accepted as a convenience alias for `es`.
+- Regional variants (`de-DE`, `pt_BR`, `zh-CN`, …) are folded to their primary tag.
+- Unknown or missing codes fall back to English.
+
+### Per-key overrides (`labels`)
+
+`config.labels` accepts any subset of `LocalePack` keys and layers them on top of the resolved language pack. Use it to rebrand individual strings, or to provide a translation for a language that isn't in the built-in set — missing keys fall through to English.
+
+```typescript
+await openEditorModal({
+  image: file,
+  config: {
+    language: 'en',
+    labels: {
+      tool: { callout: 'Annotation' },
+      props: {
+        title: { callout: 'Annotation' },
+        deleteSelected: 'Remove',
+      },
+    },
+  },
+});
+```
+
+**Precedence** (highest wins):
+
+1. Explicit fields on `theme`, `strings`, `filterPresetLabels`, `calloutDefaults`
+2. `config.labels` per-key overrides
+3. Language pack from `config.language`
+4. English fallback pack
+
+**Public helpers** (rarely needed — the editor calls these internally):
+
+```typescript
+import { getLocalePack, resolveLanguage } from '@rageshpikalmunde/rp-image-editor';
+import type { LanguageCode, LocalePack, LocalePackOverrides } from '@rageshpikalmunde/rp-image-editor';
+
+resolveLanguage('pt-BR');   // → 'pt'
+getLocalePack('de');        // → the full German LocalePack
 ```
 
 ## Disabling Features
@@ -190,9 +267,22 @@ const result = await openEditorModal({
 });
 ```
 
-**Individual tool names:** `move`, `crop`, `zoomIn`, `zoomOut`, `rotateLeft`, `rotateRight`, `draw`, `text`, `callout`, `eraser`, `shape-circle`, `shape-ellipse`, `shape-square`, `shape-arrow`, `undo`, `redo`, `reset`
+**Individual tool names:** `move`, `crop`, `zoomIn`, `zoomOut`, `rotateLeft`, `rotateRight`, `draw`, `text`, `callout`, `eraser`, `filters`, `adjust`, `shape-circle`, `shape-ellipse`, `shape-square`, `shape-rectangle`, `shape-arrow`, `shape-polyline`, `undo`, `redo`, `reset`
 
-**Group names** (disables all children): `zoom` (zoomIn + zoomOut), `transform` (rotateLeft + rotateRight), `annotate` (draw + text + callout + eraser), `shapes` (shape-circle + shape-ellipse + shape-square + shape-arrow)
+**Group names** (disables all children): `zoom` (zoomIn + zoomOut), `transform` (rotateLeft + rotateRight), `annotate` (draw + text + callout + eraser), `shapes` (shape-circle + shape-ellipse + shape-square + shape-rectangle + shape-arrow + shape-polyline)
+
+**Common recipes:**
+
+```typescript
+// Hide the Filters menu entirely
+disabledFeatures: ['filters']
+
+// Hide both Filters and Adjust tiles (no photo effects at all)
+disabledFeatures: ['filters', 'adjust']
+
+// Hide the whole Annotate group (draw + text + callout + eraser)
+disabledFeatures: ['annotate']
+```
 
 ## Toolbar Layout
 
@@ -270,6 +360,78 @@ const result = await openEditorModal({
 ## Contributing
 
 Contributions are welcome! Please open an issue or submit a pull request on [GitHub](https://github.com/rpragesh/image-editor).
+
+## Upgrading from 1.3.0
+
+**Nothing in your existing code has to change.** 1.4.0 is 100% backward-compatible — every new config key is optional and every default value matches 1.3.0. If you install 1.4.0 and touch nothing, you get the same English UI, the same toolbar, the same filter tiles in the same order, and the same callout defaults you had in 1.3.0.
+
+### 1. Bump the version
+
+```bash
+npm install @rageshpikalmunde/rp-image-editor@^1.4.0
+# and if you use the framework wrappers (they peer-depend on core ^1.4.0):
+npm install @rageshpikalmunde/rp-image-editor-react@^1.4.0
+npm install @rageshpikalmunde/rp-image-editor-angular@^1.4.0
+```
+
+### 2. Opt into the new features (all optional)
+
+Add any subset of the new keys to your existing `config` object. You do **not** need to remove or restructure anything you already pass:
+
+```typescript
+await openEditorModal({
+  image: file,
+  config: {
+    // ...everything you already had in 1.3.0 still works, unchanged...
+
+    // Localize the UI to any of 15 bundled languages
+    language: 'de',
+
+    // Per-key label overrides (rebrand, or translate to a language not bundled)
+    labels: { tool: { callout: 'Annotation' } },
+
+    // Whitelist / reorder the filter tiles, and rename them
+    filterPresets: ['none', 'grayscale', 'vintage'],
+    filterPresetLabels: { grayscale: 'B&W' },
+
+    // Defaults for newly-placed callouts
+    calloutDefaults: { text: 'Note', fontSize: 18, maxChars: 60 },
+
+    // Empty-state copy (drop-zone title/subtitle). Pass '' to hide the subtitle.
+    strings: {
+      emptyStateTitle: 'Drop a photo here',
+      emptyStateSubtitle: '',
+    },
+
+    // Header subtitle (below the header title). Pass '' to hide the row.
+    theme: { headerSubtitle: 'Edit and annotate' },
+  },
+});
+```
+
+### Hiding the Filters menu
+
+Use `disabledFeatures` (available since 1.0.3 — see [Disabling Features](#disabling-features) above) to hide the Filters tile:
+
+```typescript
+await openEditorModal({
+  image: file,
+  config: {
+    disabledFeatures: ['filters'],           // hide Filters only
+    // disabledFeatures: ['filters', 'adjust'], // hide Filters + Adjust
+  },
+});
+```
+
+### Rolling back
+
+Every 1.4.0 change is additive — no data, export, or storage format changed — so you can downgrade at any time with no code changes:
+
+```bash
+npm install @rageshpikalmunde/rp-image-editor@1.3.0
+npm install @rageshpikalmunde/rp-image-editor-react@1.3.0
+npm install @rageshpikalmunde/rp-image-editor-angular@1.3.0
+```
 
 ## License
 

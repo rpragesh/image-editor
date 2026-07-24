@@ -22,6 +22,10 @@ export type {
   LoadedImageInfo,
 } from './types/index.js';
 
+// i18n (locale packs)
+export { getLocalePack, resolveLanguage } from './i18n/index.js';
+export type { LanguageCode, LocalePack, LocalePackOverrides } from './i18n/index.js';
+
 // Utils (for advanced users)
 export { processImage, isHeicFile } from './utils/image-processing.js';
 export { isIOS, isSafari, isCapacitor, isTouchDevice, getMaxResolution } from './utils/platform.js';

@@ -101,6 +101,59 @@
     .file-label:active { transform: scale(0.97); }
     input[type="file"] { display: none; }
 
+    /* Primary 'Try sample' CTA — the hero button */
+    .try-sample-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 40px;
+      background: linear-gradient(135deg, #4a90d9 0%, #667eea 100%);
+      color: #fff;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 17px;
+      font-weight: 700;
+      transition: transform 0.15s, box-shadow 0.15s;
+      border: none;
+      box-shadow: 0 6px 20px rgba(74, 144, 217, 0.35);
+      margin-bottom: 14px;
+    }
+    .try-sample-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 28px rgba(74, 144, 217, 0.45);
+    }
+    .try-sample-btn:active { transform: translateY(0); }
+    .try-sample-btn .pulse {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #fff;
+      animation: pulse 1.4s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.3); }
+    }
+    .or-divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 4px auto 14px;
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      max-width: 240px;
+    }
+    .or-divider::before, .or-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
     /* Theme selector */
     .section-label {
       font-size: 13px;
@@ -255,11 +308,18 @@
 
     <div class="section-label">Theme</div>
     <div class="themes">
-      <button class="theme-chip active" data-theme="dark">🌙 Dark</button>
-      <button class="theme-chip" data-theme="light">☀️ Light</button>
+      <button class="theme-chip" data-theme="dark">🌙 Dark</button>
+      <button class="theme-chip active" data-theme="light">☀️ Light</button>
       <button class="theme-chip" data-theme="blue">💙 Blue</button>
       <button class="theme-chip" data-theme="green">💚 Green</button>
     </div>
+
+    <button class="try-sample-btn" id="trySampleBtn" type="button">
+      <span class="pulse"></span>
+      🎨 Try it now with sample image
+    </button>
+
+    <div class="or-divider">or use your own</div>
 
     <label class="file-label" for="imgInput">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
@@ -310,6 +370,7 @@
         applyButtonTextColor: '#ffffff',
       },
       light: {
+        variant: 'light',
         headerBackground: '#ffffff',
         headerTextColor: '#333333',
         editorBackground: '#f5f5f5',
@@ -348,7 +409,7 @@
       },
     };
 
-    let selectedTheme = 'dark';
+    let selectedTheme = 'light';
 
     // Theme selector
     document.querySelectorAll('.theme-chip').forEach(btn => {
@@ -357,6 +418,68 @@
         btn.classList.add('active');
         selectedTheme = btn.dataset.theme;
       });
+    });
+
+    // Shared result renderer
+    function showResult(result) {
+      const outputSection = document.getElementById('outputSection');
+      const outputImg = document.getElementById('outputImg');
+      const outputMeta = document.getElementById('outputMeta');
+      outputSection.classList.add('visible');
+      outputImg.src = result.base64;
+      outputMeta.innerHTML = `
+        <div class="meta-item"><div class="meta-label">Dimensions</div><div class="meta-value">${result.width} × ${result.height}</div></div>
+        <div class="meta-item"><div class="meta-label">Format</div><div class="meta-value">${result.format.toUpperCase()}</div></div>
+        <div class="meta-item"><div class="meta-label">File Size</div><div class="meta-value">${(result.blob.size / 1024).toFixed(1)} KB</div></div>
+        <div class="meta-item"><div class="meta-label">File Name</div><div class="meta-value">${result.file.name}</div></div>
+      `;
+    }
+
+    // Open editor with the bundled sample image (fetched from same folder).
+    // Probes a few filenames so `sample.png`, `sample.jpg`, `sample.jpeg`, or
+    // `sample.webp` will all work — drop whichever format you have.
+    const SAMPLE_CANDIDATES = ['sample.png', 'sample.jpg', 'sample.jpeg', 'sample.webp'];
+    async function fetchSample() {
+      for (const name of SAMPLE_CANDIDATES) {
+        try {
+          const res = await fetch(name, { cache: 'no-cache' });
+          if (res.ok) {
+            const blob = await res.blob();
+            const type = blob.type || 'image/' + (name.split('.').pop() === 'jpg' ? 'jpeg' : name.split('.').pop());
+            return new File([blob], name, { type });
+          }
+        } catch { /* try next candidate */ }
+      }
+      throw new Error('No sample image found. Expected one of: ' + SAMPLE_CANDIDATES.join(', '));
+    }
+
+    async function openWithSample() {
+      try {
+        const file = await fetchSample();
+        const result = await openEditorModal({
+          image: file,
+          config: {
+            theme: {
+              ...themes[selectedTheme],
+              headerTitle: 'Photo Editor — try me!',
+              cancelButtonText: 'Close',
+              applyButtonText: 'Apply',
+            },
+          },
+        });
+        if (result) showResult(result);
+      } catch (err) {
+        console.warn('[demo] Could not load sample image:', err);
+      }
+    }
+
+    document.getElementById('trySampleBtn').addEventListener('click', openWithSample);
+
+    // Auto-open the editor with the sample once the page has painted so the
+    // very first thing a visitor sees is a working editor, not a landing form.
+    window.addEventListener('load', () => {
+      // Small delay lets the page render + gives users a chance to scroll first.
+      setTimeout(openWithSample, 400);
     });
 
     // Copy install command
@@ -387,18 +510,7 @@
         });
 
         if (result) {
-          const outputSection = document.getElementById('outputSection');
-          const outputImg = document.getElementById('outputImg');
-          const outputMeta = document.getElementById('outputMeta');
-
-          outputSection.classList.add('visible');
-          outputImg.src = result.base64;
-          outputMeta.innerHTML = `
-            <div class="meta-item"><div class="meta-label">Dimensions</div><div class="meta-value">${result.width} × ${result.height}</div></div>
-            <div class="meta-item"><div class="meta-label">Format</div><div class="meta-value">${result.format.toUpperCase()}</div></div>
-            <div class="meta-item"><div class="meta-label">File Size</div><div class="meta-value">${(result.blob.size / 1024).toFixed(1)} KB</div></div>
-            <div class="meta-item"><div class="meta-label">File Name</div><div class="meta-value">${result.file.name}</div></div>
-          `;
+          showResult(result);
         }
       } catch (err) {
         console.error('Editor error:', err);

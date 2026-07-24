@@ -4,8 +4,38 @@ import { RpEditorConfig, CropAspectRatio } from '../types/index.js';
  * Default configuration values
  */
 export const DEFAULT_CONFIG: Required<
-  Omit<RpEditorConfig, 'maxResolution' | 'locale' | 'theme'>
-> & { maxResolution: number | null; theme: NonNullable<RpEditorConfig['theme']> } = {
+  Omit<
+    RpEditorConfig,
+    | 'maxResolution'
+    | 'locale'
+    | 'language'
+    | 'labels'
+    | 'theme'
+    | 'onApply'
+    | 'onClose'
+    | 'filterPresets'
+    | 'filterPresetLabels'
+    | 'onImageLoaded'
+    | 'onError'
+    | 'onModeChanged'
+    | 'calloutDefaults'
+    | 'strings'
+  >
+> & {
+  maxResolution: number | null;
+  theme: NonNullable<RpEditorConfig['theme']>;
+  onApply?: () => void;
+  onClose?: () => void;
+  filterPresets?: RpEditorConfig['filterPresets'];
+  filterPresetLabels?: RpEditorConfig['filterPresetLabels'];
+  onImageLoaded?: RpEditorConfig['onImageLoaded'];
+  onError?: RpEditorConfig['onError'];
+  onModeChanged?: RpEditorConfig['onModeChanged'];
+  calloutDefaults?: RpEditorConfig['calloutDefaults'];
+  strings?: RpEditorConfig['strings'];
+  language?: RpEditorConfig['language'];
+  labels?: RpEditorConfig['labels'];
+} = {
   maxResolution: null, // auto-detect
   cropAspectRatios: [
     { label: 'Free', value: null },
@@ -35,27 +65,38 @@ export const DEFAULT_CONFIG: Required<
   ],
   showToolbar: true,
   disabledFeatures: [],
+  disableKeyboardShortcuts: false,
   theme: {
-    headerBackground: '#f5f5f5',
-    headerTextColor: '#222222',
-    headerTitle: 'Photo Editor',
-    editorBackground: '#e0e0e0',
-    toolbarBackground: '#fafafa',
-    toolbarIconColor: '#333333',
-    toolbarActiveBackground: '#1976d2',
-    toolbarActiveTextColor: '#ffffff',
-    toolbarActiveIconColor: '#1976d2',
-    footerBackground: '#f5f5f5',
+    headerBackground: '#0B0D12',
+    headerTextColor: '#ECEEF3',
+    // headerTitle intentionally omitted so the i18n locale pack can fill it.
+    editorBackground: '#0B0D12',
+    toolbarBackground: '#12151C',
+    toolbarIconColor: '#ECEEF3',
+    toolbarActiveBackground: '#083a81',
+    toolbarActiveTextColor: '#FFFFFF',
+    toolbarActiveIconColor: '#083a81',
+    footerBackground: '#0B0D12',
     cancelButtonBackground: 'transparent',
-    cancelButtonTextColor: '#333333',
-    cancelButtonBorderColor: '#999999',
-    cancelButtonText: 'Close',
-    applyButtonBackground: '#1976d2',
-    applyButtonTextColor: '#ffffff',
-    applyButtonBorderColor: '#1976d2',
-    applyButtonText: 'Apply',
-    modalBorderRadius: '12px',
-    buttonBorderRadius: '6px',
+    cancelButtonTextColor: '#ECEEF3',
+    cancelButtonBorderColor: 'rgba(255,255,255,0.14)',
+    // cancelButtonText intentionally omitted (see i18n locale pack).
+    applyButtonBackground: '#083a81',
+    applyButtonTextColor: '#FFFFFF',
+    applyButtonBorderColor: '#083a81',
+    // applyButtonText intentionally omitted (see i18n locale pack).
+    modalBorderRadius: '16px',
+    buttonBorderRadius: '10px',
+    // New Figma+Linear tokens (dark palette)
+    variant: 'dark',
+    surface0: '#0B0D12',
+    surface1: '#12151C',
+    surface2: '#181C25',
+    borderColor: 'rgba(255,255,255,0.06)',
+    textPrimary: '#ECEEF3',
+    textMuted: '#8A93A6',
+    accent: '#083a81',
+    accentContrast: '#FFFFFF',
   },
 };
 
@@ -63,7 +104,7 @@ export const DEFAULT_CONFIG: Required<
  * Parse a CSS color string into RGB. Supports #rgb, #rrggbb, and rgb()/rgba().
  * Returns null when the color can't be parsed (e.g. named colors, hsl()).
  */
-function parseColor(input: string): { r: number; g: number; b: number } | null {
+export function parseColor(input: string): { r: number; g: number; b: number } | null {
   if (!input) return null;
   const s = input.trim().toLowerCase();
 
@@ -137,8 +178,36 @@ export function mergeConfig(userConfig?: Partial<RpEditorConfig>): typeof DEFAUL
   }
 
   const userTheme = userConfig.theme || {};
+
+  // When the caller opts into the light variant, seed the merged theme with a
+  // light-palette baseline instead of the dark defaults. Otherwise the dark
+  // token values from DEFAULT_CONFIG.theme would be written as inline styles
+  // in `applyThemeVars` and shadow the CSS light palette activated by
+  // `data-theme="light"`, leaving the modal visually dark.
+  const baseTheme =
+    userTheme.variant === 'light'
+      ? {
+          ...DEFAULT_CONFIG.theme,
+          headerBackground: '#FFFFFF',
+          headerTextColor: '#12151C',
+          editorBackground: '#F7F8FA',
+          toolbarBackground: '#FFFFFF',
+          toolbarIconColor: '#12151C',
+          footerBackground: '#FFFFFF',
+          cancelButtonTextColor: '#12151C',
+          cancelButtonBorderColor: 'rgba(15,20,30,0.14)',
+          surface0: '#F7F8FA',
+          surface1: '#FFFFFF',
+          surface2: '#F1F3F7',
+          borderColor: 'rgba(15,20,30,0.08)',
+          textPrimary: '#12151C',
+          textMuted: '#5B6472',
+          variant: 'light' as const,
+        }
+      : DEFAULT_CONFIG.theme;
+
   const mergedTheme = {
-    ...DEFAULT_CONFIG.theme,
+    ...baseTheme,
     ...userTheme,
   };
 
@@ -152,6 +221,30 @@ export function mergeConfig(userConfig?: Partial<RpEditorConfig>): typeof DEFAUL
   // consumers reading it still get a sensible value.
   if (userTheme.toolbarActiveBackground && userTheme.toolbarActiveIconColor == null) {
     mergedTheme.toolbarActiveIconColor = userTheme.toolbarActiveBackground;
+  }
+
+  // Mirror legacy → new design tokens. `applyThemeVars` always writes the
+  // new tokens as inline styles, so if the user only provides legacy keys
+  // (e.g. `editorBackground`) without the corresponding new token
+  // (`surface0`), the default dark token bleeds through and overrides the
+  // legacy value. Promote legacy values into the new tokens when the new
+  // one wasn't explicitly set by the caller.
+  if (userTheme.editorBackground && userTheme.surface0 == null) {
+    mergedTheme.surface0 = userTheme.editorBackground;
+  }
+  if (userTheme.toolbarBackground && userTheme.surface1 == null) {
+    mergedTheme.surface1 = userTheme.toolbarBackground;
+    // surface2 (elevated / active) also derives from the toolbar surface
+    // when not explicitly customized, so hover / active tiles inherit the
+    // caller's palette instead of the dark default.
+    if (userTheme.surface2 == null) {
+      mergedTheme.surface2 = userTheme.toolbarBackground;
+    }
+  }
+  if (userTheme.toolbarIconColor && userTheme.textPrimary == null) {
+    mergedTheme.textPrimary = userTheme.toolbarIconColor;
+  } else if (userTheme.headerTextColor && userTheme.textPrimary == null) {
+    mergedTheme.textPrimary = userTheme.headerTextColor;
   }
 
   // Background → foreground pairs to auto-balance. Only kicks in when the

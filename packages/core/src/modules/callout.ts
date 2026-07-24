@@ -62,9 +62,11 @@ export class CalloutModule {
   private calloutCounter = 0;
 
   /** Max characters allowed in a callout label */
-  private readonly CALLOUT_MAX_CHARS = 40;
+  private calloutMaxChars = 40;
   /** Character position around which to insert a line-break */
-  private readonly CALLOUT_LINE_BREAK_AT = 15;
+  private calloutLineBreakAt = 15;
+  /** Initial text used for newly-placed callouts */
+  private defaultText = 'Label';
 
   constructor(canvas: fabric.Canvas) {
     this.canvas = canvas;
@@ -121,6 +123,30 @@ export class CalloutModule {
 
   setFontSize(size: number): void {
     this.fontSize = Math.max(8, Math.min(200, size));
+  }
+
+  /**
+   * Update the defaults used for newly-placed callouts. Existing
+   * callouts on the canvas are not modified. All keys are optional;
+   * omitted keys keep their current value.
+   */
+  setDefaults(defaults: {
+    text?: string;
+    maxChars?: number;
+    lineBreakAt?: number;
+  }): void {
+    if (typeof defaults.text === 'string') {
+      this.defaultText = defaults.text;
+    }
+    if (typeof defaults.maxChars === 'number' && defaults.maxChars > 0) {
+      this.calloutMaxChars = defaults.maxChars;
+    }
+    if (
+      typeof defaults.lineBreakAt === 'number' &&
+      defaults.lineBreakAt > 0
+    ) {
+      this.calloutLineBreakAt = defaults.lineBreakAt;
+    }
   }
 
   getIsActive(): boolean {
@@ -218,7 +244,7 @@ export class CalloutModule {
     const color = opts?.color || this.calloutColor;
     const textColor = opts?.textColor || this.calloutTextColor;
     const fontSize = opts?.fontSize || this.fontSize;
-    const rawText = opts?.text || 'Label';
+    const rawText = opts?.text || this.defaultText;
     const labelText = this.formatCalloutText(
       rawText,
       opts?.maxChars,
@@ -488,7 +514,7 @@ export class CalloutModule {
   /**
    * Truncate text to a maximum length, adding ellipsis if truncated.
    */
-  private constrainText(text: string, max = this.CALLOUT_MAX_CHARS): string {
+  private constrainText(text: string, max = this.calloutMaxChars): string {
     if (!text) return text;
     text = text.replace(/\n/g, ' '); // flatten any existing newlines
     if (text.length <= max) return text;
@@ -499,7 +525,7 @@ export class CalloutModule {
    * Insert a line-break (\n) near `breakAt` at the closest word boundary
    * so `fabric.IText` renders a compact two-line label.
    */
-  private wrapText(text: string, breakAt = this.CALLOUT_LINE_BREAK_AT): string {
+  private wrapText(text: string, breakAt = this.calloutLineBreakAt): string {
     if (!text || text.length <= breakAt) return text;
     // Already contains a manual line-break — leave as-is
     if (text.includes('\n')) return text;
@@ -534,8 +560,8 @@ export class CalloutModule {
     lineBreakAt?: number,
   ): string {
     return this.wrapText(
-      this.constrainText(text, maxChars ?? this.CALLOUT_MAX_CHARS),
-      lineBreakAt ?? this.CALLOUT_LINE_BREAK_AT,
+      this.constrainText(text, maxChars ?? this.calloutMaxChars),
+      lineBreakAt ?? this.calloutLineBreakAt,
     );
   }
 

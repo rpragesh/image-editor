@@ -98,7 +98,13 @@
   </div>
 
   <!-- Load the editor from local build -->
-  <script src="rp-image-editor.bundle.js"></script>
+  <script>
+    // Cache-bust the bundle so hard-refreshes always pull the latest
+    // build during development.
+    document.write(
+      '<script src="rp-image-editor.bundle.js?v=' + Date.now() + '"><' + '/script>'
+    );
+  </script>
   <script>
     // Use the IIFE global
     const { openEditorModal } = RpImageEditor;
@@ -109,23 +115,26 @@
         headerTextColor: '#ffffff',
         editorBackground: '#000000',
         toolbarBackground: '#2d2d2d',
-        toolbarActiveBackground: '#4a90d9',
+        toolbarActiveBackground: '#083a81',
         toolbarActiveTextColor: '#ffffff',
         footerBackground: '#1a1a2e',
-        applyButtonBackground: '#4a90d9',
+        applyButtonBackground: '#083a81',
+        applyButtonBorderColor: '#083a81',
       },
       light: {
+        variant: 'light',
         headerBackground: '#ffffff',
         headerTextColor: '#333333',
         editorBackground: '#f5f5f5',
         toolbarBackground: '#e0e0e0',
         toolbarIconColor: '#333333',
-        toolbarActiveBackground: '#4a90d9',
+        toolbarActiveBackground: '#083a81',
         toolbarActiveTextColor: '#ffffff',
         footerBackground: '#ffffff',
         cancelButtonTextColor: '#333333',
         cancelButtonBorderColor: '#999999',
-        applyButtonBackground: '#4a90d9',
+        applyButtonBackground: '#083a81',
+        applyButtonBorderColor: '#083a81',
       },
       blue: {
         headerBackground: '#1565c0',

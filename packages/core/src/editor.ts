@@ -10,6 +10,8 @@ import {
   EditorMode,
   LoadedImageInfo,
   RpEditorTheme,
+  ImageFilterPreset,
+  ImageAdjustments,
 } from './types/index.js';
 import { mergeConfig } from './utils/defaults.js';
 import { EventEmitter } from './utils/event-emitter.js';
@@ -23,9 +25,13 @@ import { CalloutModule } from './modules/callout.js';
 import { ShapeModule } from './modules/shape.js';
 import { HistoryModule } from './modules/history.js';
 import { Toolbar, ToolbarCallbacks } from './ui/toolbar.js';
+import { ensureShellStyles } from './ui/styles.js';
+import { getLocalePack } from './i18n/index.js';
+import type { LocalePack } from './i18n/types.js';
 
 export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   private config: ReturnType<typeof mergeConfig>;
+  private localePack!: LocalePack;
   private container: HTMLElement;
   private wrapperEl: HTMLElement | null = null;
   private canvasEl: HTMLCanvasElement | null = null;
@@ -52,6 +58,19 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   private lastPanY = 0;
   private isDestroyed = false;
 
+  // Brush-eraser drag state — additive layer on top of the module's
+  // click-to-delete behaviour so users can drag along a path to erase,
+  // matching the drawing feel.
+  private isErasing = false;
+  private eraserDidRemove = false;
+  private eraserCursorEl: HTMLDivElement | null = null;
+  private eraserBrushHandlers: {
+    down: (opt: fabric.IEvent<MouseEvent | TouchEvent>) => void;
+    move: (opt: fabric.IEvent<MouseEvent | TouchEvent>) => void;
+    up: () => void;
+    out: () => void;
+  } | null = null;
+
   // Touch gesture state
   private lastPinchDistance = 0;
 
@@ -74,6 +93,15 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   // a huge image. Mounted/removed on the wrapperEl.
   private loaderEl: HTMLDivElement | null = null;
 
+  // Runtime opacity for the pen brush. Applied by re-emitting the
+  // current color as rgba() through DrawModule.setBrushColor whenever
+  // opacity or color changes.
+  private brushOpacity = 1;
+  private currentBrushColor: string;
+
+  // Attached keyboard-shortcut handler, so we can remove it on destroy.
+  private keydownHandler: ((e: KeyboardEvent) => void) | null = null;
+
   // Translucent "ghost" copy of the base image mounted behind the
   // Fabric canvas while in move mode. Because the Fabric canvas is
   // sized exactly to the visible image, panning in move mode would
@@ -83,10 +111,144 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   // photo, mirroring the dimmed backdrop the crop tool uses.
   private ghostImageEl: HTMLImageElement | null = null;
 
+  // Currently applied color-filter preset + live adjust values.
+  // We store the last-committed state so the props panel can reflect
+  // it, and to rebuild the Fabric filter stack whenever either
+  // changes. Applying a filter or adjust is non-destructive — the raw
+  // pixels stay on the base image; Fabric composites through its
+  // WebGL/2D filter pipeline.
+  private activeFilterPreset: ImageFilterPreset = 'none';
+  private adjustments: ImageAdjustments = {
+    brightness: 0,
+    contrast: 0,
+    saturation: 0,
+    blur: 0,
+  };
+  private adjustDebounce: number | null = null;
+
   constructor(container: HTMLElement, config?: Partial<RpEditorConfig>) {
     super();
     this.container = container;
     this.config = mergeConfig(config);
+    this.currentBrushColor = this.config.defaultBrushColor;
+    // Auto-inject the shell stylesheet so the IIFE bundle works with
+    // no separate CSS import. No-op on subsequent instances / SSR.
+    ensureShellStyles();
+
+    // Resolve the i18n locale pack for `config.language` and back-fill
+    // any labels the consumer didn't set explicitly. Per-key overrides
+    // on `theme`, `strings`, `filterPresetLabels`, and
+    // `calloutDefaults.text` always win — the pack only fills gaps.
+    this.localePack = getLocalePack(this.config.language);
+    this.applyLocalePack();
+
+    // Additive lifecycle callbacks — mirror the internal event bus
+    // onto config-level hooks so modal consumers (who never see the
+    // editor instance) can subscribe. Inline consumers that already
+    // call `editor.on(...)` are unaffected; these are just extra
+    // subscribers on the same emitter.
+    if (this.config.onImageLoaded) {
+      this.on('image:loaded', (info) => {
+        try {
+          this.config.onImageLoaded?.(info);
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.error('[RpImageEditor] onImageLoaded threw:', e);
+        }
+      });
+    }
+    if (this.config.onError) {
+      this.on('error', (err) => {
+        try {
+          this.config.onError?.(err as Error);
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.error('[RpImageEditor] onError threw:', e);
+        }
+      });
+    }
+    if (this.config.onModeChanged) {
+      this.on('mode:changed', (mode) => {
+        try {
+          this.config.onModeChanged?.(mode);
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.error('[RpImageEditor] onModeChanged threw:', e);
+        }
+      });
+    }
+  }
+
+  /**
+   * Back-fill the merged config with strings from the resolved locale
+   * pack. Any per-key value the consumer set explicitly wins \u2014 we
+   * only assign when the current value is `undefined`. Called once
+   * from the constructor after `mergeConfig`.
+   */
+  private applyLocalePack(): void {
+    // Layer `config.labels` overrides on top of the resolved language
+    // pack. `labels` is deep-partial so we merge each nested section
+    // shallowly; unset keys fall through to the pack.
+    const overrides = this.config.labels;
+    if (overrides) {
+      const base = this.localePack;
+      this.localePack = {
+        ...base,
+        ...overrides,
+        tool: { ...base.tool, ...(overrides.tool ?? {}) },
+        shape: { ...base.shape, ...(overrides.shape ?? {}) },
+        filter: { ...base.filter, ...(overrides.filter ?? {}) },
+        props: {
+          ...base.props,
+          ...(overrides.props ?? {}),
+          title: {
+            ...base.props.title,
+            ...(overrides.props?.title ?? {}),
+          },
+        },
+      };
+    }
+    const pack = this.localePack;
+    const theme = this.config.theme;
+
+    // Header chrome
+    if (theme.headerTitle === undefined) theme.headerTitle = pack.headerTitle;
+    if (theme.headerSubtitle === undefined)
+      theme.headerSubtitle = pack.headerSubtitle;
+    if (theme.applyButtonText === undefined)
+      theme.applyButtonText = pack.applyButton;
+    if (theme.cancelButtonText === undefined)
+      theme.cancelButtonText = pack.cancelButton;
+
+    // Empty state
+    const strings = this.config.strings ?? (this.config.strings = {});
+    if (strings.emptyStateTitle === undefined)
+      strings.emptyStateTitle = pack.emptyStateTitle;
+    if (strings.emptyStateSubtitle === undefined)
+      strings.emptyStateSubtitle = pack.emptyStateSubtitle;
+
+    // Callout default label text \u2014 only fill when the consumer
+    // didn't provide their own text. Other callout defaults (color,
+    // fontSize, etc.) are not localizable.
+    const cd = this.config.calloutDefaults;
+    if (cd) {
+      if (cd.text === undefined) cd.text = pack.calloutLabelText;
+    } else {
+      this.config.calloutDefaults = { text: pack.calloutLabelText };
+    }
+
+    // Filter preset labels \u2014 seed from the pack, then let any
+    // consumer-provided labels take precedence per-key.
+    this.config.filterPresetLabels = {
+      none: pack.filter.none,
+      grayscale: pack.filter.grayscale,
+      sepia: pack.filter.sepia,
+      vintage: pack.filter.vintage,
+      cool: pack.filter.cool,
+      warm: pack.filter.warm,
+      invert: pack.filter.invert,
+      ...(this.config.filterPresetLabels ?? {}),
+    };
   }
 
   /**
@@ -106,6 +268,13 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       const { dataUrl, info } = await processImage(source, this.config.maxResolution);
       this.imageInfo = info;
 
+      // Render shell BEFORE the canvas so the stage slot exists and
+      // the canvas mounts inside the new layout. The shell is a no-op
+      // when showToolbar is false.
+      if (this.config.showToolbar && !this.toolbar) {
+        this.renderToolbar();
+      }
+
       // Initialize canvas
       this.initializeCanvas();
 
@@ -123,11 +292,6 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
 
       // Initialize modules
       this.initializeModules();
-
-      // Render toolbar
-      if (this.config.showToolbar) {
-        this.renderToolbar();
-      }
 
       // Save initial state for undo
       this.historyModule?.initialize();
@@ -163,12 +327,15 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
         break;
       case 'draw':
         this.drawModule?.activate();
+        this.applyToolCursor('pencil');
         break;
       case 'text':
         this.textModule?.activate();
         break;
       case 'eraser':
         this.eraserModule?.activate();
+        this.applyToolCursor('eraser');
+        this.enableBrushEraser();
         break;
       case 'callout':
         this.calloutModule?.activate();
@@ -190,6 +357,13 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
         break;
       case 'shape-polyline':
         this.shapeModule?.activate('polyline');
+        break;
+      case 'filters':
+      case 'adjust':
+        // No fabric-side activation — the props panel drives filter
+        // preset selection and live adjust sliders. We just want the
+        // stage to feel like "move" (no drawing, no selection).
+        this.activateMoveMode();
         break;
     }
 
@@ -236,14 +410,14 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
    * Rotate left (−90°)
    */
   async rotateLeft(): Promise<void> {
-    await this.rotate(-45);
+    await this.rotate(-90);
   }
 
   /**
    * Rotate right (+90°)
    */
   async rotateRight(): Promise<void> {
-    await this.rotate(45);
+    await this.rotate(90);
   }
 
   /**
@@ -263,6 +437,27 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   }
 
   /**
+   * Toggle browser fullscreen on the editor container. Silently
+   * no-ops if the Fullscreen API is unavailable or the request is
+   * denied by the browser (e.g. not user-initiated).
+   */
+  toggleFullscreen(): void {
+    const el = this.container;
+    if (!el) return;
+    try {
+      if (document.fullscreenElement) {
+        document.exitFullscreen?.();
+      } else if (typeof el.requestFullscreen === 'function') {
+        el.requestFullscreen().catch(() => {
+          /* user gesture / permission — ignore */
+        });
+      }
+    } catch {
+      /* Fullscreen API unavailable — ignore */
+    }
+  }
+
+  /**
    * Reset to original image
    */
   async reset(): Promise<void> {
@@ -279,6 +474,9 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.cumulativeRotation = 0;
     this.rotationImageBaseline = null;
     this.fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+    // Clear any Filter/Adjust state so "Reset" truly returns the
+    // original image.
+    this.resetImageEffects(false);
     this.historyModule?.initialize();
     this.setMode('move');
   }
@@ -299,10 +497,95 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
    * Set brush/text color
    */
   setColor(color: string): void {
-    this.drawModule?.setBrushColor(color);
+    this.currentBrushColor = color;
+    const applied = this.brushOpacity < 1
+      ? this.colorWithAlpha(color, this.brushOpacity)
+      : color;
+    this.drawModule?.setBrushColor(applied);
     this.textModule?.setTextColor(color);
     this.calloutModule?.setColor(color);
     this.shapeModule?.setStrokeColor(color);
+
+    // Keep callout labels readable: whenever the callout background
+    // changes we auto-flip the label fill to the contrasting color
+    // (white text on dark boxes, black text on light boxes) — but only
+    // for the callouts currently selected AND only when the user has
+    // not manually locked a text color for that label. This solves the
+    // "white text disappears on a white callout" issue without adding
+    // a separate text-color picker to the panel.
+    this.recolorSelectedCalloutLabels(color);
+  }
+
+  /**
+   * Return #000000 or #ffffff — whichever contrasts better with `bg`.
+   * Accepts hex (#rgb / #rrggbb) and rgb()/rgba() strings.
+   */
+  private contrastTextFor(bg: string): string {
+    const rgb = this.parseColorToRgb(bg);
+    if (!rgb) return '#000000';
+    // Perceived luminance (Rec. 709)
+    const lum = (0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b) / 255;
+    return lum > 0.55 ? '#000000' : '#ffffff';
+  }
+
+  private parseColorToRgb(input: string): { r: number; g: number; b: number } | null {
+    if (!input) return null;
+    const s = input.trim().toLowerCase();
+    if (s.startsWith('#')) {
+      const hex = s.slice(1);
+      if (hex.length === 3) {
+        return {
+          r: parseInt(hex[0] + hex[0], 16),
+          g: parseInt(hex[1] + hex[1], 16),
+          b: parseInt(hex[2] + hex[2], 16),
+        };
+      }
+      if (hex.length === 6 || hex.length === 8) {
+        return {
+          r: parseInt(hex.slice(0, 2), 16),
+          g: parseInt(hex.slice(2, 4), 16),
+          b: parseInt(hex.slice(4, 6), 16),
+        };
+      }
+      return null;
+    }
+    const m = s.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+    if (m) return { r: +m[1], g: +m[2], b: +m[3] };
+    return null;
+  }
+
+  /**
+   * Walk the canvas and re-fill any callout-label belonging to a
+   * currently-selected callout with a color that contrasts with `bg`.
+   * Labels the user has explicitly recolored are marked
+   * `_rpUserSetTextColor` and left alone.
+   */
+  private recolorSelectedCalloutLabels(bg: string): void {
+    if (!this.fabricCanvas) return;
+    const active = this.fabricCanvas.getActiveObject() as any;
+    if (!active) return;
+
+    const ids = new Set<number>();
+    if (active.type === 'activeSelection') {
+      (active as fabric.ActiveSelection).forEachObject((obj: any) => {
+        if (obj.calloutId != null) ids.add(obj.calloutId);
+      });
+    } else if (active.calloutId != null) {
+      ids.add(active.calloutId);
+    }
+    if (ids.size === 0) return;
+
+    const readable = this.contrastTextFor(bg);
+    this.fabricCanvas.getObjects().forEach((obj: any) => {
+      if (
+        obj._rpType === 'callout-label' &&
+        ids.has(obj.calloutId) &&
+        !obj._rpUserSetTextColor
+      ) {
+        obj.set({ fill: readable });
+      }
+    });
+    this.fabricCanvas.requestRenderAll();
   }
 
   /**
@@ -311,6 +594,255 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   setBrushWidth(width: number): void {
     this.drawModule?.setBrushWidth(width);
     this.shapeModule?.setStrokeWidth(width);
+  }
+
+  /**
+   * Adjust the freehand brush opacity (0..1). Applied by re-emitting
+   * the current brush color as rgba() to the DrawModule — module
+   * internals are not modified.
+   */
+  setBrushOpacity(opacity: number): void {
+    this.brushOpacity = Math.max(0, Math.min(1, opacity));
+    if (this.currentBrushColor) {
+      const applied = this.brushOpacity < 1
+        ? this.colorWithAlpha(this.currentBrushColor, this.brushOpacity)
+        : this.currentBrushColor;
+      this.drawModule?.setBrushColor(applied);
+    }
+  }
+
+  /**
+   * Mirror the base image horizontally. Preserves rotation baseline
+   * tracking by resetting cumulativeRotation only when needed.
+   */
+  flipHorizontal(): void {
+    if (!this.baseImage || !this.fabricCanvas) return;
+    (this.baseImage as any).set(
+      'flipX',
+      !((this.baseImage as any).flipX || false),
+    );
+    this.fabricCanvas.requestRenderAll();
+    this.refreshGhostImage();
+    this.historyModule?.saveState();
+  }
+
+  /**
+   * Mirror the base image vertically.
+   */
+  flipVertical(): void {
+    if (!this.baseImage || !this.fabricCanvas) return;
+    (this.baseImage as any).set(
+      'flipY',
+      !((this.baseImage as any).flipY || false),
+    );
+    this.fabricCanvas.requestRenderAll();
+    this.refreshGhostImage();
+    this.historyModule?.saveState();
+  }
+
+  /* -----------------------------------------------------------------
+   * Filters + Adjust (non-destructive, composited through Fabric)
+   * ----------------------------------------------------------------- */
+
+  /**
+   * Apply a one-click color filter preset. Passing `'none'` clears the
+   * preset while leaving Adjust sliders intact.
+   */
+  applyFilterPreset(preset: ImageFilterPreset): void {
+    this.activeFilterPreset = preset;
+    this.rebuildImageFilters(true);
+  }
+
+  /**
+   * Update a single Adjust knob. Values are clamped to sane ranges:
+   * brightness/contrast/saturation ∈ [-1, 1], blur ∈ [0, 1].
+   * Rebuilds the filter stack with a small debounce so dragging is
+   * cheap on large photos.
+   */
+  setAdjustment<K extends keyof ImageAdjustments>(
+    key: K,
+    value: ImageAdjustments[K],
+  ): void {
+    const clamped =
+      key === 'blur'
+        ? Math.max(0, Math.min(1, value as number))
+        : Math.max(-1, Math.min(1, value as number));
+    this.adjustments = { ...this.adjustments, [key]: clamped };
+    if (this.adjustDebounce !== null) {
+      window.clearTimeout(this.adjustDebounce);
+    }
+    this.adjustDebounce = window.setTimeout(() => {
+      this.adjustDebounce = null;
+      this.rebuildImageFilters(false);
+    }, 40);
+  }
+
+  /** Snapshot of the current filter + adjust state. */
+  getImageEffects(): { preset: ImageFilterPreset; adjustments: ImageAdjustments } {
+    return {
+      preset: this.activeFilterPreset,
+      adjustments: { ...this.adjustments },
+    };
+  }
+
+  /** Clear filter + all adjust knobs. */
+  resetImageEffects(save: boolean = true): void {
+    this.activeFilterPreset = 'none';
+    this.adjustments = { brightness: 0, contrast: 0, saturation: 0, blur: 0 };
+    this.rebuildImageFilters(save);
+  }
+
+  /**
+   * Rebuild `baseImage.filters` from `activeFilterPreset` + `adjustments`
+   * and re-apply. Ghost preview is refreshed so the letterboxed edges
+   * stay in sync with the composited pixels.
+   */
+  private rebuildImageFilters(saveHistory: boolean): void {
+    if (!this.baseImage || !this.fabricCanvas) return;
+    const F = (fabric as any).Image?.filters;
+    if (!F) return;
+
+    // Fabric's default WebGL filter backend caps textures at
+    // `fabric.textureSize` (2048 in Fabric 5). Any image larger than
+    // that gets silently cropped to the top-left corner after
+    // applyFilters(). Two-pronged fix:
+    //   1. Bump textureSize to the WebGL max supported by the GPU so
+    //      medium photos keep the GPU fast path.
+    //   2. Fall back to the 2D backend when the image exceeds the
+    //      texture cap — slower but preserves the full frame.
+    this.ensureFilterBackendCanHandle(this.baseImage);
+
+    const stack: any[] = [];
+
+    // Preset first so Adjust sliders modulate on top of it.
+    switch (this.activeFilterPreset) {
+      case 'grayscale':
+        stack.push(new F.Grayscale());
+        break;
+      case 'sepia':
+        stack.push(new F.Sepia());
+        break;
+      case 'invert':
+        stack.push(new F.Invert());
+        break;
+      case 'vintage':
+        // Fabric ships a `Vintage` filter; fall back to sepia + slight
+        // brightness/contrast tweak if the build strips it.
+        if (F.Vintage) stack.push(new F.Vintage());
+        else {
+          stack.push(new F.Sepia());
+          stack.push(new F.Contrast({ contrast: 0.08 }));
+        }
+        break;
+      case 'cool':
+        // Push blue channel up, red down.
+        stack.push(
+          new F.ColorMatrix({
+            matrix: [
+              0.9, 0, 0, 0, 0,
+              0, 1.0, 0, 0, 0,
+              0, 0, 1.15, 0, 0,
+              0, 0, 0, 1, 0,
+            ],
+          }),
+        );
+        break;
+      case 'warm':
+        stack.push(
+          new F.ColorMatrix({
+            matrix: [
+              1.15, 0, 0, 0, 0,
+              0, 1.02, 0, 0, 0,
+              0, 0, 0.9, 0, 0,
+              0, 0, 0, 1, 0,
+            ],
+          }),
+        );
+        break;
+      case 'none':
+      default:
+        break;
+    }
+
+    // Adjust knobs.
+    if (this.adjustments.brightness !== 0) {
+      stack.push(new F.Brightness({ brightness: this.adjustments.brightness }));
+    }
+    if (this.adjustments.contrast !== 0) {
+      stack.push(new F.Contrast({ contrast: this.adjustments.contrast }));
+    }
+    if (this.adjustments.saturation !== 0) {
+      stack.push(new F.Saturation({ saturation: this.adjustments.saturation }));
+    }
+    if (this.adjustments.blur > 0) {
+      // Fabric's Blur is ~0..1 where 0.1 is already a strong blur.
+      stack.push(new F.Blur({ blur: this.adjustments.blur * 0.5 }));
+    }
+
+    (this.baseImage as any).filters = stack;
+    try {
+      (this.baseImage as any).applyFilters();
+    } catch (e) {
+      // WebGL context lost or filter build error — silently swallow so
+      // the editor stays usable; the raw image remains visible.
+    }
+    this.fabricCanvas.requestRenderAll();
+    this.refreshGhostImage();
+    if (saveHistory) this.historyModule?.saveState();
+  }
+
+  /**
+   * Ensure the current filter backend can render `img` at full size.
+   * The WebGL backend caps at `fabric.textureSize`; anything larger
+   * comes back cropped to the top-left. We first bump textureSize to
+   * what the GPU actually supports, then fall back to the 2D backend
+   * if the image is still bigger than that ceiling.
+   */
+  private ensureFilterBackendCanHandle(img: fabric.Image): void {
+    const F = fabric as any;
+    const rawW = (img as any)._element?.naturalWidth ||
+      (img as any)._element?.width ||
+      img.width ||
+      0;
+    const rawH = (img as any)._element?.naturalHeight ||
+      (img as any)._element?.height ||
+      img.height ||
+      0;
+    const needed = Math.max(rawW, rawH);
+
+    // Query the actual WebGL max texture size once and cache it.
+    if (!F._rpMaxTexSize) {
+      try {
+        const probe = document.createElement('canvas');
+        const gl =
+          (probe.getContext('webgl2') as WebGLRenderingContext | null) ||
+          (probe.getContext('webgl') as WebGLRenderingContext | null) ||
+          (probe.getContext('experimental-webgl') as WebGLRenderingContext | null);
+        F._rpMaxTexSize = gl
+          ? gl.getParameter(gl.MAX_TEXTURE_SIZE) || 4096
+          : 4096;
+      } catch {
+        F._rpMaxTexSize = 4096;
+      }
+    }
+    const maxTex: number = F._rpMaxTexSize;
+
+    // Bump Fabric's textureSize up to the GPU cap so medium/large
+    // photos keep using the fast WebGL path.
+    if ((F.textureSize || 2048) < maxTex) {
+      F.textureSize = maxTex;
+    }
+
+    // If the image is still bigger than the GPU cap, switch to the
+    // Canvas2d filter backend (no size limit, slower).
+    if (needed > maxTex && F.Canvas2dFilterBackend) {
+      const current = F.filterBackend;
+      const alreadyCanvas2d =
+        current && current.constructor && current.constructor.name === 'Canvas2dFilterBackend';
+      if (!alreadyCanvas2d) {
+        F.filterBackend = new F.Canvas2dFilterBackend();
+      }
+    }
   }
 
   /**
@@ -473,6 +1005,10 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.deactivateCurrentMode();
     this.hideLoader();
     this.hideGhostImage();
+    if (this.keydownHandler) {
+      window.removeEventListener('keydown', this.keydownHandler, true);
+      this.keydownHandler = null;
+    }
     this.toolbar?.destroy();
     this.fabricCanvas?.dispose();
     this.removeAllListeners();
@@ -519,10 +1055,12 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.wrapperEl.className = 'rp-editor-canvas-wrapper';
     this.wrapperEl.style.cssText = `
       width: 100%;
+      height: 100%;
       flex: 1;
+      align-self: stretch;
       position: relative;
       overflow: hidden;
-      background: ${this.config.theme.editorBackground || '#e0e0e0'};
+      background: transparent;
       touch-action: none;
       -webkit-user-select: none;
       user-select: none;
@@ -536,8 +1074,14 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.canvasEl.id = `rp-canvas-${Date.now()}`;
     this.wrapperEl.appendChild(this.canvasEl);
 
-    // Insert before toolbar area
-    this.container.insertBefore(this.wrapperEl, this.container.firstChild);
+    // Mount into the shell stage slot when the toolbar/shell exists,
+    // otherwise fall back to the container root (headless / showToolbar=false).
+    const stageSlot = this.toolbar?.getStageSlot();
+    if (stageSlot) {
+      this.toolbar!.attachCanvasWrapper(this.wrapperEl);
+    } else {
+      this.container.insertBefore(this.wrapperEl, this.container.firstChild);
+    }
 
     // Start with a reasonable default; will be resized to image in loadImageOntoCanvas
     const rect = this.wrapperEl.getBoundingClientRect();
@@ -614,21 +1158,30 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     const imgW = img.width || availW;
     const imgH = img.height || availH;
 
-    // Scale image to fit within the available area (uniform scale)
-    const scale = Math.min(availW / imgW, availH / imgH, 1);
+    // Scale image to FIT the available area (uniform scale). We allow
+    // scale > 1 so small images fill the stage instead of looking like
+    // a postage stamp centered in a giant canvas. Native-resolution
+    // export is preserved because getResult() applies nativeMultiplier
+    // = 1 / scaleX to render back at the image's intrinsic pixels.
+    const scale = Math.min(availW / imgW, availH / imgH);
     const displayW = Math.round(imgW * scale);
     const displayH = Math.round(imgH * scale);
 
-    // Resize the Fabric canvas to exactly match the scaled image
-    this.fabricCanvas.setWidth(displayW);
-    this.fabricCanvas.setHeight(displayH);
+    // Resize the Fabric canvas to fill the entire wrapper. The image is
+    // then centered inside; the "letterbox" on all four sides gives the
+    // ghost preview room to show what lies beyond the visible image
+    // when the user pans/zooms — evenly in every direction.
+    const canvasW = availW;
+    const canvasH = availH;
+    this.fabricCanvas.setWidth(canvasW);
+    this.fabricCanvas.setHeight(canvasH);
 
-    // Place image at origin with explicit scaleX/scaleY (avoid
-    // scaleToWidth/scaleToHeight which both do uniform scaling
-    // and the second call overrides the first).
+    // Center the image inside the canvas with explicit scaleX/scaleY.
+    const imgLeft = Math.round((canvasW - displayW) / 2);
+    const imgTop = Math.round((canvasH - displayH) / 2);
     img.set({
-      left: 0,
-      top: 0,
+      left: imgLeft,
+      top: imgTop,
       originX: 'left',
       originY: 'top',
       scaleX: displayW / imgW,
@@ -646,6 +1199,20 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.baseImage = img;
     this.fabricCanvas.add(img);
     img.sendToBack();
+
+    // Re-apply the current filter + adjust stack to the new base image
+    // so effects persist across crop/rotate/reload operations. Silent
+    // no-op when nothing is active.
+    if (
+      this.activeFilterPreset !== 'none' ||
+      this.adjustments.brightness !== 0 ||
+      this.adjustments.contrast !== 0 ||
+      this.adjustments.saturation !== 0 ||
+      this.adjustments.blur !== 0
+    ) {
+      this.rebuildImageFilters(false);
+    }
+
     this.fabricCanvas.renderAll();
 
     // Keep the translucent ghost preview mounted whenever we have a
@@ -675,6 +1242,22 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.textModule?.setTextColor(this.config.defaultTextColor);
     this.textModule?.setFontSize(this.config.defaultTextFontSize);
     this.calloutModule?.setColor(this.config.defaultBrushColor);
+    // Additive: apply consumer-provided callout defaults (color +
+    // text + limits) if supplied. Falls through to the built-in
+    // defaults when the field is omitted.
+    const cd = this.config.calloutDefaults;
+    if (cd) {
+      if (cd.color) this.calloutModule?.setColor(cd.color);
+      if (cd.textColor) this.calloutModule?.setTextColor(cd.textColor);
+      if (typeof cd.fontSize === 'number' && cd.fontSize > 0) {
+        this.calloutModule?.setFontSize(cd.fontSize);
+      }
+      this.calloutModule?.setDefaults({
+        text: cd.text,
+        maxChars: cd.maxChars,
+        lineBreakAt: cd.lineBreakAt,
+      });
+    }
     this.shapeModule?.setStrokeColor(
       this.config.defaultShapeColor ?? this.config.defaultBrushColor,
     );
@@ -714,7 +1297,29 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
 
     // Listen for callout / annotation additions
     this.fabricCanvas.on('object:added', (e: any) => {
-      if (e.target?._rpType?.startsWith('callout')) {
+      const tgt = e.target;
+      if (!tgt) return;
+
+      // When a new callout label is added, force its fill to a color
+      // that contrasts with the callout's current background so the
+      // text stays readable on light backgrounds (e.g. white). We only
+      // do this at creation time; once the user manually changes the
+      // text color we honor their choice via `_rpUserSetTextColor`.
+      if (tgt._rpType === 'callout-label' && !tgt._rpUserSetTextColor) {
+        const bgObj = this.fabricCanvas!
+          .getObjects()
+          .find(
+            (o: any) =>
+              o._rpType === 'callout-box' && o.calloutId === tgt.calloutId,
+          ) as any;
+        const bg =
+          (bgObj && bgObj.fill) || this.currentBrushColor || '#ffffff';
+        const readable = this.contrastTextFor(bg);
+        tgt.set({ fill: readable });
+        this.fabricCanvas!.requestRenderAll();
+      }
+
+      if (tgt._rpType?.startsWith('callout')) {
         this.historyModule?.saveState();
       }
     });
@@ -729,10 +1334,9 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   private renderToolbar(): void {
     if (!this.config.showToolbar) return;
 
-    const toolbarContainer = document.createElement('div');
-    toolbarContainer.className = 'rp-editor-toolbar-container';
-    this.container.appendChild(toolbarContainer);
-
+    // The Shell manages the entire container structure (top bar, rails,
+    // stage slot, bottom bar, properties panel). The canvas wrapper is
+    // mounted into the stage slot inside initializeCanvas().
     const callbacks: ToolbarCallbacks = {
       onModeChange: (mode) => this.setMode(mode),
       onZoomIn: () => this.zoomIn(),
@@ -753,25 +1357,145 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
         this.setMode('move');
       },
       onDeleteAnnotation: () => this.deleteSelectedAnnotation(),
+      onFlipHorizontal: () => this.flipHorizontal(),
+      onFlipVertical: () => this.flipVertical(),
+      onFitZoom: () => this.setZoom(1),
+      onZoomTo: (level) => this.setZoom(level),
+      onOpacityChange: (opacity) => this.setBrushOpacity(opacity),
+      onTextSize: (size) => this.textModule?.setFontSize(size),
+      onEraserSize: (size) => this.eraserModule?.setEraserWidth(size),
+      onFilterPreset: (preset) => this.applyFilterPreset(preset),
+      onAdjustChange: (key, value) => this.setAdjustment(key, value),
+      onResetEffects: () => this.resetImageEffects(true),
+      getImageEffects: () => this.getImageEffects(),
+      onApply: this.config.onApply,
+      onClose: this.config.onClose,
+      onToggleFullscreen: () => this.toggleFullscreen(),
     };
 
     this.toolbar = new Toolbar(
-      toolbarContainer,
+      this.container,
       this.config.theme,
       this.config.colorPalette,
       this.config.cropAspectRatios,
       callbacks,
-      this.config.disabledFeatures
+      this.config.disabledFeatures,
+      {
+        filterPresets: this.config.filterPresets,
+        filterPresetLabels: this.config.filterPresetLabels,
+        emptyStateTitle: this.config.strings?.emptyStateTitle,
+        emptyStateSubtitle: this.config.strings?.emptyStateSubtitle,
+        labels: this.localePack,
+      },
     );
     this.toolbar.render();
-    // Disable zoom-out button initially since zoom starts at 1×
-    this.toolbar.updateZoomState(this.zoomLevel);
+
+    // Surface editor errors via the shell's toast
+    this.on('error', (err) => {
+      this.toolbar?.showToast(
+        (err as Error)?.message || 'An error occurred',
+        'error',
+      );
+    });
+
+    if (!this.config.disableKeyboardShortcuts) {
+      this.installKeyboardShortcuts();
+    }
+  }
+
+  private installKeyboardShortcuts(): void {
+    if (this.keydownHandler) return;
+    const handler = (e: KeyboardEvent) => {
+      if (this.isDestroyed) return;
+      const target = e.target as HTMLElement | null;
+      // Ignore when typing in an input, textarea, or contentEditable
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          (target as HTMLElement).isContentEditable)
+      ) {
+        return;
+      }
+      const meta = e.metaKey || e.ctrlKey;
+      const shift = e.shiftKey;
+      const key = e.key;
+
+      // Undo / Redo
+      if (meta && (key === 'z' || key === 'Z')) {
+        e.preventDefault();
+        if (shift) this.redo();
+        else this.undo();
+        return;
+      }
+      // Apply / Close
+      if (meta && key === 'Enter') {
+        e.preventDefault();
+        this.config.onApply?.();
+        return;
+      }
+      if (key === 'Escape') {
+        this.config.onClose?.();
+        return;
+      }
+      // Zoom
+      if (!meta && (key === '+' || key === '=')) {
+        e.preventDefault();
+        this.zoomIn();
+        return;
+      }
+      if (!meta && (key === '-' || key === '_')) {
+        e.preventDefault();
+        this.zoomOut();
+        return;
+      }
+      if (!meta && key === '0') {
+        e.preventDefault();
+        this.setZoom(1);
+        return;
+      }
+      if (!meta && key === '1') {
+        e.preventDefault();
+        this.setZoom(1);
+        return;
+      }
+      // Modes
+      const modeMap: Record<string, EditorMode> = {
+        v: 'move',
+        c: 'crop',
+        b: 'draw',
+        e: 'eraser',
+        t: 'text',
+        s: 'shape-rectangle',
+      };
+      if (!meta && !shift && modeMap[key.toLowerCase()]) {
+        e.preventDefault();
+        this.setMode(modeMap[key.toLowerCase()]);
+        return;
+      }
+      // Rotate / Flip
+      if (!meta && (key === 'r' || key === 'R')) {
+        e.preventDefault();
+        if (shift) this.rotateLeft();
+        else this.rotateRight();
+        return;
+      }
+      if (!meta && (key === 'h' || key === 'H')) {
+        e.preventDefault();
+        if (shift) this.flipVertical();
+        else this.flipHorizontal();
+        return;
+      }
+    };
+    window.addEventListener('keydown', handler, true);
+    this.keydownHandler = handler;
   }
 
   private deactivateCurrentMode(): void {
     this.drawModule?.deactivate();
     this.textModule?.deactivate();
     this.eraserModule?.deactivate();
+    this.disableBrushEraser();
     this.calloutModule?.deactivate();
     this.shapeModule?.deactivate();
     // Also tear down the crop overlay (dashed rect + dimmed backdrop),
@@ -783,7 +1507,13 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     if (this.fabricCanvas) {
       this.fabricCanvas.isDrawingMode = false;
       this.fabricCanvas.defaultCursor = 'default';
+      this.fabricCanvas.hoverCursor = 'move';
+      (this.fabricCanvas as any).freeDrawingCursor = 'crosshair';
       this.fabricCanvas.selection = false;
+      // Also clear the DOM-level cursor override applied by
+      // applyToolCursor() so the next mode starts fresh.
+      const el = this.fabricCanvas.getElement()?.parentElement;
+      if (el) el.style.cursor = '';
     }
 
     // Restore the ghost image after leaving crop mode (crop hides it
@@ -841,9 +1571,20 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     // annotation from old-canvas-space → new-canvas-space.
     const newScale = (this.baseImage as any)?.scaleX || 1;
     const factor = newScale / oldScale;
+    // The new base image is centered inside the (wrapper-sized) canvas,
+    // so annotations need this offset added on top of the crop shift.
+    const newImgLeft = (this.baseImage as any)?.left || 0;
+    const newImgTop = (this.baseImage as any)?.top || 0;
 
     for (const obj of oldAnnotations) {
-      this.transformAnnotationForCrop(obj as fabric.Object, cropLeft, cropTop, factor);
+      this.transformAnnotationForCrop(
+        obj as fabric.Object,
+        cropLeft,
+        cropTop,
+        factor,
+        newImgLeft,
+        newImgTop,
+      );
     }
 
     // Callouts render their tail onto an off-screen canvas sized to the
@@ -872,8 +1613,12 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
    * Translate + rescale a single annotation from old canvas coordinates
    * (pre-crop) into new canvas coordinates (post-crop / re-fit).
    *
-   *   new_pos = (old_pos - crop_origin) * factor
+   *   new_pos = newImgOrigin + (old_pos - crop_origin) * factor
    *   new_scale = old_scale * factor
+   *
+   * `newImgLeft`/`newImgTop` are the top-left of the new base image
+   * inside the new canvas (it's centered, so they're non-zero when the
+   * cropped image doesn't fill the wrapper in both dimensions).
    *
    * Arrow objects store their endpoints in canvas coordinates so they
    * need a dedicated path that updates x1/y1/x2/y2 and rebuilds the bbox.
@@ -883,15 +1628,17 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     cropLeft: number,
     cropTop: number,
     factor: number,
+    newImgLeft: number = 0,
+    newImgTop: number = 0,
   ): void {
     const anyObj = obj as any;
 
     // Special-case the custom arrow object
     if (obj.type === 'rpArrow') {
-      anyObj.x1 = (anyObj.x1 - cropLeft) * factor;
-      anyObj.y1 = (anyObj.y1 - cropTop) * factor;
-      anyObj.x2 = (anyObj.x2 - cropLeft) * factor;
-      anyObj.y2 = (anyObj.y2 - cropTop) * factor;
+      anyObj.x1 = newImgLeft + (anyObj.x1 - cropLeft) * factor;
+      anyObj.y1 = newImgTop + (anyObj.y1 - cropTop) * factor;
+      anyObj.x2 = newImgLeft + (anyObj.x2 - cropLeft) * factor;
+      anyObj.y2 = newImgTop + (anyObj.y2 - cropTop) * factor;
       anyObj.strokeWidth = (anyObj.strokeWidth || 1) * factor;
       anyObj.arrowheadSize = (anyObj.arrowheadSize || 14) * factor;
       anyObj._updateBBox?.();
@@ -902,8 +1649,8 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     }
 
     // Generic Fabric objects (Circle, Ellipse, Rect, Path, IText, etc.)
-    const newLeft = ((obj.left || 0) - cropLeft) * factor;
-    const newTop = ((obj.top || 0) - cropTop) * factor;
+    const newLeft = newImgLeft + ((obj.left || 0) - cropLeft) * factor;
+    const newTop = newImgTop + ((obj.top || 0) - cropTop) * factor;
     obj.set({
       left: newLeft,
       top: newTop,
@@ -1336,17 +2083,20 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
         const availH = Math.floor(rect.height);
         const imgW = this.baseImage.width || availW;
         const imgH = this.baseImage.height || availH;
-        const scale = Math.min(availW / imgW, availH / imgH, 1);
+        // Allow scale > 1 so small images fill the stage on resize too.
+        const scale = Math.min(availW / imgW, availH / imgH);
         const displayW = Math.round(imgW * scale);
         const displayH = Math.round(imgH * scale);
 
-        this.fabricCanvas.setWidth(displayW);
-        this.fabricCanvas.setHeight(displayH);
+        // Canvas fills wrapper; image centered inside (see installBaseImage)
+        const canvasW = availW;
+        const canvasH = availH;
+        this.fabricCanvas.setWidth(canvasW);
+        this.fabricCanvas.setHeight(canvasH);
 
-        // Reposition and rescale the base image with explicit scaleX/scaleY
         this.baseImage.set({
-          left: 0,
-          top: 0,
+          left: Math.round((canvasW - displayW) / 2),
+          top: Math.round((canvasH - displayH) / 2),
           scaleX: displayW / imgW,
           scaleY: displayH / imgH,
         });
@@ -1380,6 +2130,35 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     });
   }
 
+  /**
+   * Convert a hex or rgb color into an rgba() string with the given
+   * alpha in [0..1]. Falls back to the raw color when parsing fails
+   * so DrawModule still receives a valid CSS color.
+   */
+  private colorWithAlpha(color: string, alpha: number): string {
+    const s = color.trim().toLowerCase();
+    if (s.startsWith('#')) {
+      const hex = s.slice(1);
+      const h =
+        hex.length === 3
+          ? hex.split('').map((c) => c + c).join('')
+          : hex;
+      if (h.length === 6) {
+        const r = parseInt(h.slice(0, 2), 16);
+        const g = parseInt(h.slice(2, 4), 16);
+        const b = parseInt(h.slice(4, 6), 16);
+        if (![r, g, b].some(Number.isNaN)) {
+          return `rgba(${r},${g},${b},${alpha})`;
+        }
+      }
+    }
+    const rgb = s.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+    if (rgb) {
+      return `rgba(${rgb[1]},${rgb[2]},${rgb[3]},${alpha})`;
+    }
+    return color;
+  }
+
   private async base64ToBlob(base64: string, mimeType: string): Promise<Blob> {
     const response = await fetch(base64);
     return response.blob();
@@ -1393,32 +2172,16 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   private showLoader(): void {
     if (!this.wrapperEl || this.loaderEl) return;
     const overlay = document.createElement('div');
-    overlay.className = 'rp-editor-loader';
-    overlay.style.cssText = [
-      'position:absolute',
-      'inset:0',
-      'display:flex',
-      'align-items:center',
-      'justify-content:center',
-      'background:rgba(255,255,255,0.55)',
-      'backdrop-filter:blur(2px)',
-      '-webkit-backdrop-filter:blur(2px)',
-      'z-index:9999',
-      'pointer-events:all',
-      'cursor:progress',
-    ].join(';');
+    overlay.className = 'rp-editor-loader rp-ie-loader';
+    overlay.innerHTML = `
+      <div class="rp-ie-loader__glass">
+        <span class="rp-ie-loader__spinner" aria-hidden="true"></span>
+        <span class="rp-ie-loader__label">Processing image…</span>
+      </div>
+    `;
 
-    const spinner = document.createElement('div');
-    spinner.style.cssText = [
-      'width:36px',
-      'height:36px',
-      'border:3px solid rgba(0,0,0,0.15)',
-      'border-top-color:#4a90d9',
-      'border-radius:50%',
-      'animation:rp-editor-spin 0.8s linear infinite',
-    ].join(';');
-
-    // Inject keyframes once.
+    // Inject fallback keyframes once (theme CSS also ships them; this
+    // keeps the loader working when consumers don't load the stylesheet).
     if (!document.getElementById('rp-editor-spin-style')) {
       const style = document.createElement('style');
       style.id = 'rp-editor-spin-style';
@@ -1427,8 +2190,6 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       document.head.appendChild(style);
     }
 
-    overlay.appendChild(spinner);
-    // Make sure the wrapper is the positioning context.
     const computed = getComputedStyle(this.wrapperEl);
     if (computed.position === 'static') {
       this.wrapperEl.style.position = 'relative';
@@ -1442,6 +2203,168 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       this.loaderEl.remove();
       this.loaderEl = null;
     }
+  }
+
+  /**
+   * Swap the Fabric canvas cursor for a tool-specific icon so drawing
+   * feels like a pencil / erasing feels like an eraser instead of the
+   * generic `crosshair` (+). We override both `defaultCursor` (idle)
+   * and `freeDrawingCursor` (which Fabric flips to `crosshair` when
+   * `isDrawingMode` toggles on) with inline SVG data URIs — no extra
+   * assets to bundle. Hotspot is the pencil tip / eraser tip.
+   */
+  private applyToolCursor(tool: 'pencil' | 'eraser'): void {
+    if (!this.fabricCanvas) return;
+    const cursor = tool === 'pencil'
+      ? this.buildPencilCursor()
+      : this.buildEraserCursor();
+    this.fabricCanvas.defaultCursor = cursor;
+    this.fabricCanvas.hoverCursor = cursor;
+    (this.fabricCanvas as any).freeDrawingCursor = cursor;
+    // Also apply directly to the DOM element so it takes effect
+    // immediately (Fabric only refreshes cursor on mouse events).
+    const el = this.fabricCanvas.getElement()?.parentElement;
+    if (el) el.style.cursor = cursor;
+  }
+
+  private buildPencilCursor(): string {
+    // Pencil pointing down-left; tip lands at hotspot (2, 22).
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23111' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><path d='M14.5 3.5l6 6-11 11H3.5v-6z' fill='%23FFDF6F' stroke='%23111'/><path d='M12.5 5.5l6 6' stroke='%23111'/><path d='M3.5 14.5l6 6' stroke='%23111'/><path d='M3.5 20.5l3-1 -2-2z' fill='%23111'/></svg>`;
+    return `url("data:image/svg+xml;utf8,${svg}") 2 22, crosshair`;
+  }
+
+  private buildEraserCursor(): string {
+    // Eraser body; hotspot at bottom-left tip (4, 20).
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23111' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><path d='M4 15l7-7 7 7-4 4H8z' fill='%23FFB4A9' stroke='%23111'/><path d='M8 19h9' stroke='%23111'/><path d='M11 8l7 7' stroke='%23111'/></svg>`;
+    return `url("data:image/svg+xml;utf8,${svg}") 4 20, crosshair`;
+  }
+
+  /**
+   * Layer drag-through erasing on top of the eraser module's
+   * click-to-delete behaviour. Down/move fires a hit test around the
+   * pointer (radius = eraser width) and removes every annotation whose
+   * bounds intersect the eraser circle — so users can sweep a stroke
+   * across drawings to wipe them out, matching the drawing feel.
+   * A small circle follows the cursor so the user sees the affected
+   * area.
+   */
+  private enableBrushEraser(): void {
+    if (!this.fabricCanvas || !this.wrapperEl) return;
+    this.disableBrushEraser();
+
+    const canvas = this.fabricCanvas;
+
+    // Cursor circle overlay (visual size indicator)
+    const halo = document.createElement('div');
+    halo.className = 'rp-editor-eraser-halo';
+    halo.style.cssText = [
+      'position:absolute',
+      'pointer-events:none',
+      'border:1.5px solid rgba(255,255,255,0.85)',
+      'box-shadow:0 0 0 1px rgba(0,0,0,0.35)',
+      'border-radius:50%',
+      'z-index:5',
+      'transform:translate(-50%,-50%)',
+      'opacity:0',
+      'transition:opacity 120ms ease',
+    ].join(';');
+    if (getComputedStyle(this.wrapperEl).position === 'static') {
+      this.wrapperEl.style.position = 'relative';
+    }
+    this.wrapperEl.appendChild(halo);
+    this.eraserCursorEl = halo;
+
+    const positionHalo = (clientX: number, clientY: number): void => {
+      if (!this.eraserCursorEl || !this.wrapperEl) return;
+      const w = this.eraserModule?.getEraserWidth?.() ?? 20;
+      const rect = this.wrapperEl.getBoundingClientRect();
+      this.eraserCursorEl.style.width = `${w}px`;
+      this.eraserCursorEl.style.height = `${w}px`;
+      this.eraserCursorEl.style.left = `${clientX - rect.left}px`;
+      this.eraserCursorEl.style.top = `${clientY - rect.top}px`;
+    };
+
+    const showHalo = () => {
+      if (this.eraserCursorEl) this.eraserCursorEl.style.opacity = '1';
+    };
+    const hideHalo = () => {
+      if (this.eraserCursorEl) this.eraserCursorEl.style.opacity = '0';
+    };
+
+    const eraseAtPointer = (opt: fabric.IEvent<MouseEvent | TouchEvent>): boolean => {
+      const pointer = canvas.getPointer(opt.e as any, false);
+      const radius = ((this.eraserModule?.getEraserWidth?.() ?? 20) / 2);
+      const objects = canvas.getObjects();
+      let removed = false;
+      for (const obj of objects) {
+        const anyObj = obj as any;
+        if (!anyObj._rpAnnotation) continue;
+        const b = obj.getBoundingRect(true, true);
+        // Inflate bbox by radius so we hit near-misses like the user
+        // would expect from a real eraser.
+        const hit =
+          pointer.x >= b.left - radius &&
+          pointer.x <= b.left + b.width + radius &&
+          pointer.y >= b.top - radius &&
+          pointer.y <= b.top + b.height + radius;
+        if (hit) {
+          canvas.remove(obj);
+          removed = true;
+        }
+      }
+      if (removed) canvas.requestRenderAll();
+      return removed;
+    };
+
+    this.eraserBrushHandlers = {
+      down: (opt) => {
+        if (this.currentMode !== 'eraser') return;
+        this.isErasing = true;
+        this.eraserDidRemove = eraseAtPointer(opt);
+      },
+      move: (opt) => {
+        if (this.currentMode !== 'eraser') return;
+        const e = opt.e as any;
+        const cx = e.clientX ?? e.touches?.[0]?.clientX ?? 0;
+        const cy = e.clientY ?? e.touches?.[0]?.clientY ?? 0;
+        positionHalo(cx, cy);
+        showHalo();
+        if (this.isErasing) {
+          const removed = eraseAtPointer(opt);
+          this.eraserDidRemove = this.eraserDidRemove || removed;
+        }
+      },
+      up: () => {
+        if (this.currentMode !== 'eraser') return;
+        if (this.isErasing && this.eraserDidRemove) {
+          this.historyModule?.saveState();
+        }
+        this.isErasing = false;
+        this.eraserDidRemove = false;
+      },
+      out: () => hideHalo(),
+    };
+
+    canvas.on('mouse:down', this.eraserBrushHandlers.down);
+    canvas.on('mouse:move', this.eraserBrushHandlers.move);
+    canvas.on('mouse:up', this.eraserBrushHandlers.up);
+    canvas.on('mouse:out', this.eraserBrushHandlers.out);
+  }
+
+  private disableBrushEraser(): void {
+    if (this.fabricCanvas && this.eraserBrushHandlers) {
+      this.fabricCanvas.off('mouse:down', this.eraserBrushHandlers.down as any);
+      this.fabricCanvas.off('mouse:move', this.eraserBrushHandlers.move as any);
+      this.fabricCanvas.off('mouse:up', this.eraserBrushHandlers.up as any);
+      this.fabricCanvas.off('mouse:out', this.eraserBrushHandlers.out as any);
+    }
+    this.eraserBrushHandlers = null;
+    if (this.eraserCursorEl) {
+      this.eraserCursorEl.remove();
+      this.eraserCursorEl = null;
+    }
+    this.isErasing = false;
+    this.eraserDidRemove = false;
   }
 
   /**
@@ -1559,12 +2482,14 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     const dispW = (this.baseImage.width || 0) * scale;
     const dispH = (this.baseImage.height || 0) * scaleY;
 
-    // Image top-left in canvas coords is (baseImage.left, baseImage.top)
-    // — always (0, 0) after installBaseImage. After the viewport
-    // transform, it lands at (tx, ty) on screen, then offset by the
-    // canvas's position inside the wrapper.
-    const left = canvasLeft + tx;
-    const top = canvasTop + ty;
+    // The base image's own left/top inside the canvas (post-centering
+    // it's non-zero). After the viewport transform it lands at
+    // (tx + imgLeft*zoom, ty + imgTop*zoom) on screen, then offset by
+    // the canvas's position inside the wrapper.
+    const imgLeft = (this.baseImage as any).left || 0;
+    const imgTop = (this.baseImage as any).top || 0;
+    const left = canvasLeft + tx + imgLeft * zoom;
+    const top = canvasTop + ty + imgTop * zoom;
     const width = dispW * zoom;
     const height = dispH * zoom;
 
