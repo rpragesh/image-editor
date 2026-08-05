@@ -674,6 +674,7 @@ export const RP_IE_CSS = `
 .rp-ie-quickactions {
   display: flex; align-items: center; gap: 4px;
   overflow-x: auto;
+  padding: 2px 0;
 }
 .rp-ie-quickaction {
   display: flex; flex-direction: column; align-items: center; gap: 4px;
@@ -685,13 +686,25 @@ export const RP_IE_CSS = `
   border-radius: var(--rp-ie-radius);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: background 160ms cubic-bezier(0.2,0.8,0.2,1);
+  transition:
+    background-color 280ms cubic-bezier(0.2,0.8,0.2,1),
+    border-color 280ms cubic-bezier(0.2,0.8,0.2,1),
+    box-shadow 280ms cubic-bezier(0.2,0.8,0.2,1);
 }
 .rp-ie-quickaction:hover { background: var(--rp-ie-surface-2); }
 .rp-ie-quickaction__label { font-size: 11px; color: var(--rp-ie-text-muted); }
 .rp-ie-quickaction--active {
   background: rgba(var(--rp-ie-accent-rgb), 0.14);
   border-color: rgba(var(--rp-ie-accent-rgb), 0.45);
+}
+.rp-ie-quickaction--active .rp-ie-quickaction__label,
+.rp-ie-quickaction--flash .rp-ie-quickaction__label {
+  color: var(--rp-ie-text);
+}
+.rp-ie-quickaction--flash {
+  background: rgba(var(--rp-ie-accent-rgb), 0.16);
+  border-color: rgba(var(--rp-ie-accent-rgb), 0.48);
+  box-shadow: inset 0 0 0 1px rgba(var(--rp-ie-accent-rgb), 0.16);
 }
 .rp-ie-quickaction:focus-visible { outline: 2px solid var(--rp-ie-accent); outline-offset: 2px; }
 

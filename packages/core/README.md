@@ -19,7 +19,7 @@
 | ✂️ **Crop** | Free crop and aspect-ratio locked crop. Initial ratio chip matches the actual rectangle; switching ratios (e.g. 4:3 ↔ 16:9) refits into the same 80% image-bounds envelope so sizes stay consistent. Annotations are preserved across crops. |
 | 🔍 **Zoom** | Zoom in/out with pinch-to-zoom gesture support |
 | 🖐️ **Pan/Drag** | Always-on drag — no need to enable a tool. A translucent **ghost preview** of the image sits behind the canvas so the picture is never hidden while panning past its edges or zooming out. |
-| 🔄 **Rotate** | Rotate left/right by 45° steps. Annotations are preserved across rotations and stay locked to the underlying pixels (no drift past 360°). Fast path skips PNG re-encoding so large 10–15 MB+ images rotate quickly; a loader overlay is shown during heavy renders. |
+| 🔄 **Rotate** | Rotate left/right by 90° steps. Annotations are preserved across rotations and stay locked to the underlying pixels (no drift past 360°). Fast path skips PNG re-encoding so large 10–15 MB+ images rotate quickly; a loader overlay is shown during heavy renders. |
 | ✏️ **Freehand Draw** | Configurable brush color & width |
 | 🔤 **Add Text** | Inline editing with color and font size |
 | ⭕ **Shapes** | Circle, Ellipse, Square and Arrow primitives with resize handles. Circle/Square stay proportional, Ellipse resizes freely, Arrow has draggable start/end endpoints |

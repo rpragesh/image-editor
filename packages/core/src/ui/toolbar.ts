@@ -215,6 +215,7 @@ export class Toolbar {
   private statusLiveEl: HTMLElement | null = null;
 
   private activeMode: EditorMode = 'move';
+  private quickActionFlashTimers = new WeakMap<HTMLElement, number>();
   private zoomLevel = 1;
   private canUndo = false;
   private canRedo = false;
@@ -1505,7 +1506,10 @@ export class Toolbar {
 
       const tip = item.shortcut ? `${item.label} · ${item.shortcut}` : item.label;
       this.attachTooltip(tile, tip);
-      tile.addEventListener('click', item.onClick);
+      tile.addEventListener('click', () => {
+        item.onClick();
+        if (!item.mode) this.flashQuickAction(tile);
+      });
       actions.appendChild(tile);
     });
 
@@ -1575,6 +1579,18 @@ export class Toolbar {
     this.bottomSliderEl.appendChild(l);
     this.bottomSliderEl.appendChild(range);
     this.bottomSliderEl.appendChild(v);
+  }
+
+  private flashQuickAction(tile: HTMLElement): void {
+    const prev = this.quickActionFlashTimers.get(tile);
+    if (prev) window.clearTimeout(prev);
+
+    tile.classList.add('rp-ie-quickaction--flash');
+    const timer = window.setTimeout(() => {
+      tile.classList.remove('rp-ie-quickaction--flash');
+      this.quickActionFlashTimers.delete(tile);
+    }, 420);
+    this.quickActionFlashTimers.set(tile, timer);
   }
 
   /* ================================================================ */
