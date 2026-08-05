@@ -2,6 +2,14 @@
 
 All notable changes to `@rageshpikalmunde/rp-image-editor` will be documented in this file.
 
+## [1.5.2] — 2026-08-05
+
+Patch release focused on fullscreen/resize annotation stability. No API changes.
+
+### Fixed
+- **Draw stroke clipping after fullscreen resize** — freehand path clip-paths are now rebuilt and cache-invalidated when base-image geometry changes, preventing partially cropped or missing strokes after resize/fullscreen transitions.
+- **Undo/redo after fullscreen no longer restores stale image geometry** — after history restores, the base image and existing annotations are re-fit to the current wrapper size so content remains centered and correctly aligned instead of shrinking into the top-left.
+
 ## [1.5.0] — 2026-08-05
 
 Minor release focused on multi-image workflows and stronger annotation reliability. Backward-compatible with 1.4.x.

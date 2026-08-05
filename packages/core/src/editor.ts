@@ -172,6 +172,22 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     });
   }
 
+  /** Rebuild clip-paths for persisted freehand draw annotations. */
+  private refreshDrawClipPaths(): void {
+    if (!this.fabricCanvas) return;
+    this.fabricCanvas.getObjects().forEach((obj: any) => {
+      if (obj.type === 'path' && obj._rpType === 'draw') {
+        obj.clipPath = this.buildImageClipRect();
+        // Fabric caches path objects to an offscreen bitmap. Reassigning
+        // clipPath does not invalidate that cache, so without marking the
+        // object dirty the OLD (pre-resize) clip bitmap is reused and the
+        // stroke appears cropped/missing after a fullscreen resize.
+        obj.dirty = true;
+        obj.setCoords();
+      }
+    });
+  }
+
   /** Return true when object bbox intersects the base image bounds. */
   private intersectsImageBounds(obj: fabric.Object): boolean {
     const b = this.getImageAnnotationBounds();
@@ -1444,6 +1460,11 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       this.rebuildImageFilters(false);
     }
 
+    // Draw strokes are clipped to the image bounds using an absolute
+    // clip-path. Rebuild those clip-paths whenever the base image
+    // geometry changes (rotate/crop/reset/fullscreen resize path).
+    this.refreshDrawClipPaths();
+
     this.fabricCanvas.renderAll();
 
     // Keep the translucent ghost preview mounted whenever we have a
@@ -2525,88 +2546,103 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     if (!this.wrapperEl || !this.fabricCanvas) return;
 
     const resizeObserver = new ResizeObserver(() => {
-      if (this.isDestroyed || !this.wrapperEl || !this.fabricCanvas || !this.baseImage) return;
-
-      const rect = this.wrapperEl.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) {
-        // Capture the OLD base-image geometry before mutating anything.
-        // Annotations (draw paths, shapes, text, callouts) are positioned
-        // in canvas pixel coordinates, so when the base image is rescaled
-        // to fit the new wrapper (e.g. entering/exiting fullscreen) we
-        // must apply the same translation+scale to every annotation or
-        // they drift off the image.
-        const oldLeft = this.baseImage.left || 0;
-        const oldTop = this.baseImage.top || 0;
-        const oldScale = this.baseImage.scaleX || 1;
-
-        // Recalculate the image fit within the new wrapper size
-        const availW = Math.floor(rect.width);
-        const availH = Math.floor(rect.height);
-        const imgW = this.baseImage.width || availW;
-        const imgH = this.baseImage.height || availH;
-        // Allow scale > 1 so small images fill the stage on resize too.
-        const scale = Math.min(availW / imgW, availH / imgH);
-        const displayW = Math.round(imgW * scale);
-        const displayH = Math.round(imgH * scale);
-
-        // Canvas fills wrapper; image centered inside (see installBaseImage)
-        const canvasW = availW;
-        const canvasH = availH;
-        this.fabricCanvas.setWidth(canvasW);
-        this.fabricCanvas.setHeight(canvasH);
-
-        const newLeft = Math.round((canvasW - displayW) / 2);
-        const newTop = Math.round((canvasH - displayH) / 2);
-        const newScale = displayW / imgW;
-
-        this.baseImage.set({
-          left: newLeft,
-          top: newTop,
-          scaleX: newScale,
-          scaleY: displayH / imgH,
-        });
-        this.baseImage.setCoords();
-
-        // Reposition + rescale every non-base object so annotations stay
-        // anchored to the same point on the image. We treat the base
-        // image's top-left as the reference origin and apply a uniform
-        // scale ratio (X and Y are always equal here — Math.min above).
-        if (oldScale > 0 && Math.abs(newScale - oldScale) > 1e-6) {
-          const ratio = newScale / oldScale;
-          this.fabricCanvas.getObjects().forEach((obj: any) => {
-            if (obj === this.baseImage || obj._rpBaseImage) return;
-            const objLeft = obj.left || 0;
-            const objTop = obj.top || 0;
-            obj.set({
-              left: newLeft + (objLeft - oldLeft) * ratio,
-              top: newTop + (objTop - oldTop) * ratio,
-              scaleX: (obj.scaleX || 1) * ratio,
-              scaleY: (obj.scaleY || 1) * ratio,
-            });
-            obj.setCoords();
-          });
-        } else if (Math.abs(newLeft - oldLeft) > 0.5 || Math.abs(newTop - oldTop) > 0.5) {
-          // Scale unchanged but the letterbox offset shifted (e.g. only
-          // aspect ratio of the wrapper changed) — translate annotations
-          // by the delta so they follow the base image.
-          const dx = newLeft - oldLeft;
-          const dy = newTop - oldTop;
-          this.fabricCanvas.getObjects().forEach((obj: any) => {
-            if (obj === this.baseImage || obj._rpBaseImage) return;
-            obj.set({
-              left: (obj.left || 0) + dx,
-              top: (obj.top || 0) + dy,
-            });
-            obj.setCoords();
-          });
-        }
-
-        this.fabricCanvas.renderAll();
-        this.refreshGhostImage();
-      }
+      if (this.isDestroyed) return;
+      this.fitBaseImageToWrapper();
     });
 
     resizeObserver.observe(this.wrapperEl);
+  }
+
+  /**
+   * Re-fit the base image to the current wrapper size and re-anchor all
+   * annotations proportionally. Used both by the ResizeObserver (e.g.
+   * entering/exiting fullscreen) and after undo/redo — where the state
+   * restored from JSON carries the base image's geometry from when the
+   * snapshot was taken (possibly a different canvas size), which would
+   * otherwise leave the image shrunk in the top-left corner.
+   */
+  private fitBaseImageToWrapper(): void {
+    if (!this.wrapperEl || !this.fabricCanvas || !this.baseImage) return;
+
+    const rect = this.wrapperEl.getBoundingClientRect();
+    if (!(rect.width > 0 && rect.height > 0)) return;
+
+    // Capture the OLD base-image geometry before mutating anything.
+    // Annotations (draw paths, shapes, text, callouts) are positioned
+    // in canvas pixel coordinates, so when the base image is rescaled
+    // to fit the new wrapper (e.g. entering/exiting fullscreen) we
+    // must apply the same translation+scale to every annotation or
+    // they drift off the image.
+    const oldLeft = this.baseImage.left || 0;
+    const oldTop = this.baseImage.top || 0;
+    const oldScale = this.baseImage.scaleX || 1;
+
+    // Recalculate the image fit within the new wrapper size
+    const availW = Math.floor(rect.width);
+    const availH = Math.floor(rect.height);
+    const imgW = this.baseImage.width || availW;
+    const imgH = this.baseImage.height || availH;
+    // Allow scale > 1 so small images fill the stage on resize too.
+    const scale = Math.min(availW / imgW, availH / imgH);
+    const displayW = Math.round(imgW * scale);
+    const displayH = Math.round(imgH * scale);
+
+    // Canvas fills wrapper; image centered inside (see installBaseImage)
+    const canvasW = availW;
+    const canvasH = availH;
+    this.fabricCanvas.setWidth(canvasW);
+    this.fabricCanvas.setHeight(canvasH);
+
+    const newLeft = Math.round((canvasW - displayW) / 2);
+    const newTop = Math.round((canvasH - displayH) / 2);
+    const newScale = displayW / imgW;
+
+    this.baseImage.set({
+      left: newLeft,
+      top: newTop,
+      scaleX: newScale,
+      scaleY: displayH / imgH,
+    });
+    this.baseImage.setCoords();
+
+    // Reposition + rescale every non-base object so annotations stay
+    // anchored to the same point on the image. We treat the base
+    // image's top-left as the reference origin and apply a uniform
+    // scale ratio (X and Y are always equal here — Math.min above).
+    if (oldScale > 0 && Math.abs(newScale - oldScale) > 1e-6) {
+      const ratio = newScale / oldScale;
+      this.fabricCanvas.getObjects().forEach((obj: any) => {
+        if (obj === this.baseImage || obj._rpBaseImage) return;
+        const objLeft = obj.left || 0;
+        const objTop = obj.top || 0;
+        obj.set({
+          left: newLeft + (objLeft - oldLeft) * ratio,
+          top: newTop + (objTop - oldTop) * ratio,
+          scaleX: (obj.scaleX || 1) * ratio,
+          scaleY: (obj.scaleY || 1) * ratio,
+        });
+        obj.setCoords();
+      });
+    } else if (Math.abs(newLeft - oldLeft) > 0.5 || Math.abs(newTop - oldTop) > 0.5) {
+      // Scale unchanged but the letterbox offset shifted (e.g. only
+      // aspect ratio of the wrapper changed) — translate annotations
+      // by the delta so they follow the base image.
+      const dx = newLeft - oldLeft;
+      const dy = newTop - oldTop;
+      this.fabricCanvas.getObjects().forEach((obj: any) => {
+        if (obj === this.baseImage || obj._rpBaseImage) return;
+        obj.set({
+          left: (obj.left || 0) + dx,
+          top: (obj.top || 0) + dy,
+        });
+        obj.setCoords();
+      });
+    }
+
+    this.refreshDrawClipPaths();
+
+    this.fabricCanvas.renderAll();
+    this.refreshGhostImage();
   }
 
   private refreshBaseImageRef(): void {
@@ -2643,6 +2679,14 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       // sees the ghost through the "selected" base image.
       this.fabricCanvas.discardActiveObject();
       this.fabricCanvas.renderAll();
+
+      // The restored JSON carries the base image geometry from when the
+      // snapshot was taken. If the canvas has since been resized (e.g.
+      // the user entered fullscreen after that snapshot), the restored
+      // image would appear shrunk in the top-left corner. Re-fit it to
+      // the current wrapper so undo/redo never changes the on-screen
+      // size or position of the image. This also re-anchors annotations.
+      this.fitBaseImageToWrapper();
     }
 
     // Undo/redo swaps the base image object out from under us — rebuild
