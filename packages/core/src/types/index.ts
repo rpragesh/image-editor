@@ -62,6 +62,23 @@ export interface RpEditorConfig {
   showToolbar?: boolean;
 
   /**
+   * Current image position in a multi-image editing flow.
+   * 1-based index (for example: 1, 2, 3...).
+   *
+   * When used together with `totalImages`, the editor header shows
+   * a compact `current/total` indicator (e.g. `2/5`).
+   */
+  currentImageIndex?: number;
+
+  /**
+   * Total number of images in a multi-image editing flow.
+   *
+   * When used together with `currentImageIndex`, the editor header
+   * shows a compact `current/total` indicator.
+   */
+  totalImages?: number;
+
+  /**
    * Features to hide from the toolbar.
    * Accepts individual tool names: 'move','crop','zoomIn','zoomOut','rotateLeft','rotateRight',
    * 'draw','text','eraser','callout','undo','redo','reset','filters','adjust','fullscreen'

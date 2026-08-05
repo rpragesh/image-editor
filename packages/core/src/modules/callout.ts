@@ -67,6 +67,9 @@ export class CalloutModule {
   private calloutLineBreakAt = 15;
   /** Initial text used for newly-placed callouts */
   private defaultText = 'Label';
+  private boundsProvider:
+    | (() => { left: number; top: number; right: number; bottom: number } | null)
+    | null = null;
 
   constructor(canvas: fabric.Canvas) {
     this.canvas = canvas;
@@ -79,6 +82,7 @@ export class CalloutModule {
     this.pendingAdd = true;
     this.canvas.isDrawingMode = false;
     this.canvas.defaultCursor = 'crosshair';
+    this.restoreExistingCalloutInteractivity();
     this.canvas.on('mouse:down', this.handleCanvasClick);
   }
 
@@ -153,9 +157,246 @@ export class CalloutModule {
     return this.isActive;
   }
 
+  setPlacementBoundsProvider(
+    provider: (() => { left: number; top: number; right: number; bottom: number } | null) | null,
+  ): void {
+    this.boundsProvider = provider;
+  }
+
+  private getBounds(): { left: number; top: number; right: number; bottom: number } | null {
+    return this.boundsProvider?.() || null;
+  }
+
+  private clampPointToBounds(x: number, y: number): { x: number; y: number } {
+    const b = this.getBounds();
+    if (!b) return { x, y };
+    return {
+      x: Math.max(b.left, Math.min(b.right, x)),
+      y: Math.max(b.top, Math.min(b.bottom, y)),
+    };
+  }
+
+  private isPointInsideBounds(x: number, y: number): boolean {
+    const b = this.getBounds();
+    if (!b) return true;
+    return x >= b.left && x <= b.right && y >= b.top && y <= b.bottom;
+  }
+
+  private clampCalloutIntoBounds(h: CalloutHandle): void {
+    const b = this.getBounds();
+    if (!b) return;
+
+    const sx = h.bgRect.scaleX || 1;
+    const sy = h.bgRect.scaleY || 1;
+    const w = (h.bgRect.width || 0) * sx;
+    const hgt = (h.bgRect.height || 0) * sy;
+
+    let left = h.bgRect.left || 0;
+    let top = h.bgRect.top || 0;
+    const minLeft = b.left;
+    const maxLeft = b.right - w;
+    const minTop = b.top;
+    const maxTop = b.bottom - hgt;
+    if (left < minLeft) left = minLeft;
+    if (left > maxLeft) left = maxLeft;
+    if (top < minTop) top = minTop;
+    if (top > maxTop) top = maxTop;
+    h.bgRect.set({ left, top });
+    h.bgRect.setCoords();
+
+    this.syncBoxParts(h);
+
+    const clampedAnchor = this.clampPointToBounds(
+      h.anchor.left || 0,
+      h.anchor.top || 0,
+    );
+    h.anchor.set({ left: clampedAnchor.x, top: clampedAnchor.y });
+    h.anchor.setCoords();
+  }
+
+  /**
+   * Move mode intentionally freezes all annotation objects; when the user
+   * switches back to callout mode, previously placed callouts must be
+   * re-enabled so they can be selected and edited again.
+   */
+  private restoreExistingCalloutInteractivity(): void {
+    for (const h of this.callouts) {
+      this.enforceCalloutPartLocks(h);
+    }
+    this.canvas.requestRenderAll();
+  }
+
+  /**
+   * Rebuild internal callout handles from existing canvas objects.
+   * Needed after loadFromJSON (undo/redo) because runtime references,
+   * listeners and non-serialized interaction locks are not preserved.
+   */
+  rehydrateFromCanvas(): void {
+    const byId = new Map<number, Partial<CalloutHandle>>();
+
+    const objs = this.canvas.getObjects() as any[];
+    for (const obj of objs) {
+      const id = obj?.calloutId;
+      const role = obj?.calloutRole;
+      if (id == null || role == null) continue;
+
+      if (!byId.has(id)) byId.set(id, { calloutId: id });
+      const slot = byId.get(id)!;
+
+      switch (role) {
+        case 'bgRect':
+          slot.bgRect = obj as fabric.Rect;
+          break;
+        case 'border':
+          slot.border = obj as fabric.Rect;
+          break;
+        case 'label':
+          slot.label = obj as fabric.IText;
+          break;
+        case 'anchor':
+          slot.anchor = obj as fabric.Circle;
+          break;
+        case 'tail':
+          slot.tailImage = obj as fabric.Image;
+          break;
+        default:
+          break;
+      }
+    }
+
+    this.callouts = [];
+    let maxId = 0;
+
+    for (const [id, partial] of byId.entries()) {
+      const bgRect = partial.bgRect;
+      const border = partial.border;
+      const label = partial.label;
+      const anchor = partial.anchor;
+      const tailImage = partial.tailImage;
+      if (!bgRect || !border || !label || !anchor || !tailImage) continue;
+
+      const tailCanvas = document.createElement('canvas');
+      tailCanvas.width = this.canvas.getWidth();
+      tailCanvas.height = this.canvas.getHeight();
+
+      const textW = label.getScaledWidth();
+      const textH = label.getScaledHeight();
+      const rectW = (bgRect.width || 0) * (bgRect.scaleX || 1);
+      const rectH = (bgRect.height || 0) * (bgRect.scaleY || 1);
+      const paddingH = Math.max(0, (rectW - textW) / 2);
+      const paddingV = Math.max(0, (rectH - textH) / 2);
+
+      const handle: CalloutHandle = {
+        calloutId: id,
+        bgRect,
+        border,
+        label,
+        anchor,
+        tailCanvas,
+        tailImage,
+        color: String((bgRect as any).fill || this.calloutColor),
+        paddingH,
+        paddingV,
+        labelNaturalW: textW,
+        labelNaturalH: textH,
+      };
+
+      this.enforceCalloutPartLocks(handle);
+      this.wireHandleEvents(handle);
+      this.redrawTail(handle);
+
+      this.callouts.push(handle);
+      if (id > maxId) maxId = id;
+    }
+
+    this.calloutCounter = Math.max(this.calloutCounter, maxId);
+    this.canvas.requestRenderAll();
+  }
+
   /** Returns the number of callouts currently on the canvas */
   getCalloutCount(): number {
     return this.callouts.length;
+  }
+
+  /**
+   * Test whether any callout visually intersects a circle at (x, y) with
+   * the given radius (in canvas coordinates). The box, border, label and
+   * anchor are hit-tested by inflated bounding rect; the tail is
+   * hit-tested per-pixel against its off-screen bitmap so the
+   * full-canvas-sized tail image doesn't produce false positives on
+   * every click. Returns the calloutId of the first hit, or null.
+   */
+  getCalloutIdAtPoint(x: number, y: number, radius: number): number | null {
+    const r = Math.max(0, radius);
+    for (const h of this.callouts) {
+      const parts: fabric.Object[] = [h.bgRect, h.border, h.label, h.anchor];
+      let hit = false;
+      for (const p of parts) {
+        const b = p.getBoundingRect(true, true);
+        if (
+          x >= b.left - r &&
+          x <= b.left + b.width + r &&
+          y >= b.top - r &&
+          y <= b.top + b.height + r
+        ) {
+          hit = true;
+          break;
+        }
+      }
+      if (hit || this.tailHitTest(h, x, y, r)) {
+        return h.calloutId;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Per-pixel alpha test against the tail's off-screen bitmap around
+   * (x, y) within the eraser radius. Returns true if any non-transparent
+   * pixel is found in the sampled region.
+   */
+  private tailHitTest(
+    h: CalloutHandle,
+    x: number,
+    y: number,
+    radius: number,
+  ): boolean {
+    const c = h.tailCanvas;
+    const ctx = c.getContext('2d');
+    if (!ctx) return false;
+    const r = Math.max(1, Math.round(radius));
+    const sx = Math.max(0, Math.floor(x - r));
+    const sy = Math.max(0, Math.floor(y - r));
+    const w = Math.min(c.width - sx, r * 2 + 1);
+    const hgt = Math.min(c.height - sy, r * 2 + 1);
+    if (w <= 0 || hgt <= 0) return false;
+    try {
+      const data = ctx.getImageData(sx, sy, w, hgt).data;
+      for (let i = 3; i < data.length; i += 4) {
+        if (data[i] > 0) return true;
+      }
+    } catch {
+      // getImageData may throw if the canvas becomes tainted; treat as miss
+    }
+    return false;
+  }
+
+  /**
+   * Remove all fabric objects belonging to a callout (tail, border, box,
+   * label, anchor) and drop the internal handle. Returns true if a
+   * callout with that id was found and removed.
+   */
+  removeCalloutById(id: number): boolean {
+    const idx = this.callouts.findIndex((h) => h.calloutId === id);
+    if (idx === -1) return false;
+    const h = this.callouts[idx];
+    this.canvas.remove(h.tailImage);
+    this.canvas.remove(h.border);
+    this.canvas.remove(h.bgRect);
+    this.canvas.remove(h.label);
+    this.canvas.remove(h.anchor);
+    this.callouts.splice(idx, 1);
+    return true;
   }
 
   /**
@@ -415,41 +656,122 @@ export class CalloutModule {
     this.canvas.add(anchor);
 
     // Initial tail draw
+    this.clampCalloutIntoBounds(handle);
     this.redrawTail(handle);
 
-    // ── Wire up events ──
+    this.wireHandleEvents(handle);
 
-    // Dragging the box → move border + label along, redraw tail
+    // Auto-show controls and select the rect
+    border.set({ visible: true });
+    anchor.set({ visible: true });
+    this.canvas.setActiveObject(bgRect);
+    this.canvas.renderAll();
+
+    // Signal a single logical create operation after all parts are on-canvas.
+    this.canvas.fire('rp:callout:created', { calloutId: id });
+  }
+
+  /**
+   * Re-apply interaction constraints for each callout part.
+   */
+  private enforceCalloutPartLocks(h: CalloutHandle): void {
+    h.bgRect.set({
+      selectable: true,
+      evented: true,
+      hasControls: true,
+      hasBorders: false,
+      lockRotation: true,
+      hoverCursor: 'move',
+    });
+
+    h.border.set({
+      selectable: false,
+      evented: false,
+      visible: false,
+    });
+
+    h.label.set({
+      selectable: false,
+      evented: false,
+      editable: true,
+      originX: 'left',
+      originY: 'top',
+    });
+
+    h.anchor.set({
+      selectable: true,
+      evented: true,
+      hasControls: false,
+      hasBorders: false,
+      hoverCursor: 'move',
+      visible: false,
+    });
+
+    h.tailImage.set({
+      selectable: false,
+      evented: false,
+      originX: 'left',
+      originY: 'top',
+      left: 0,
+      top: 0,
+    });
+
+    h.bgRect.setCoords();
+    h.border.setCoords();
+    h.label.setCoords();
+    h.anchor.setCoords();
+    h.tailImage.setCoords();
+  }
+
+  /**
+   * Attach callout interaction listeners.
+   */
+  private wireHandleEvents(handle: CalloutHandle): void {
+    const { bgRect, border, label, anchor } = handle;
+
+    bgRect.off('moving');
+    bgRect.off('scaling');
+    anchor.off('moving');
+    label.off('changed');
+    bgRect.off('mousedblclick');
+    bgRect.off('mousedown');
+    label.off('editing:exited');
+    bgRect.off('selected');
+    label.off('selected');
+    anchor.off('selected');
+    bgRect.off('deselected');
+    label.off('deselected');
+    anchor.off('deselected');
+
     bgRect.on('moving', () => {
+      this.clampCalloutIntoBounds(handle);
       this.syncBoxParts(handle);
       this.redrawTail(handle);
     });
 
     bgRect.on('scaling', () => {
       this.clampBoxSize(handle);
+      this.clampCalloutIntoBounds(handle);
       this.syncBoxParts(handle);
       this.redrawTail(handle);
     });
 
-    // Dragging the anchor → just redraw tail
     anchor.on('moving', () => {
+      const p = this.clampPointToBounds(anchor.left || 0, anchor.top || 0);
+      anchor.set({ left: p.x, top: p.y });
+      anchor.setCoords();
       this.redrawTail(handle);
     });
 
-    // Live resize while user is typing
     label.on('changed', () => {
       this.resizeBoxToFitLabel(handle);
       this.redrawTail(handle);
     });
 
-    // ── Text editing triggers ──
-
-    // Desktop: double-click on bgRect → focus label and enter editing
     bgRect.on('mousedblclick', () => {
       this.enterLabelEditing(handle);
     });
 
-    // Mobile: double-tap detection on bgRect (touchend doesn't fire dblclick)
     let lastTapTime = 0;
     bgRect.on('mousedown', () => {
       const now = Date.now();
@@ -461,12 +783,10 @@ export class CalloutModule {
       }
     });
 
-    // When the user finishes editing, enforce text constraints
     label.on('editing:exited', () => {
       this.onLabelEditingExited(handle);
     });
 
-    // Show/hide border + anchor based on selection
     const showControls = () => {
       border.set({ visible: true });
       anchor.set({ visible: true });
@@ -484,7 +804,6 @@ export class CalloutModule {
 
     bgRect.on('deselected', hideControls);
     label.on('deselected', () => {
-      // Hide controls after a short delay to allow re-selection
       setTimeout(() => {
         const active = this.canvas.getActiveObject();
         if (active !== bgRect && active !== label && active !== anchor) {
@@ -493,7 +812,6 @@ export class CalloutModule {
       }, 100);
     });
     anchor.on('deselected', () => {
-      // Only hide if nothing else in this callout is selected
       setTimeout(() => {
         const active = this.canvas.getActiveObject();
         if (active !== bgRect && active !== label && active !== anchor) {
@@ -501,12 +819,6 @@ export class CalloutModule {
         }
       }, 100);
     });
-
-    // Auto-show controls and select the rect
-    border.set({ visible: true });
-    anchor.set({ visible: true });
-    this.canvas.setActiveObject(bgRect);
-    this.canvas.renderAll();
   }
 
   /* ═══════════════ text constraint helpers ═══════════════ */
@@ -755,7 +1067,7 @@ export class CalloutModule {
     if (dist < 5) {
       // Anchor inside box — no tail
       tailImage.setElement(tailCanvas as any);
-      tailImage.set({ dirty: true });
+      tailImage.set({ left: 0, top: 0, scaleX: 1, scaleY: 1, dirty: true });
       this.canvas.renderAll();
       return;
     }
@@ -799,7 +1111,7 @@ export class CalloutModule {
     ctx.fill();
 
     tailImage.setElement(tailCanvas as any);
-    tailImage.set({ dirty: true });
+    tailImage.set({ left: 0, top: 0, scaleX: 1, scaleY: 1, dirty: true });
 
     // Z-order: tail behind box parts, base image behind everything
     this.canvas.sendToBack(tailImage);
@@ -859,6 +1171,7 @@ export class CalloutModule {
     if (opt.target) return;
 
     const pointer = this.canvas.getPointer(opt.e);
+    if (!this.isPointInsideBounds(pointer.x, pointer.y)) return;
     this.addCallout({
       left: pointer.x - 60,
       top: pointer.y - 100,

@@ -31,6 +31,7 @@ export const ko: LocalePack = {
     pen: '펜',
     zoom: '확대/축소',
     zoomIn: '확대',
+    zoomOut: '축소',
     rotateLeft: '왼쪽으로 회전',
     rotateRight: '오른쪽으로 회전',
     flipH: '가로 뒤집기',

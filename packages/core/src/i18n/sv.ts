@@ -31,6 +31,7 @@ export const sv: LocalePack = {
     pen: 'Penna',
     zoom: 'Zoom',
     zoomIn: 'Zooma in',
+    zoomOut: 'Zooma ut',
     rotateLeft: 'Rotera vänster',
     rotateRight: 'Rotera höger',
     flipH: 'Vänd H',

@@ -323,9 +323,9 @@
 
     <label class="file-label" for="imgInput">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-      Choose Image to Edit
+      Choose Image(s) to Edit
     </label>
-    <input type="file" id="imgInput" accept="image/*,.heic,.heif" />
+    <input type="file" id="imgInput" accept="image/*,.heic,.heif" multiple />
 
     <div class="output-section" id="outputSection">
       <div class="output-title">✅ Edited Result</div>
@@ -421,13 +421,14 @@
     });
 
     // Shared result renderer
-    function showResult(result) {
+    function showResult(result, batchText = '') {
       const outputSection = document.getElementById('outputSection');
       const outputImg = document.getElementById('outputImg');
       const outputMeta = document.getElementById('outputMeta');
       outputSection.classList.add('visible');
       outputImg.src = result.base64;
       outputMeta.innerHTML = `
+        ${batchText ? `<div class="meta-item"><div class="meta-label">Batch</div><div class="meta-value">${batchText}</div></div>` : ''}
         <div class="meta-item"><div class="meta-label">Dimensions</div><div class="meta-value">${result.width} × ${result.height}</div></div>
         <div class="meta-item"><div class="meta-label">Format</div><div class="meta-value">${result.format.toUpperCase()}</div></div>
         <div class="meta-item"><div class="meta-label">File Size</div><div class="meta-value">${(result.blob.size / 1024).toFixed(1)} KB</div></div>
@@ -493,31 +494,50 @@
 
     // File input → Open editor
     document.getElementById('imgInput').addEventListener('change', async (e) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
+      const input = e.target;
+      const files = Array.from(input.files || []);
+      if (!files.length) return;
+
+      const total = files.length;
+      let editedCount = 0;
+      let lastResult = null;
+
+      input.disabled = true;
 
       try {
-        const result = await openEditorModal({
-          image: file,
-          config: {
-            theme: {
-              ...themes[selectedTheme],
-              headerTitle: 'Photo Editor',
-              cancelButtonText: 'Close',
-              applyButtonText: 'Apply',
+        for (let i = 0; i < total; i++) {
+          const file = files[i];
+          const result = await openEditorModal({
+            image: file,
+            config: {
+              theme: {
+                ...themes[selectedTheme],
+                headerTitle: 'Photo Editor',
+                cancelButtonText: 'Close',
+                applyButtonText: 'Apply',
+              },
+              currentImageIndex: i + 1,
+              totalImages: total,
             },
-          },
-        });
+          });
 
-        if (result) {
-          showResult(result);
+          if (result) {
+            editedCount += 1;
+            lastResult = result;
+          }
+        }
+
+        if (lastResult) {
+          showResult(lastResult, `${editedCount}/${total} edited`);
         }
       } catch (err) {
         console.error('Editor error:', err);
         alert('Error opening editor. See console for details.');
+      } finally {
+        input.disabled = false;
       }
 
-      e.target.value = '';
+      input.value = '';
     });
   </script>
 </body>

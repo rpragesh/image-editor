@@ -2,6 +2,25 @@
 
 All notable changes to `@rageshpikalmunde/rp-image-editor` will be documented in this file.
 
+## [1.5.0] — 2026-08-05
+
+Minor release focused on multi-image workflows and stronger annotation reliability. Backward-compatible with 1.4.x.
+
+### Added
+- **Multi-image flow header counter** — new `currentImageIndex` and `totalImages` config fields render a compact `current/total` indicator (for example `2/5`) in the top bar, which helps when the editor is embedded in image-review or gallery flows.
+
+### Changed
+- **Zoom controls now respect the real editor bounds** — the toolbar correctly allows zooming out to `0.25x` and disables/enables zoom buttons based on the actual min/max zoom range.
+- **Properties panel header cleanup** — removed the non-functional collapse chevron so the panel no longer suggests hidden behavior that does not exist.
+
+### Fixed
+- **Fullscreen text editing reliability** — Fabric's hidden textarea is now hosted inside the editor subtree, so typing into text annotations continues to work in fullscreen mode and after focus shifts.
+- **Keyboard shortcuts no longer hijack text entry** — while an `IText` annotation is actively being edited, global shortcuts are suppressed so typed keys go to the text box instead of changing tools or zoom.
+- **Annotations stay inside the image footprint** — newly created or modified text, shapes, and callouts are clamped to the visible image bounds, and draw paths are clipped so strokes made in the letterbox area do not leak into exports.
+- **Callouts survive mode switches and undo/redo more cleanly** — existing callouts regain interactivity when re-entering callout mode, and runtime callout handles are rehydrated after history restores so editing, tails, and selection behave correctly.
+- **Callout erasing is now precise** — the eraser uses per-pixel tail hit testing so tapping near a full-canvas tail bitmap no longer deletes the wrong callout.
+- **Shape endpoint/resize bounds are enforced consistently** — arrow/polyline control points and scalable shapes are constrained against the image area, preventing handles from pushing annotations outside the editable region.
+
 ## [1.4.1] — 2026-07-24
 
 ### Fixed — docs

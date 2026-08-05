@@ -5,11 +5,12 @@
 [![license](https://img.shields.io/npm/l/%40rageshpikalmunde%2Frp-image-editor.svg)](https://github.com/rpragesh/image-editor/blob/main/LICENSE)
 [![bundle size](https://img.shields.io/bundlephobia/minzip/%40rageshpikalmunde%2Frp-image-editor)](https://bundlephobia.com/package/@rageshpikalmunde/rp-image-editor)
 
-> A lightweight, framework-agnostic **JavaScript image editor** built on [Fabric.js](http://fabricjs.com/). Crop, zoom, rotate, draw, add text, **shapes (circle / ellipse / square / arrow)**, callout annotations, erase, undo/redo — all in a beautiful modal UI with grouped toolbar. **Always-on drag with a translucent ghost preview** keeps the image visible while panning and zooming. **Annotations are preserved across both crop and rotate** (no drift past 360°), exports run at the image's native resolution by default, and themes auto-contrast so customized backgrounds always get a readable foreground. Works with **Angular**, **React**, **Vue**, **Ionic**, **Capacitor**, and plain JavaScript.
+> An open-source, framework-agnostic **JavaScript image editor, image annotation, and screenshot markup plugin** built on [Fabric.js](http://fabricjs.com/). Crop, zoom, rotate, draw, add text, **shapes (circle / ellipse / square / arrow)**, callout annotations, erase, undo/redo — all in a modal UI with a grouped toolbar. **Always-on drag with a translucent ghost preview** keeps the image visible while panning and zooming. **Annotations are preserved across both crop and rotate** (no drift past 360°), exports run at the image's native resolution by default, multi-image flows can show a built-in `current/total` header counter, and themes auto-contrast so customized backgrounds always get a readable foreground. Works with **Angular**, **React**, **Vue**, **Ionic**, **Capacitor**, and plain JavaScript.
+> Use it for photo editing, image markup, screenshot annotation, mobile upload flows, and in-browser image review tools without sending images to a backend editor.
 
 ### 🚀 **[▶ Try the Live Demo →](https://rpragesh.github.io/image-editor/)**
 
-> One click — the editor opens with a sample image already loaded. No signup, no upload. Draw, crop, rotate, add callouts, apply filters — try every tool right in your browser.
+> One click opens a live browser demo with a sample image already loaded. No signup, no upload. Draw, crop, rotate, add callouts, apply filters, and test export quality right in your browser.
 
 ## Features
 
@@ -29,6 +30,7 @@
 | 🔁 **Reset** | Reset to original image |
 | 🎯 **Native-resolution export** | Output preserves the source image's intrinsic resolution; annotations stay sharp |
 | 🎛️ **Grouped Toolbar** | Compact toolbar with flyout menus (Zoom, Transform, Annotate, Shapes) |
+| 🖼️ **Multi-image flows** | Pass `currentImageIndex` + `totalImages` to show a compact `2/5`-style counter in the header while users step through a batch of images. |
 | 🚫 **Disable Features** | Hide individual tools or groups via `disabledFeatures` config |
 | 📱 **HEIC Support** | Auto-converts iPhone HEIC photos to JPEG |
 | 📐 **EXIF Orientation** | Auto-corrects rotated photos |
@@ -40,6 +42,7 @@
 | 🎚️ **Filter presets config** | Whitelist / reorder the built-in filter tiles via `filterPresets`, or rename them via `filterPresetLabels`. |
 | 💬 **Callout defaults config** | Override the initial `text`, `color`, `textColor`, `fontSize`, `maxChars`, and `lineBreakAt` for new callouts. |
 | 📝 **Empty-state copy** | Customize the drop-zone title/subtitle via `strings.emptyStateTitle` / `strings.emptyStateSubtitle` (empty string hides the subtitle). |
+| 🧷 **Bounds-safe annotations** | Text, callouts, shapes, and draw strokes stay clipped/clamped to the visible image area, which keeps editing and exports clean even after zooming, panning, undo/redo, or fullscreen transitions. |
 | 📦 **Output** | Base64, Blob, and File object |
 
 ## Installation
@@ -100,6 +103,22 @@ async onFileSelected(file: File) {
   }
 }
 ```
+
+### Multi-image header counter
+
+If your app walks the user through several images in sequence, pass both `currentImageIndex` and `totalImages` to show a compact progress counter in the top bar:
+
+```typescript
+await openEditorModal({
+  image: file,
+  config: {
+    currentImageIndex: 2,
+    totalImages: 5,
+  },
+});
+```
+
+This renders `2/5` in the header. The values are clamped internally, so out-of-range inputs never produce invalid counters.
 
 ### React
 
@@ -172,6 +191,8 @@ interface RpEditorConfig {
   defaultShapeStrokeWidth?: number; // Default: 3
   colorPalette?: string[];
   showToolbar?: boolean;           // Default: true
+  currentImageIndex?: number;      // 1-based index for multi-image flows (e.g. 2)
+  totalImages?: number;            // Total images in the flow (e.g. 5) → shows "2/5" in header
   disabledFeatures?: string[];     // Default: [] — see below
   filterPresets?: ImageFilterPreset[];                    // Whitelist / order the filter tiles
   filterPresetLabels?: Partial<Record<ImageFilterPreset, string>>;  // Rename individual tiles
@@ -359,17 +380,17 @@ const result = await openEditorModal({
 
 Contributions are welcome! Please open an issue or submit a pull request on [GitHub](https://github.com/rpragesh/image-editor).
 
-## Upgrading from 1.3.0
+## Upgrading to 1.5.0
 
-**Nothing in your existing code has to change.** 1.4.0 is 100% backward-compatible — every new config key is optional and every default value matches 1.3.0. If you install 1.4.0 and touch nothing, you get the same English UI, the same toolbar, the same filter tiles in the same order, and the same callout defaults you had in 1.3.0.
+**Nothing in your existing code has to change.** 1.5.0 is backward-compatible with 1.4.x. If you install it and touch nothing, your existing crop / rotate / draw / filter / i18n behavior continues to work as before; the new image counter is opt-in.
 
 ### 1. Bump the version
 
 ```bash
-npm install @rageshpikalmunde/rp-image-editor@^1.4.0
-# and if you use the framework wrappers (they peer-depend on core ^1.4.0):
-npm install @rageshpikalmunde/rp-image-editor-react@^1.4.0
-npm install @rageshpikalmunde/rp-image-editor-angular@^1.4.0
+npm install @rageshpikalmunde/rp-image-editor@^1.5.0
+# and if you use the framework wrappers (they peer-depend on core ^1.5.0):
+npm install @rageshpikalmunde/rp-image-editor-react@^1.5.0
+npm install @rageshpikalmunde/rp-image-editor-angular@^1.5.0
 ```
 
 ### 2. Opt into the new features (all optional)
@@ -380,7 +401,11 @@ Add any subset of the new keys to your existing `config` object. You do **not** 
 await openEditorModal({
   image: file,
   config: {
-    // ...everything you already had in 1.3.0 still works, unchanged...
+    // ...everything you already had in 1.4.x still works, unchanged...
+
+    // Optional image counter for multi-image flows
+    currentImageIndex: 2,
+    totalImages: 5,
 
     // Localize the UI to any of 15 bundled languages
     language: 'de',
@@ -423,12 +448,12 @@ await openEditorModal({
 
 ### Rolling back
 
-Every 1.4.0 change is additive — no data, export, or storage format changed — so you can downgrade at any time with no code changes:
+1.5.0 is additive — no data, export, or storage format changed — so you can downgrade at any time with no code changes:
 
 ```bash
-npm install @rageshpikalmunde/rp-image-editor@1.3.0
-npm install @rageshpikalmunde/rp-image-editor-react@1.3.0
-npm install @rageshpikalmunde/rp-image-editor-angular@1.3.0
+npm install @rageshpikalmunde/rp-image-editor@1.4.1
+npm install @rageshpikalmunde/rp-image-editor-react@1.4.0
+npm install @rageshpikalmunde/rp-image-editor-angular@1.4.0
 ```
 
 ## License

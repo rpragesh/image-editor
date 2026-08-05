@@ -1,5 +1,5 @@
 /**
- * Eraser Module — erase annotations (drawings and text)
+ * Eraser Module — erase annotations
  * Uses object-tap-to-delete approach for reliability across platforms
  */
 import { fabric } from 'fabric';
@@ -14,7 +14,9 @@ export class EraserModule {
   }
 
   /**
-   * Activate eraser mode — tapping on an annotation object removes it
+  * Activate eraser mode — tapping on selectable annotations removes them.
+  * Freehand draw paths stay non-selectable and are erased by the
+  * editor-level brush hit-test path.
    */
   activate(): void {
     this.isActive = true;
@@ -22,9 +24,12 @@ export class EraserModule {
     this.canvas.defaultCursor = 'crosshair';
     this.canvas.selection = false;
 
-    // Make all annotation objects selectable but with delete-on-click behavior
+    // Make all annotation objects selectable but with delete-on-click behavior.
+    // Skip callout parts — they are removed as a group by the editor's brush
+    // eraser (which does a per-pixel test on the tail so the full-canvas tail
+    // bitmap doesn't get erased on any click over the image).
     this.canvas.getObjects().forEach((obj: any) => {
-      if (obj._rpAnnotation) {
+      if (obj._rpAnnotation && obj.calloutId == null && obj._rpType !== 'draw') {
         obj.selectable = true;
         obj.evented = true;
         obj.hoverCursor = 'pointer';
@@ -63,7 +68,10 @@ export class EraserModule {
     if (!this.isActive) return;
 
     const target = opt.target as any;
-    if (target && target._rpAnnotation) {
+    // Callout parts are handled by the editor's brush eraser (which does a
+    // per-pixel test on the tail bitmap). Ignore them here so a click that
+    // happens to hit the full-canvas tail image doesn't wipe out the callout.
+    if (target && target._rpAnnotation && target.calloutId == null) {
       // Remove the annotation object
       this.canvas.remove(target);
       this.canvas.renderAll();

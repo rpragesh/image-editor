@@ -31,6 +31,7 @@ export const nl: LocalePack = {
     pen: 'Pen',
     zoom: 'Zoom',
     zoomIn: 'Inzoomen',
+    zoomOut: 'Uitzoomen',
     rotateLeft: 'Naar links draaien',
     rotateRight: 'Naar rechts draaien',
     flipH: 'H spiegelen',

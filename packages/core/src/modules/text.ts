@@ -10,6 +10,9 @@ export class TextModule {
   private fontFamily = 'Arial, Helvetica, sans-serif';
   private isActive = false;
   private pendingTextAdd = false;
+  private boundsProvider:
+    | (() => { left: number; top: number; right: number; bottom: number } | null)
+    | null = null;
 
   constructor(canvas: fabric.Canvas) {
     this.canvas = canvas;
@@ -69,11 +72,12 @@ export class TextModule {
     (text as any)._rpType = 'text';
 
     this.canvas.add(text);
+    this.clampTextInsideImage(text);
     this.canvas.setActiveObject(text);
     this.canvas.renderAll();
 
     // Enter editing mode immediately
-    text.enterEditing();
+    this.beginEditing(text);
 
     return text;
   }
@@ -117,13 +121,50 @@ export class TextModule {
     return this.isActive;
   }
 
+  setPlacementBoundsProvider(
+    provider: (() => { left: number; top: number; right: number; bottom: number } | null) | null,
+  ): void {
+    this.boundsProvider = provider;
+  }
+
+  private isPointInsideImage(x: number, y: number): boolean {
+    const b = this.boundsProvider?.();
+    if (!b) return true;
+    return x >= b.left && x <= b.right && y >= b.top && y <= b.bottom;
+  }
+
+  private clampTextInsideImage(text: fabric.IText): void {
+    const b = this.boundsProvider?.();
+    if (!b) return;
+    const r = text.getBoundingRect(true, true);
+    let dx = 0;
+    let dy = 0;
+    if (r.left < b.left) dx = b.left - r.left;
+    if (r.left + r.width > b.right) dx = Math.min(dx, b.right - (r.left + r.width));
+    if (r.top < b.top) dy = b.top - r.top;
+    if (r.top + r.height > b.bottom) dy = Math.min(dy, b.bottom - (r.top + r.height));
+    if (dx !== 0 || dy !== 0) {
+      text.set({ left: (text.left || 0) + dx, top: (text.top || 0) + dy });
+      text.setCoords();
+    }
+  }
+
   private handleCanvasClick = (opt: fabric.IEvent): void => {
     if (!this.pendingTextAdd) return;
 
-    // Don't add text if clicking on an existing object
-    if (opt.target) return;
+    // In text mode, clicking an existing text annotation should re-enter edit mode.
+    if (opt.target) {
+      if (opt.target.type === 'i-text') {
+        const textObj = opt.target as fabric.IText;
+        this.canvas.setActiveObject(textObj);
+        this.beginEditing(textObj);
+        this.pendingTextAdd = false;
+      }
+      return;
+    }
 
     const pointer = this.canvas.getPointer(opt.e);
+    if (!this.isPointInsideImage(pointer.x, pointer.y)) return;
     this.addText({
       left: pointer.x,
       top: pointer.y,
@@ -132,4 +173,15 @@ export class TextModule {
     // Single placement — user must click the text icon again to add another
     this.pendingTextAdd = false;
   };
+
+  private beginEditing(text: fabric.IText): void {
+    text.enterEditing();
+
+    // Ensure keyboard focus lands in Fabric's hidden textarea, especially
+    // after fullscreen transitions where browser focus can stay on toolbar buttons.
+    const textarea = (text as any).hiddenTextarea as HTMLTextAreaElement | undefined;
+    if (textarea && typeof textarea.focus === 'function') {
+      setTimeout(() => textarea.focus(), 0);
+    }
+  }
 }

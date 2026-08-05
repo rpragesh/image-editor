@@ -31,6 +31,7 @@ export const fr: LocalePack = {
     pen: 'Stylo',
     zoom: 'Zoom',
     zoomIn: 'Zoom avant',
+    zoomOut: 'Zoom arrière',
     rotateLeft: 'Pivoter à gauche',
     rotateRight: 'Pivoter à droite',
     flipH: 'Miroir H',

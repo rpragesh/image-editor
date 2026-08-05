@@ -31,6 +31,7 @@ export const pt: LocalePack = {
     pen: 'Caneta',
     zoom: 'Zoom',
     zoomIn: 'Aproximar',
+    zoomOut: 'Afastar',
     rotateLeft: 'Girar à esquerda',
     rotateRight: 'Girar à direita',
     flipH: 'Espelhar H',

@@ -31,6 +31,7 @@ export const th: LocalePack = {
     pen: 'ปากกา',
     zoom: 'ซูม',
     zoomIn: 'ขยาย',
+    zoomOut: 'ย่อ',
     rotateLeft: 'หมุนซ้าย',
     rotateRight: 'หมุนขวา',
     flipH: 'พลิกแนวนอน',

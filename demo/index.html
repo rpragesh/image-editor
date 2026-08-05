@@ -54,6 +54,11 @@
       font-size: 14px;
       color: #666;
     }
+    .batch-info {
+      margin-top: 10px;
+      font-size: 13px;
+      color: #666;
+    }
     .theme-selector {
       margin-top: 16px;
       display: flex;
@@ -76,12 +81,12 @@
   <h1>📷 rp-image-editor Demo</h1>
 
   <div class="demo-container">
-    <p style="margin-bottom: 16px; color: #555;">Select an image to open the editor</p>
+    <p style="margin-bottom: 16px; color: #555;">Select one or more images to open the editor</p>
 
     <label class="file-input-label" for="imageInput">
-      Choose Image
+      Choose Image(s)
     </label>
-    <input type="file" id="imageInput" accept=".png,.jpeg,.jpg,.heic,.heif" />
+    <input type="file" id="imageInput" accept=".png,.jpeg,.jpg,.heic,.heif" multiple />
 
     <div class="theme-selector">
       <button class="theme-btn active" data-theme="dark">Dark Theme</button>
@@ -89,6 +94,8 @@
       <button class="theme-btn" data-theme="blue">Blue Theme</button>
       <button class="theme-btn" data-theme="green">Green Theme</button>
     </div>
+
+    <p class="batch-info" id="batchInfo">Tip: when you pick multiple files, they open one by one.</p>
 
     <div class="result-preview" id="resultPreview">
       <h3 style="margin-bottom: 10px; color: #333;">Edited Result:</h3>
@@ -173,41 +180,68 @@
 
     // File input handler
     document.getElementById('imageInput').addEventListener('change', async (e) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
+      const input = e.target;
+      const files = Array.from(input.files || []);
+      if (!files.length) return;
+
+      const batchInfo = document.getElementById('batchInfo');
+      const total = files.length;
+      let editedCount = 0;
+      let lastResult = null;
+
+      input.disabled = true;
+      batchInfo.textContent = `Opening ${total} image${total > 1 ? 's' : ''}...`;
 
       try {
-        const result = await openEditorModal({
-          image: file,
-          config: {
-            theme: {
-              ...themes[selectedTheme],
-              headerTitle: 'Photo Editor',
-            },
-          },
-        });
+        for (let i = 0; i < total; i++) {
+          const file = files[i];
+          batchInfo.textContent = `Editing image ${i + 1} of ${total}: ${file.name}`;
 
-        if (result) {
-          // Show result preview
+          const result = await openEditorModal({
+            image: file,
+            config: {
+              theme: {
+                ...themes[selectedTheme],
+                headerTitle: 'Photo Editor',
+              },
+              currentImageIndex: i + 1,
+              totalImages: total,
+            },
+          });
+
+          if (result) {
+            editedCount += 1;
+            lastResult = result;
+            console.log(`Edit result [${i + 1}/${total}]:`, result);
+            console.log('File object (for upload):', result.file);
+          } else {
+            console.log(`Editor cancelled [${i + 1}/${total}]`);
+          }
+        }
+
+        if (lastResult) {
+          // Show result preview (last edited image)
           const preview = document.getElementById('resultPreview');
           const img = document.getElementById('resultImage');
           const info = document.getElementById('resultInfo');
 
           preview.style.display = 'block';
-          img.src = result.base64;
-          info.textContent = `${result.width}×${result.height} | ${result.format.toUpperCase()} | ${(result.blob.size / 1024).toFixed(1)} KB`;
-
-          console.log('Edit result:', result);
-          console.log('File object (for upload):', result.file);
+          img.src = lastResult.base64;
+          info.textContent = `${lastResult.width}×${lastResult.height} | ${lastResult.format.toUpperCase()} | ${(lastResult.blob.size / 1024).toFixed(1)} KB | Edited ${editedCount}/${total}`;
         } else {
-          console.log('Editor cancelled');
+          console.log('All images were cancelled');
         }
+
+        batchInfo.textContent = `Done: edited ${editedCount} of ${total} image${total > 1 ? 's' : ''}.`;
       } catch (err) {
         console.error('Editor error:', err);
+        batchInfo.textContent = 'Error while editing. Check console for details.';
+      } finally {
+        input.disabled = false;
       }
 
       // Reset input so same file can be selected again
-      e.target.value = '';
+      input.value = '';
     });
   </script>
 </body>

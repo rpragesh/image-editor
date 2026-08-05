@@ -31,6 +31,7 @@ export const zh: LocalePack = {
     pen: '画笔',
     zoom: '缩放',
     zoomIn: '放大',
+    zoomOut: '缩小',
     rotateLeft: '向左旋转',
     rotateRight: '向右旋转',
     flipH: '水平翻转',

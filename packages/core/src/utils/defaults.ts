@@ -20,6 +20,8 @@ export const DEFAULT_CONFIG: Required<
     | 'onModeChanged'
     | 'calloutDefaults'
     | 'strings'
+    | 'currentImageIndex'
+    | 'totalImages'
   >
 > & {
   maxResolution: number | null;
@@ -35,6 +37,8 @@ export const DEFAULT_CONFIG: Required<
   strings?: RpEditorConfig['strings'];
   language?: RpEditorConfig['language'];
   labels?: RpEditorConfig['labels'];
+  currentImageIndex?: RpEditorConfig['currentImageIndex'];
+  totalImages?: RpEditorConfig['totalImages'];
 } = {
   maxResolution: null, // auto-detect
   cropAspectRatios: [

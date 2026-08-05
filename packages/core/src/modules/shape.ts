@@ -49,6 +49,26 @@ export interface RpArrow extends fabric.Object {
 
 const ARROW_TYPE = 'rpArrow';
 
+/**
+ * Module-level placement bounds (base-image footprint in canvas coords).
+ * Set via `ShapeModule.setPlacementBoundsProvider`. The custom endpoint /
+ * vertex control handlers live outside the class instance, so they read the
+ * bounds from here to clamp each dragged point into the image area.
+ */
+let shapeBoundsProvider:
+    (() => { left: number; top: number; right: number; bottom: number } | null)
+    | null = null;
+
+/** Clamp a single point (canvas coords) into the current image bounds. */
+function clampPointToShapeBounds(x: number, y: number): { x: number; y: number } {
+    const b = shapeBoundsProvider?.();
+    if (!b) return { x, y };
+    return {
+        x: Math.min(Math.max(x, b.left), b.right),
+        y: Math.min(Math.max(y, b.top), b.bottom),
+    };
+}
+
 /** Lazily registered so we only patch fabric once per page-load */
 let arrowClassRegistered = false;
 
@@ -215,12 +235,20 @@ function attachArrowEndpointControls(arrow: any): void {
         cursorStyleHandler: () => 'crosshair',
         actionName: 'arrowStart',
         positionHandler(_dim: any, _finalMatrix: any, fabricObject: any) {
-            return new fabric.Point(fabricObject.x1, fabricObject.y1);
+            // Endpoints are stored in ABSOLUTE canvas coordinates, so map them
+            // to screen space with the viewport transform (zoom + pan). Using
+            // finalMatrix here would cancel the zoom (that's how Fabric keeps
+            // corner handles a constant screen size) and the handles would
+            // drift away from the shape when zoomed.
+            const pt = new fabric.Point(fabricObject.x1, fabricObject.y1);
+            const vpt = fabricObject.canvas?.viewportTransform;
+            return vpt ? fabric.util.transformPoint(pt, vpt) : pt;
         },
         actionHandler(_eventData: any, transform: any, x: number, y: number) {
             const t = transform.target as any;
-            t.x1 = x;
-            t.y1 = y;
+            const p = clampPointToShapeBounds(x, y);
+            t.x1 = p.x;
+            t.y1 = p.y;
             t._updateBBox();
             t.canvas?.requestRenderAll();
             return true;
@@ -236,12 +264,15 @@ function attachArrowEndpointControls(arrow: any): void {
         cursorStyleHandler: () => 'crosshair',
         actionName: 'arrowEnd',
         positionHandler(_dim: any, _finalMatrix: any, fabricObject: any) {
-            return new fabric.Point(fabricObject.x2, fabricObject.y2);
+            const pt = new fabric.Point(fabricObject.x2, fabricObject.y2);
+            const vpt = fabricObject.canvas?.viewportTransform;
+            return vpt ? fabric.util.transformPoint(pt, vpt) : pt;
         },
         actionHandler(_eventData: any, transform: any, x: number, y: number) {
             const t = transform.target as any;
-            t.x2 = x;
-            t.y2 = y;
+            const p = clampPointToShapeBounds(x, y);
+            t.x2 = p.x;
+            t.y2 = p.y;
             t._updateBBox();
             t.canvas?.requestRenderAll();
             return true;
@@ -269,6 +300,7 @@ function attachArrowEndpointControls(arrow: any): void {
  */
 export interface RpPolyline extends fabric.Object {
     points: { x: number; y: number }[];
+    _rpClosed?: boolean;
     _updateBBox(): void;
 }
 
@@ -288,6 +320,28 @@ function registerPolylineClass(): any {
             options = options || {};
             this.callSuper('initialize', options);
             this.points = (options.points || []).map((p: any) => ({ x: p.x, y: p.y }));
+            // Persisted closed polylines from older builds may duplicate
+            // the first vertex at the end. Normalize to unique vertices and
+            // track closure on a dedicated flag.
+            this._rpClosed = !!options._rpClosed;
+            if (!this._rpClosed && this.points.length >= 4) {
+                const first = this.points[0];
+                const last = this.points[this.points.length - 1];
+                const dx = last.x - first.x;
+                const dy = last.y - first.y;
+                if (dx * dx + dy * dy <= 0.25) {
+                    this._rpClosed = true;
+                }
+            }
+            if (this._rpClosed && this.points.length >= 2) {
+                const first = this.points[0];
+                const last = this.points[this.points.length - 1];
+                const dx = last.x - first.x;
+                const dy = last.y - first.y;
+                if (dx * dx + dy * dy <= 0.25) {
+                    this.points.pop();
+                }
+            }
             this.objectCaching = false;
             this._lastLeft = 0;
             this._lastTop = 0;
@@ -353,6 +407,9 @@ function registerPolylineClass(): any {
             for (let i = 1; i < this.points.length; i++) {
                 ctx.lineTo(this.points[i].x - cx, this.points[i].y - cy);
             }
+            if ((this as any)._rpClosed) {
+                ctx.closePath();
+            }
             ctx.stroke();
 
             // While the polyline is still being built (before finalisation),
@@ -385,9 +442,10 @@ function registerPolylineClass(): any {
         toObject(this: any, propertiesToInclude?: string[]) {
             const base = this.callSuper(
                 'toObject',
-                ['_rpAnnotation', '_rpType', '_rpShapeType'].concat(propertiesToInclude || []),
+                ['_rpAnnotation', '_rpType', '_rpShapeType', '_rpClosed'].concat(propertiesToInclude || []),
             );
             base.points = (this.points || []).map((p: any) => ({ x: p.x, y: p.y }));
+            base._rpClosed = !!this._rpClosed;
             return base;
         },
     });
@@ -421,13 +479,16 @@ function attachPolylineVertexControls(poly: any): void {
             actionName: `polyVertex${idx}`,
             positionHandler(_dim: any, _finalMatrix: any, fabricObject: any) {
                 const p = fabricObject.points[idx];
-                return new fabric.Point(p.x, p.y);
+                const pt = new fabric.Point(p.x, p.y);
+                const vpt = fabricObject.canvas?.viewportTransform;
+                return vpt ? fabric.util.transformPoint(pt, vpt) : pt;
             },
             actionHandler(_eventData: any, transform: any, x: number, y: number) {
                 const t = transform.target as any;
                 if (!t.points[idx]) return false;
-                t.points[idx].x = x;
-                t.points[idx].y = y;
+                const p = clampPointToShapeBounds(x, y);
+                t.points[idx].x = p.x;
+                t.points[idx].y = p.y;
                 t._updateBBox();
                 t.canvas?.requestRenderAll();
                 return true;
@@ -464,17 +525,42 @@ export class ShapeModule {
         // When an arrow or polyline is added to the canvas (including after
         // undo/redo restores from JSON) we need to re-attach its custom
         // controls and drag-sync handler, because plain JSON deserialisation
-        // can't reconstruct functions.
+        // can't reconstruct functions. We also need to re-apply the display
+        // flags (hasBorders / hasControls / selectable / …) because Fabric's
+        // default toObject() doesn't serialise them, so a JSON round-trip
+        // would silently revert them to the fabric.Object defaults (i.e.
+        // hasBorders = true), which would draw an unwanted bounding-box
+        // outline around lines / arrows and cause the default corner /
+        // side handles to appear instead of our custom endpoint / vertex
+        // anchors.
         this.canvas.on('object:added', (e: fabric.IEvent) => {
             const obj = e.target as any;
             if (obj && obj.type === ARROW_TYPE && !obj._rpArrowBound) {
                 attachArrowEndpointControls(obj);
                 this.wireArrowDragSync(obj);
+                obj.set({
+                    hasBorders: false,
+                    hasControls: true,
+                    selectable: true,
+                    evented: true,
+                    lockRotation: true,
+                    hasRotatingPoint: false,
+                    objectCaching: false,
+                });
                 obj._rpArrowBound = true;
             }
             if (obj && obj.type === POLYLINE_TYPE && !obj._rpPolyBound) {
                 attachPolylineVertexControls(obj);
                 this.wirePolylineDragSync(obj);
+                obj.set({
+                    hasBorders: false,
+                    hasControls: true,
+                    selectable: true,
+                    evented: true,
+                    lockRotation: true,
+                    hasRotatingPoint: false,
+                    objectCaching: false,
+                });
                 obj._rpPolyBound = true;
             }
         });
@@ -583,6 +669,15 @@ export class ShapeModule {
 
     getIsActive(): boolean {
         return this.isActive;
+    }
+
+    setPlacementBoundsProvider(
+        provider: (() => { left: number; top: number; right: number; bottom: number } | null) | null,
+    ): void {
+        // The custom arrow-endpoint / polyline-vertex control handlers clamp
+        // each dragged point into this footprint (module-level). Scaling of
+        // the standard shapes is additionally clamped at the editor layer.
+        shapeBoundsProvider = provider;
     }
 
     /* ============================ draw gesture ========================== */
@@ -721,19 +816,9 @@ export class ShapeModule {
         if (!this.currentObject) return;
         const poly = this.currentObject as any;
 
-        if (closed) {
-            // Snap the trailing tracking vertex exactly onto the first vertex
-            // so the last drawn segment cleanly closes the shape.
-            if (poly.points.length >= 2) {
-                poly.points[poly.points.length - 1] = {
-                    x: poly.points[0].x,
-                    y: poly.points[0].y,
-                };
-            }
-        } else {
-            // Drop the trailing tracking vertex — it just follows the cursor
-            if (poly.points.length > 0) poly.points.pop();
-        }
+        // Drop the trailing tracking vertex — it only previews cursor motion.
+        if (poly.points.length > 0) poly.points.pop();
+        poly._rpClosed = !!closed;
 
         this.isDrawing = false;
 

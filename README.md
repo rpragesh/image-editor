@@ -1,10 +1,12 @@
 # @rageshpikalmunde/rp-image-editor
 
-A lightweight, framework-agnostic image editor plugin built with Fabric.js.
+An open-source JavaScript image editor, image annotation, and screenshot markup plugin built with Fabric.js for React, Angular, Ionic, Vue, Capacitor, and plain web apps.
+
+Use it to crop, rotate, zoom, draw, add text, place callouts and shapes, apply filters, and export high-quality edited images directly in the browser.
 
 ### 🚀 **[▶ Try the Live Demo →](https://rpragesh.github.io/image-editor/)**
 
-> One click — the editor opens with a sample image already loaded. No signup, no upload. Try every tool immediately.
+> One click opens a live browser demo with a sample image already loaded. No signup, no upload. Test crop, annotation, text, shapes, filters, and export in seconds.
 
 [npm](https://www.npmjs.com/package/@rageshpikalmunde/rp-image-editor) · [GitHub](https://github.com/rpragesh/image-editor) · [Changelog](packages/core/CHANGELOG.md)
 
@@ -22,6 +24,7 @@ A lightweight, framework-agnostic image editor plugin built with Fabric.js.
 - **Undo/Redo** with configurable stack depth
 - **Reset** to original image
 - **Native-resolution export** — output preserves the source image's intrinsic resolution; annotations stay sharp (toggle via `exportAtNativeResolution`)
+- **Multi-image workflows** — pass `currentImageIndex` and `totalImages` to render a compact `2/5`-style counter in the header while users step through batches of images
 - **HEIC support** — auto-converts iPhone HEIC to JPEG
 - **EXIF orientation** — auto-corrects rotated photos
 - **Smart resolution** — auto-downscales on iOS to stay within Safari canvas limits
@@ -29,6 +32,7 @@ A lightweight, framework-agnostic image editor plugin built with Fabric.js.
 - **Theming** — fully customizable colors for header, footer, buttons, toolbar. Auto-contrast: when you customize a background without setting its paired text/icon color, a readable foreground is derived from the background's luminance, so dark themes never end up with invisible icons.
 - **Internationalization (i18n)** — bundled translations for **15 languages** (`da, de, en, es, fr, it, ko, nl, pl, pt, sv, th, tr, vi, zh`) selectable via a single `language` config key. `sp` aliases to `es`; regional variants like `de-DE` or `pt_BR` are folded automatically. Per-key `labels` overrides let you rebrand individual strings or add languages beyond the built-in set.
 - **Configurable defaults** — customize filter preset lists & labels, callout defaults (text / color / font size / max chars / auto line-break), header subtitle, and empty-state title/subtitle without touching source.
+- **Bounds-safe editing** — text, callouts, shapes, and freehand strokes are clamped or clipped to the visible image footprint so exports stay clean after zooming, panning, fullscreen editing, or undo/redo.
 - **Output** — Base64, Blob, and File object
 
 ## Packages
@@ -158,7 +162,7 @@ await openEditorModal({
 
 ## More configurability
 
-Beyond theming and i18n, v1.4 exposes the following config keys:
+Recent releases expose the following config keys:
 
 | Key | What it does |
 |---|---|
@@ -167,20 +171,21 @@ Beyond theming and i18n, v1.4 exposes the following config keys:
 | `calloutDefaults` | Defaults for new callouts: `text`, `color`, `textColor`, `fontSize`, `maxChars`, `lineBreakAt`. |
 | `strings.emptyStateTitle` / `strings.emptyStateSubtitle` | Customize the drop-zone copy. Pass `''` for the subtitle to hide the row. |
 | `theme.headerSubtitle` | Customize the subtitle rendered under the header title. Pass `''` to hide it. |
+| `currentImageIndex` / `totalImages` | Show a compact `current/total` image counter in the editor header for multi-image review flows. |
 
-See [`packages/core/CHANGELOG.md`](packages/core/CHANGELOG.md) for the full 1.4.0 release notes.
+See [`packages/core/CHANGELOG.md`](packages/core/CHANGELOG.md) for the full 1.5.0 release notes.
 
-## Upgrading from 1.3.0
+## Upgrading to 1.5.0
 
-**Nothing in your existing code has to change.** 1.4.0 is 100% backward-compatible — every new config key is optional and every default value matches 1.3.0. If you install 1.4.0 and touch nothing, you get the same English UI, the same toolbar, the same filter tiles in the same order, and the same callout defaults you had in 1.3.0.
+**Nothing in your existing code has to change.** 1.5.0 is backward-compatible with 1.4.x. If you install 1.5.0 and change nothing, your existing integration keeps working; the new image counter is opt-in and the annotation fixes apply automatically.
 
 ### 1. Bump the versions
 
 ```bash
-npm install @rageshpikalmunde/rp-image-editor@^1.4.0
-# and if you use the framework wrappers (they peer-depend on core ^1.4.0):
-npm install @rageshpikalmunde/rp-image-editor-react@^1.4.0
-npm install @rageshpikalmunde/rp-image-editor-angular@^1.4.0
+npm install @rageshpikalmunde/rp-image-editor@^1.5.0
+# and if you use the framework wrappers (they peer-depend on core ^1.5.0):
+npm install @rageshpikalmunde/rp-image-editor-react@^1.5.0
+npm install @rageshpikalmunde/rp-image-editor-angular@^1.5.0
 ```
 
 ### 2. Opt into the new features (all optional)
@@ -191,7 +196,11 @@ Add any subset of the new keys to your existing `config` object. You do **not** 
 await openEditorModal({
   image: file,
   config: {
-    // ...everything you already had in 1.3.0 still works, unchanged...
+    // ...everything you already had in 1.4.x still works, unchanged...
+
+    // Optional image counter for multi-image flows
+    currentImageIndex: 2,
+    totalImages: 5,
 
     // Localize the UI to any of 15 bundled languages
     language: 'de',
@@ -236,12 +245,12 @@ See the [core README's Disabling Features](packages/core/README.md#disabling-fea
 
 ### Rolling back
 
-Every 1.4.0 change is additive — no data, export, or storage format changed — so you can downgrade at any time with no code changes:
+1.5.0 is additive — no data, export, or storage format changed — so you can downgrade at any time with no code changes:
 
 ```bash
-npm install @rageshpikalmunde/rp-image-editor@1.3.0
-npm install @rageshpikalmunde/rp-image-editor-react@1.3.0
-npm install @rageshpikalmunde/rp-image-editor-angular@1.3.0
+npm install @rageshpikalmunde/rp-image-editor@1.4.1
+npm install @rageshpikalmunde/rp-image-editor-react@1.4.0
+npm install @rageshpikalmunde/rp-image-editor-angular@1.4.0
 ```
 
 ## License

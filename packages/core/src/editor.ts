@@ -30,6 +30,9 @@ import { getLocalePack } from './i18n/index.js';
 import type { LocalePack } from './i18n/types.js';
 
 export class RpImageEditor extends EventEmitter<RpEditorEvents> {
+  private static readonly MIN_ZOOM = 0.25;
+  private static readonly MAX_ZOOM = 5;
+
   private config: ReturnType<typeof mergeConfig>;
   private localePack!: LocalePack;
   private container: HTMLElement;
@@ -102,6 +105,11 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   // Attached keyboard-shortcut handler, so we can remove it on destroy.
   private keydownHandler: ((e: KeyboardEvent) => void) | null = null;
 
+  // Dedicated host for Fabric's hidden text input. This keeps text
+  // editing inside the editor/fullscreen subtree without affecting
+  // wrapper layout (which would trigger resize-driven image repositioning).
+  private textInputHostEl: HTMLDivElement | null = null;
+
   // Translucent "ghost" copy of the base image mounted behind the
   // Fabric canvas while in move mode. Because the Fabric canvas is
   // sized exactly to the visible image, panning in move mode would
@@ -125,6 +133,196 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     blur: 0,
   };
   private adjustDebounce: number | null = null;
+
+  /** Axis-aligned bounds of the visible base image in canvas coordinates. */
+  private getImageAnnotationBounds(): {
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+  } | null {
+    if (!this.baseImage) return null;
+    const scaleX = (this.baseImage as any).scaleX || 1;
+    const scaleY = (this.baseImage as any).scaleY || 1;
+    const left = (this.baseImage as any).left || 0;
+    const top = (this.baseImage as any).top || 0;
+    const width = (this.baseImage.width || 0) * scaleX;
+    const height = (this.baseImage.height || 0) * scaleY;
+    if (width <= 0 || height <= 0) return null;
+    return {
+      left,
+      top,
+      right: left + width,
+      bottom: top + height,
+    };
+  }
+
+  /** Build an absolute clip-rect matching the base image bounds. */
+  private buildImageClipRect(): fabric.Rect | null {
+    const b = this.getImageAnnotationBounds();
+    if (!b) return null;
+    return new fabric.Rect({
+      left: b.left,
+      top: b.top,
+      width: b.right - b.left,
+      height: b.bottom - b.top,
+      absolutePositioned: true,
+      originX: 'left',
+      originY: 'top',
+    });
+  }
+
+  /** Return true when object bbox intersects the base image bounds. */
+  private intersectsImageBounds(obj: fabric.Object): boolean {
+    const b = this.getImageAnnotationBounds();
+    if (!b) return true;
+    const r = obj.getBoundingRect(true, true);
+    return !(
+      r.left + r.width < b.left ||
+      r.left > b.right ||
+      r.top + r.height < b.top ||
+      r.top > b.bottom
+    );
+  }
+
+  /** Keep an annotation's bbox inside the image by translating it. */
+  private constrainAnnotationToImageBounds(obj: fabric.Object | null): void {
+    if (!obj || !this.baseImage) return;
+    const anyObj = obj as any;
+    if (anyObj._rpBaseImage) return;
+    if (anyObj._rpType === 'callout-border' || anyObj._rpType === 'callout-tail') return;
+
+    const b = this.getImageAnnotationBounds();
+    if (!b) return;
+
+    const r = obj.getBoundingRect(true, true);
+    let dx = 0;
+    let dy = 0;
+    if (r.left < b.left) dx = b.left - r.left;
+    if (r.left + r.width > b.right) dx = Math.min(dx, b.right - (r.left + r.width));
+    if (r.top < b.top) dy = b.top - r.top;
+    if (r.top + r.height > b.bottom) dy = Math.min(dy, b.bottom - (r.top + r.height));
+
+    if (dx !== 0 || dy !== 0) {
+      if (obj.type === 'rpArrow') {
+        this.translateArrowAnnotation(anyObj, dx, dy);
+        return;
+      }
+      if (obj.type === 'rpPolyline') {
+        this.translatePolylineAnnotation(anyObj, dx, dy);
+        return;
+      }
+      obj.set({ left: (obj.left || 0) + dx, top: (obj.top || 0) + dy });
+      obj.setCoords();
+    }
+  }
+
+  /** Shift a custom arrow object while preserving its endpoint geometry. */
+  private translateArrowAnnotation(arrow: any, dx: number, dy: number): void {
+    if (dx === 0 && dy === 0) return;
+    arrow.x1 += dx;
+    arrow.x2 += dx;
+    arrow.y1 += dy;
+    arrow.y2 += dy;
+    arrow._updateBBox?.();
+  }
+
+  /** Shift a custom polyline while preserving every vertex position. */
+  private translatePolylineAnnotation(poly: any, dx: number, dy: number): void {
+    if ((dx === 0 && dy === 0) || !Array.isArray(poly.points)) return;
+    for (const point of poly.points) {
+      point.x += dx;
+      point.y += dy;
+    }
+    poly._updateBBox?.();
+  }
+
+  /**
+   * While an annotation is being scaled via its corner/side handles, cap the
+   * scale so its bounding box can never grow past the base-image footprint.
+   * The handle opposite the one being dragged stays fixed (Fabric anchors the
+   * transform origin there), and we shrink scaleX/scaleY just enough to keep
+   * the moving edges on the image border. This prevents shapes from spilling
+   * outside the image regardless of the current zoom level.
+   */
+  private constrainScalingToImageBounds(e: any): void {
+    const obj = e?.target as fabric.Object | null;
+    if (!obj) return;
+    const anyObj = obj as any;
+    if (anyObj._rpBaseImage) return;
+    if (anyObj._rpType === 'callout-border' || anyObj._rpType === 'callout-tail') return;
+    // Arrows / polylines are reshaped through their own endpoint controls,
+    // which clamp each point directly — they don't use box scaling.
+    if (obj.type === 'rpArrow' || obj.type === 'rpPolyline') return;
+
+    const b = this.getImageAnnotationBounds();
+    if (!b) return;
+
+    const transform = e.transform || (this.fabricCanvas as any)?._currentTransform;
+    const originX: string = transform?.originX || 'center';
+    const originY: string = transform?.originY || 'center';
+
+    const r = obj.getBoundingRect(true, true);
+
+    // Anchor point = the fixed edge/corner during scaling (transform origin).
+    const anchorX =
+      originX === 'left' ? r.left : originX === 'right' ? r.left + r.width : r.left + r.width / 2;
+    const anchorY =
+      originY === 'top' ? r.top : originY === 'bottom' ? r.top + r.height : r.top + r.height / 2;
+
+    // Maximum width/height allowed before the moving edge crosses the image.
+    const maxWidth =
+      originX === 'left'
+        ? b.right - anchorX
+        : originX === 'right'
+          ? anchorX - b.left
+          : 2 * Math.min(anchorX - b.left, b.right - anchorX);
+    const maxHeight =
+      originY === 'top'
+        ? b.bottom - anchorY
+        : originY === 'bottom'
+          ? anchorY - b.top
+          : 2 * Math.min(anchorY - b.top, b.bottom - anchorY);
+
+    let fx = r.width > maxWidth && maxWidth > 0 ? maxWidth / r.width : 1;
+    let fy = r.height > maxHeight && maxHeight > 0 ? maxHeight / r.height : 1;
+
+    if (fx < 1 || fy < 1) {
+      // Uniform-scaled shapes (circle/square) must keep aspect ratio.
+      if (anyObj.lockUniScaling) {
+        const f = Math.min(fx, fy);
+        fx = f;
+        fy = f;
+      }
+      obj.set({
+        scaleX: (obj.scaleX || 1) * fx,
+        scaleY: (obj.scaleY || 1) * fy,
+      });
+      obj.setCoords();
+      // Re-anchor so the fixed corner stays put after shrinking the scale.
+      const r2 = obj.getBoundingRect(true, true);
+      const newAnchorX =
+        originX === 'left'
+          ? r2.left
+          : originX === 'right'
+            ? r2.left + r2.width
+            : r2.left + r2.width / 2;
+      const newAnchorY =
+        originY === 'top'
+          ? r2.top
+          : originY === 'bottom'
+            ? r2.top + r2.height
+            : r2.top + r2.height / 2;
+      obj.set({
+        left: (obj.left || 0) + (anchorX - newAnchorX),
+        top: (obj.top || 0) + (anchorY - newAnchorY),
+      });
+      obj.setCoords();
+    }
+
+    // Final safety net: nudge any residual overflow back inside.
+    this.constrainAnnotationToImageBounds(obj);
+  }
 
   constructor(container: HTMLElement, config?: Partial<RpEditorConfig>) {
     super();
@@ -389,7 +587,10 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
    * Set zoom level
    */
   setZoom(level: number): void {
-    const clampedLevel = Math.max(1, Math.min(5, level));
+    const clampedLevel = Math.max(
+      RpImageEditor.MIN_ZOOM,
+      Math.min(RpImageEditor.MAX_ZOOM, level),
+    );
     this.zoomLevel = clampedLevel;
 
     if (this.fabricCanvas) {
@@ -398,6 +599,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
         new fabric.Point(center.left, center.top),
         clampedLevel
       );
+      this.clampViewportPan();
       this.fabricCanvas.renderAll();
     }
 
@@ -426,6 +628,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   async undo(): Promise<void> {
     await this.historyModule?.undo();
     this.refreshBaseImageRef();
+    this.calloutModule?.rehydrateFromCanvas();
   }
 
   /**
@@ -434,6 +637,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   async redo(): Promise<void> {
     await this.historyModule?.redo();
     this.refreshBaseImageRef();
+    this.calloutModule?.rehydrateFromCanvas();
   }
 
   /**
@@ -919,20 +1123,27 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     const visWidth = Math.max(0, visRight - visLeft);
     const visHeight = Math.max(0, visBottom - visTop);
 
-    // If zoom is 1× and no pan, export the full image region (backwards-compatible)
+    // If zoom is 1× and no pan, export the full image region (backwards-compatible).
+    // Also fall back to the full image bounds if the user has panned/zoomed the
+    // image completely outside the visible canvas — otherwise the intersection is
+    // empty and we would produce a 0×0 offscreen canvas → 0-byte File on Apply.
     const isDefaultView = zoom === 1 && vpt[4] === 0 && vpt[5] === 0;
-    const exportLeft = isDefaultView ? imgLeft : visLeft;
-    const exportTop = isDefaultView ? imgTop : visTop;
-    const exportW = isDefaultView ? imgDisplayW : visWidth;
-    const exportH = isDefaultView ? imgDisplayH : visHeight;
+    const hasVisibleIntersection = visWidth > 0 && visHeight > 0;
+    const useFullImageBounds = isDefaultView || !hasVisibleIntersection;
+    const exportLeft = useFullImageBounds ? imgLeft : visLeft;
+    const exportTop = useFullImageBounds ? imgTop : visTop;
+    const exportW = useFullImageBounds ? imgDisplayW : visWidth;
+    const exportH = useFullImageBounds ? imgDisplayH : visHeight;
 
     // Reset viewport for clean rendering — we handle the offset manually
     this.fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
     this.fabricCanvas.setZoom(1);
 
     // Use an offscreen canvas to render ONLY the visible image region.
-    const offW = Math.round(exportW * multiplier);
-    const offH = Math.round(exportH * multiplier);
+    // Guard against sub-pixel dimensions (e.g. extreme zoom-out or degenerate
+    // state) — a 0×0 canvas would produce a 0-byte blob.
+    const offW = Math.max(1, Math.round(exportW * multiplier));
+    const offH = Math.max(1, Math.round(exportH * multiplier));
     const offscreen = document.createElement('canvas');
     offscreen.width = offW;
     offscreen.height = offH;
@@ -1017,6 +1228,10 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       this.wrapperEl.innerHTML = '';
       this.wrapperEl.remove();
     }
+    if (this.textInputHostEl) {
+      this.textInputHostEl.remove();
+      this.textInputHostEl = null;
+    }
 
     this.fabricCanvas = null;
     this.baseImage = null;
@@ -1081,6 +1296,22 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       this.toolbar!.attachCanvasWrapper(this.wrapperEl);
     } else {
       this.container.insertBefore(this.wrapperEl, this.container.firstChild);
+    }
+
+    if (!this.textInputHostEl) {
+      this.textInputHostEl = document.createElement('div');
+      this.textInputHostEl.className = 'rp-editor-text-input-host';
+      this.textInputHostEl.style.cssText = [
+        'position: absolute',
+        'left: -9999px',
+        'top: 0',
+        'width: 1px',
+        'height: 1px',
+        'overflow: hidden',
+        'opacity: 0',
+        'pointer-events: none',
+      ].join(';');
+      this.container.appendChild(this.textInputHostEl);
     }
 
     // Start with a reasonable default; will be resized to image in loadImageOntoCanvas
@@ -1233,6 +1464,11 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.eraserModule = new EraserModule(this.fabricCanvas);
     this.calloutModule = new CalloutModule(this.fabricCanvas);
     this.shapeModule = new ShapeModule(this.fabricCanvas);
+      const boundsProvider = () => this.getImageAnnotationBounds();
+      this.textModule?.setPlacementBoundsProvider(boundsProvider);
+      this.calloutModule?.setPlacementBoundsProvider(boundsProvider);
+      this.shapeModule?.setPlacementBoundsProvider(boundsProvider);
+
     this.historyModule = new HistoryModule(this.fabricCanvas, this.config.maxUndoSteps);
 
     // Set defaults from config
@@ -1273,24 +1509,69 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
         if (obj.type === 'path' && !obj._rpBaseImage && !obj._rpAnnotation) {
           obj._rpAnnotation = true;
           obj._rpType = 'draw';
+          // Clip freehand strokes to the image footprint so marks made in
+          // the letterbox/padding area never appear in-edit or in export.
+          obj.clipPath = this.buildImageClipRect();
+          if (!this.intersectsImageBounds(obj)) {
+            this.fabricCanvas?.remove(obj);
+            return;
+          }
+        }
+        if (obj.type === 'path' && obj._rpType === 'draw') {
+          this.lockDrawPath(obj);
         }
       });
       this.historyModule?.saveState();
     });
 
     // Listen for text editing completion
+    this.fabricCanvas.on('text:editing:entered', (e: any) => {
+      const tgt = e?.target as any;
+      if (!tgt || tgt.type !== 'i-text') return;
+
+      const host = this.textInputHostEl || this.container;
+      if (host) {
+        tgt.hiddenTextareaContainer = host;
+      }
+
+      const textarea = tgt.hiddenTextarea as HTMLTextAreaElement | undefined;
+      if (textarea) {
+        // Defensively force the hidden textarea out of layout flow so
+        // typing cannot perturb stage sizing or trigger "dancing".
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        textarea.style.top = '0';
+        textarea.style.width = '1px';
+        textarea.style.height = '1px';
+        textarea.style.opacity = '0';
+        textarea.style.pointerEvents = 'none';
+        setTimeout(() => textarea.focus(), 0);
+      }
+    });
+
     this.fabricCanvas.on('text:editing:exited', () => {
       this.historyModule?.saveState();
     });
 
     // Listen for object modifications
-    this.fabricCanvas.on('object:modified', () => {
+    this.fabricCanvas.on('object:modified', (e: any) => {
+      this.constrainAnnotationToImageBounds(e?.target || null);
       this.historyModule?.saveState();
+    });
+
+    // Keep dragged/scaled annotations from leaving the image area.
+    this.fabricCanvas.on('object:moving', (e: any) => {
+      this.constrainAnnotationToImageBounds(e?.target || null);
+    });
+    this.fabricCanvas.on('object:scaling', (e: any) => {
+      this.constrainScalingToImageBounds(e);
     });
 
     // Listen for object removal (eraser)
     this.fabricCanvas.on('object:removed', (e: any) => {
-      if (e.target?._rpAnnotation) {
+      // Callouts are multi-part annotations. Their history is saved as a
+      // single logical operation elsewhere; skip per-part removals here.
+      if (e.target?._rpAnnotation && e.target?.calloutId == null) {
         this.historyModule?.saveState();
       }
     });
@@ -1300,11 +1581,30 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       const tgt = e.target;
       if (!tgt) return;
 
+      // Ensure all i-text objects (including undo/redo rehydration) are
+      // configured to create their hidden textarea in our isolated host.
+      if (tgt.type === 'i-text') {
+        const host = this.textInputHostEl || this.container;
+        if (host) {
+          tgt.hiddenTextareaContainer = host;
+        }
+      }
+
+      // Keep draw paths non-interactive after undo/redo rehydration.
+      if (tgt.type === 'path' && tgt._rpType === 'draw') {
+        tgt.clipPath = this.buildImageClipRect();
+        this.lockDrawPath(tgt);
+      }
+
       // When a new callout label is added, force its fill to a color
       // that contrasts with the callout's current background so the
       // text stays readable on light backgrounds (e.g. white). We only
       // do this at creation time; once the user manually changes the
       // text color we honor their choice via `_rpUserSetTextColor`.
+      if (tgt._rpShapeType) {
+        this.constrainAnnotationToImageBounds(tgt);
+      }
+
       if (tgt._rpType === 'callout-label' && !tgt._rpUserSetTextColor) {
         const bgObj = this.fabricCanvas!
           .getObjects()
@@ -1319,9 +1619,12 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
         this.fabricCanvas!.requestRenderAll();
       }
 
-      if (tgt._rpType?.startsWith('callout')) {
-        this.historyModule?.saveState();
-      }
+      // Do not save history per callout part (tail/box/label/etc.).
+      // A single save is emitted once the full callout is created.
+    });
+
+    this.fabricCanvas.on('rp:callout:created', () => {
+      this.historyModule?.saveState();
     });
 
     // Setup history change notifications
@@ -1386,6 +1689,8 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
         emptyStateTitle: this.config.strings?.emptyStateTitle,
         emptyStateSubtitle: this.config.strings?.emptyStateSubtitle,
         labels: this.localePack,
+        currentImageIndex: this.config.currentImageIndex,
+        totalImages: this.config.totalImages,
       },
     );
     this.toolbar.render();
@@ -1407,6 +1712,14 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     if (this.keydownHandler) return;
     const handler = (e: KeyboardEvent) => {
       if (this.isDestroyed) return;
+
+      // When Fabric IText is in editing mode, keystrokes should update text,
+      // not trigger global editor shortcuts.
+      const active = this.fabricCanvas?.getActiveObject() as any;
+      if (active?.type === 'i-text' && active?.isEditing) {
+        return;
+      }
+
       const target = e.target as HTMLElement | null;
       // Ignore when typing in an input, textarea, or contentEditable
       if (
@@ -1529,6 +1842,57 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.fabricCanvas.defaultCursor = 'grab';
     // Enable panning
     this.isPanning = false;
+
+    // Lock every annotation (drawings, text, callouts, shapes) so a
+    // drag on top of one pans the whole canvas instead of grabbing
+    // that object. In Move mode only the base image should respond
+    // to pointer drags; annotations must stay pinned to their
+    // current position relative to the image. Users switch to the
+    // corresponding tool (eraser/text/callout/etc.) to edit or
+    // remove an annotation.
+    this.lockAnnotations();
+    // Clear any lingering active selection so the transform handles
+    // don't stay drawn on an annotation the user had selected in the
+    // previous tool.
+    this.fabricCanvas.discardActiveObject();
+    this.fabricCanvas.requestRenderAll();
+  }
+
+  /**
+   * Freeze every annotation object on the canvas: not selectable,
+   * not evented, no hover cursor override. The base image is
+   * skipped (it's already locked at install time via
+   * installBaseImage()). Called by activateMoveMode() — tools that
+   * need to interact with annotations (e.g. eraser) explicitly
+   * re-enable them in their own activate() hook.
+   */
+  private lockAnnotations(): void {
+    if (!this.fabricCanvas) return;
+    this.fabricCanvas.getObjects().forEach((obj: any) => {
+      if (obj._rpAnnotation) {
+        obj.selectable = false;
+        obj.evented = false;
+        obj.hoverCursor = 'grab';
+      }
+    });
+  }
+
+  /**
+   * Keep freehand paths fixed like baked pixels: visible/exported but
+   * never selectable or draggable.
+   */
+  private lockDrawPath(pathObj: any): void {
+    if (!pathObj) return;
+    pathObj.selectable = false;
+    pathObj.evented = false;
+    pathObj.hasControls = false;
+    pathObj.hasBorders = false;
+    pathObj.lockMovementX = true;
+    pathObj.lockMovementY = true;
+    pathObj.lockScalingX = true;
+    pathObj.lockScalingY = true;
+    pathObj.lockRotation = true;
+    pathObj.hoverCursor = 'default';
   }
 
   private activateCropMode(): void {
@@ -1632,6 +1996,16 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     newImgTop: number = 0,
   ): void {
     const anyObj = obj as any;
+
+    // Callout tails are full-canvas fabric.Image wrappers around an
+    // off-screen bitmap. They must remain pinned at the canvas origin;
+    // crop/scale remapping is applied to the callout box + anchor, then
+    // tails are regenerated via calloutModule.refreshAllTails().
+    if (anyObj._rpType === 'callout-tail') {
+      obj.set({ left: 0, top: 0, scaleX: 1, scaleY: 1 });
+      obj.setCoords();
+      return;
+    }
 
     // Special-case the custom arrow object
     if (obj.type === 'rpArrow') {
@@ -1955,6 +2329,73 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     obj.setCoords();
   }
 
+  /**
+   * Clamp the viewport translation so the base image can never be panned
+   * fully outside the canvas. Mirrors Pintura's behaviour: the image is
+   * always kept edge-to-edge with the canvas (when zoomed in the image
+   * covers the canvas; when zoomed out / at fit-to-canvas it stays fully
+   * within the canvas). Prevents Apply from producing a 0-byte file when
+   * the user panned the image completely out of view.
+   */
+  private clampViewportPan(): void {
+    if (!this.fabricCanvas || !this.baseImage) return;
+    const canvas = this.fabricCanvas;
+    const vpt = canvas.viewportTransform;
+    if (!vpt) return;
+
+    const zoom = canvas.getZoom() || 1;
+    const canvasW = canvas.getWidth();
+    const canvasH = canvas.getHeight();
+
+    const scaleX = (this.baseImage as any).scaleX || 1;
+    const scaleY = (this.baseImage as any).scaleY || 1;
+    const imgLeft = (this.baseImage as any).left || 0;
+    const imgTop = (this.baseImage as any).top || 0;
+    const imgDisplayW = (this.baseImage.width || 0) * scaleX;
+    const imgDisplayH = (this.baseImage.height || 0) * scaleY;
+
+    if (imgDisplayW <= 0 || imgDisplayH <= 0) return;
+
+    // For each axis independently, compute the allowed translation range
+    // such that the image edges stay flush with (or inside) the canvas
+    // edges. Case A (image larger than canvas): keep canvas fully covered
+    // by the image. Case B (image smaller than canvas): keep the image
+    // fully inside the canvas.
+    const clampAxis = (
+      tx: number,
+      imgOffset: number,
+      imgSize: number,
+      canvasSize: number,
+    ): number => {
+      const screenSize = imgSize * zoom;
+      let minTx: number;
+      let maxTx: number;
+      if (screenSize >= canvasSize) {
+        // screenRight >= canvasSize AND screenLeft <= 0
+        minTx = canvasSize - (imgOffset + imgSize) * zoom;
+        maxTx = -imgOffset * zoom;
+      } else {
+        // screenLeft >= 0 AND screenRight <= canvasSize
+        minTx = -imgOffset * zoom;
+        maxTx = canvasSize - (imgOffset + imgSize) * zoom;
+      }
+      if (minTx > maxTx) {
+        // Degenerate — center the image
+        return (minTx + maxTx) / 2;
+      }
+      return Math.min(maxTx, Math.max(minTx, tx));
+    };
+
+    const newTx = clampAxis(vpt[4], imgLeft, imgDisplayW, canvasW);
+    const newTy = clampAxis(vpt[5], imgTop, imgDisplayH, canvasH);
+
+    if (newTx !== vpt[4] || newTy !== vpt[5]) {
+      vpt[4] = newTx;
+      vpt[5] = newTy;
+      canvas.setViewportTransform(vpt);
+    }
+  }
+
   private setupGestureHandlers(): void {
     if (!this.fabricCanvas) return;
 
@@ -1984,6 +2425,8 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
         vpt[4] += deltaX;
         vpt[5] += deltaY;
         canvas.setViewportTransform(vpt);
+        // Constrain so the base image cannot leave the canvas area.
+        this.clampViewportPan();
 
         this.lastPanX = clientX;
         this.lastPanY = clientY;
@@ -2002,10 +2445,14 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     canvas.on('mouse:wheel', (opt: fabric.IEvent<WheelEvent>) => {
       const delta = (opt.e as WheelEvent).deltaY;
       let newZoom = this.zoomLevel * (delta > 0 ? 0.95 : 1.05);
-      newZoom = Math.max(1, Math.min(5, newZoom));
+      newZoom = Math.max(
+        RpImageEditor.MIN_ZOOM,
+        Math.min(RpImageEditor.MAX_ZOOM, newZoom),
+      );
 
       const pointer = canvas.getPointer(opt.e, true);
       canvas.zoomToPoint(new fabric.Point(pointer.x, pointer.y), newZoom);
+      this.clampViewportPan();
       this.zoomLevel = newZoom; this.toolbar?.updateZoomState(newZoom); this.emit('zoom:changed', newZoom);
       this.updateGhostImagePosition();
 
@@ -2039,7 +2486,10 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
         const dist = this.getTouchDistance(activeTouches[0], activeTouches[1]);
         if (this.lastPinchDistance > 0) {
           const scale = dist / this.lastPinchDistance;
-          const newZoom = Math.max(1, Math.min(5, this.zoomLevel * scale));
+          const newZoom = Math.max(
+            RpImageEditor.MIN_ZOOM,
+            Math.min(RpImageEditor.MAX_ZOOM, this.zoomLevel * scale),
+          );
 
           const midX = (activeTouches[0].clientX + activeTouches[1].clientX) / 2;
           const midY = (activeTouches[0].clientY + activeTouches[1].clientY) / 2;
@@ -2049,6 +2499,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
           const canvasY = midY - rect.top;
 
           this.fabricCanvas.zoomToPoint(new fabric.Point(canvasX, canvasY), newZoom);
+          this.clampViewportPan();
           this.zoomLevel = newZoom;
           this.toolbar?.updateZoomState(newZoom);
           this.emit('zoom:changed', newZoom);
@@ -2078,6 +2529,16 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
 
       const rect = this.wrapperEl.getBoundingClientRect();
       if (rect.width > 0 && rect.height > 0) {
+        // Capture the OLD base-image geometry before mutating anything.
+        // Annotations (draw paths, shapes, text, callouts) are positioned
+        // in canvas pixel coordinates, so when the base image is rescaled
+        // to fit the new wrapper (e.g. entering/exiting fullscreen) we
+        // must apply the same translation+scale to every annotation or
+        // they drift off the image.
+        const oldLeft = this.baseImage.left || 0;
+        const oldTop = this.baseImage.top || 0;
+        const oldScale = this.baseImage.scaleX || 1;
+
         // Recalculate the image fit within the new wrapper size
         const availW = Math.floor(rect.width);
         const availH = Math.floor(rect.height);
@@ -2094,12 +2555,51 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
         this.fabricCanvas.setWidth(canvasW);
         this.fabricCanvas.setHeight(canvasH);
 
+        const newLeft = Math.round((canvasW - displayW) / 2);
+        const newTop = Math.round((canvasH - displayH) / 2);
+        const newScale = displayW / imgW;
+
         this.baseImage.set({
-          left: Math.round((canvasW - displayW) / 2),
-          top: Math.round((canvasH - displayH) / 2),
-          scaleX: displayW / imgW,
+          left: newLeft,
+          top: newTop,
+          scaleX: newScale,
           scaleY: displayH / imgH,
         });
+        this.baseImage.setCoords();
+
+        // Reposition + rescale every non-base object so annotations stay
+        // anchored to the same point on the image. We treat the base
+        // image's top-left as the reference origin and apply a uniform
+        // scale ratio (X and Y are always equal here — Math.min above).
+        if (oldScale > 0 && Math.abs(newScale - oldScale) > 1e-6) {
+          const ratio = newScale / oldScale;
+          this.fabricCanvas.getObjects().forEach((obj: any) => {
+            if (obj === this.baseImage || obj._rpBaseImage) return;
+            const objLeft = obj.left || 0;
+            const objTop = obj.top || 0;
+            obj.set({
+              left: newLeft + (objLeft - oldLeft) * ratio,
+              top: newTop + (objTop - oldTop) * ratio,
+              scaleX: (obj.scaleX || 1) * ratio,
+              scaleY: (obj.scaleY || 1) * ratio,
+            });
+            obj.setCoords();
+          });
+        } else if (Math.abs(newLeft - oldLeft) > 0.5 || Math.abs(newTop - oldTop) > 0.5) {
+          // Scale unchanged but the letterbox offset shifted (e.g. only
+          // aspect ratio of the wrapper changed) — translate annotations
+          // by the delta so they follow the base image.
+          const dx = newLeft - oldLeft;
+          const dy = newTop - oldTop;
+          this.fabricCanvas.getObjects().forEach((obj: any) => {
+            if (obj === this.baseImage || obj._rpBaseImage) return;
+            obj.set({
+              left: (obj.left || 0) + dx,
+              top: (obj.top || 0) + dy,
+            });
+            obj.setCoords();
+          });
+        }
 
         this.fabricCanvas.renderAll();
         this.refreshGhostImage();
@@ -2114,11 +2614,46 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.baseImage = this.fabricCanvas.getObjects().find(
       (o: any) => o._rpBaseImage
     ) as fabric.Image || null;
+
+    // After loadFromJSON (undo/redo) the base image is a fresh Fabric
+    // object rebuilt from serialized state. Serialized `selectable` /
+    // `evented` don't reliably round-trip, so the restored base image can
+    // become user-draggable — the user then drags the image itself
+    // instead of panning the viewport, moves it off the canvas, and
+    // Apply produces a garbled/blank export. Re-lock the base image
+    // every time we refresh the reference.
+    if (this.baseImage) {
+      this.baseImage.set({
+        selectable: false,
+        evented: false,
+        hasControls: false,
+        hasBorders: false,
+        lockMovementX: true,
+        lockMovementY: true,
+        lockScalingX: true,
+        lockScalingY: true,
+        lockRotation: true,
+        hoverCursor: this.currentMode === 'move' ? 'grab' : 'default',
+      } as any);
+      this.baseImage.setCoords();
+      this.baseImage.sendToBack();
+
+      // Any lingering active selection (e.g. the restored base image
+      // showing selection handles) must be cleared, otherwise the user
+      // sees the ghost through the "selected" base image.
+      this.fabricCanvas.discardActiveObject();
+      this.fabricCanvas.renderAll();
+    }
+
     // Undo/redo swaps the base image object out from under us — rebuild
     // the ghost so it reflects the restored state.
     if (this.currentMode !== 'crop') {
       this.refreshGhostImage();
     }
+
+    // Re-clamp the viewport in case the previously-clamped pan is now
+    // outside the newly restored image bounds.
+    this.clampViewportPan();
   }
 
   private loadHtmlImage(src: string): Promise<HTMLImageElement> {
@@ -2296,9 +2831,31 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       const radius = ((this.eraserModule?.getEraserWidth?.() ?? 20) / 2);
       const objects = canvas.getObjects();
       let removed = false;
+
+      // Callouts are removed as a unit through the callout module so all
+      // 5 fabric objects (tail bitmap, border, box, label, anchor) go
+      // together. The module also does per-pixel hit-testing on the
+      // full-canvas tail bitmap so we don't wipe out a callout just
+      // because the cursor happens to be over its bounding rect.
+      if (this.calloutModule) {
+        let cid: number | null;
+        while (
+          (cid = this.calloutModule.getCalloutIdAtPoint(
+            pointer.x,
+            pointer.y,
+            radius,
+          )) != null
+        ) {
+          if (!this.calloutModule.removeCalloutById(cid)) break;
+          removed = true;
+        }
+      }
+
       for (const obj of objects) {
         const anyObj = obj as any;
         if (!anyObj._rpAnnotation) continue;
+        // Callout parts are handled above.
+        if (anyObj.calloutId != null) continue;
         const b = obj.getBoundingRect(true, true);
         // Inflate bbox by radius so we hit near-misses like the user
         // would expect from a real eraser.

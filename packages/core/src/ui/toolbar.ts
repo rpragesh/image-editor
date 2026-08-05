@@ -146,6 +146,8 @@ const SHAPES: Array<{
 ];
 
 const ZOOM_PRESETS: number[] = [0.25, 0.5, 0.75, 1, 1.5, 2];
+const MIN_ZOOM = 0.25;
+const MAX_ZOOM = 5;
 
 /**
  * Canonical order + labels of the built-in filter presets. Consumers
@@ -184,6 +186,10 @@ export interface ToolbarOptions {
    * When omitted the toolbar behaves exactly as before (English).
    */
   labels?: LocalePack;
+  /** Current image index (1-based) for multi-image flows. */
+  currentImageIndex?: number;
+  /** Total image count for multi-image flows. */
+  totalImages?: number;
 }
 
 /* ------------------------------------------------------------------ */
@@ -281,9 +287,7 @@ export class Toolbar {
     this.updatePropsPanel();
     this.updateZoomLabel();
     this.updateHistoryButtons();
-    // Initial zoom state — zoom-out is disabled at 1× baseline.
-    this.setDisabledState('zoomOut', false);
-    this.setDisabledState('zoomIn', true);
+    this.updateZoomState(this.zoomLevel);
 
     // Outside-click for the zoom menu
     this.outsideClickHandler = (e: MouseEvent) => {
@@ -323,8 +327,8 @@ export class Toolbar {
   updateZoomState(zoomLevel: number): void {
     this.zoomLevel = zoomLevel;
     this.updateZoomLabel();
-    this.setDisabledState('zoomOut', zoomLevel > 1);
-    this.setDisabledState('zoomIn', zoomLevel < 5);
+    this.setDisabledState('zoomOut', zoomLevel > MIN_ZOOM);
+    this.setDisabledState('zoomIn', zoomLevel < MAX_ZOOM);
   }
 
   updateHistoryState(canUndo: boolean, canRedo: boolean): void {
@@ -515,6 +519,15 @@ export class Toolbar {
     spacer.className = 'rp-ie-topbar__spacer';
     bar.appendChild(spacer);
 
+    const imageCounterText = this.getImageCounterText();
+    if (imageCounterText) {
+      const counter = document.createElement('div');
+      counter.className = 'rp-ie-image-counter';
+      counter.textContent = imageCounterText;
+      counter.setAttribute('aria-label', `Image ${imageCounterText}`);
+      bar.appendChild(counter);
+    }
+
     // Right: actions
     const actions = document.createElement('div');
     actions.className = 'rp-ie-topbar__actions';
@@ -642,6 +655,20 @@ export class Toolbar {
     return wrap;
   }
 
+  private getImageCounterText(): string | null {
+    const rawCurrent = this.options.currentImageIndex;
+    const rawTotal = this.options.totalImages;
+    if (!Number.isFinite(rawCurrent) || !Number.isFinite(rawTotal)) {
+      return null;
+    }
+    const total = Math.max(1, Math.floor(rawTotal as number));
+    const current = Math.min(
+      total,
+      Math.max(1, Math.floor(rawCurrent as number)),
+    );
+    return `${current}/${total}`;
+  }
+
   /* ================================================================ */
   /*  Left rail                                                       */
   /* ================================================================ */
@@ -766,6 +793,13 @@ export class Toolbar {
         label: L?.tool.zoomIn ?? 'Zoom In',
         shortcut: '+',
         onClick: () => this.callbacks.onZoomIn(),
+      },
+      {
+        id: 'zoomOut',
+        icon: 'zoomOut',
+        label: L?.tool.zoomOut ?? 'Zoom Out',
+        shortcut: '-',
+        onClick: () => this.callbacks.onZoomOut(),
       },
       {
         id: 'undo',
@@ -903,10 +937,11 @@ export class Toolbar {
       body = this.renderMoveProps();
     }
 
-    // Header with collapse chevron
+    // Static header title. The panel is not collapsible, so do not render
+    // an affordance that suggests hidden behavior.
     const header = document.createElement('header');
     header.className = 'rp-ie-props__header';
-    header.innerHTML = `<span>${title}</span><span class="rp-ie-icon rp-ie-icon--sm">${ICONS.chevronUp}</span>`;
+    header.innerHTML = `<span>${title}</span>`;
     panel.appendChild(header);
 
     panel.appendChild(body);

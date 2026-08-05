@@ -31,6 +31,7 @@ export const es: LocalePack = {
     pen: 'Lápiz',
     zoom: 'Zoom',
     zoomIn: 'Acercar',
+    zoomOut: 'Alejar',
     rotateLeft: 'Girar a la izquierda',
     rotateRight: 'Girar a la derecha',
     flipH: 'Voltear H',

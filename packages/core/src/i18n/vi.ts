@@ -31,6 +31,7 @@ export const vi: LocalePack = {
     pen: 'Bút',
     zoom: 'Thu phóng',
     zoomIn: 'Phóng to',
+    zoomOut: 'Thu nhỏ',
     rotateLeft: 'Xoay trái',
     rotateRight: 'Xoay phải',
     flipH: 'Lật ngang',

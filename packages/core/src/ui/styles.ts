@@ -188,6 +188,23 @@ export const RP_IE_CSS = `
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .rp-ie-topbar__spacer { flex: 1; }
+.rp-ie-image-counter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 56px;
+  height: 32px;
+  padding: 0 10px;
+  margin-right: 8px;
+  border-radius: 999px;
+  border: 1px solid var(--rp-ie-border);
+  background: var(--rp-ie-surface-2);
+  color: var(--rp-ie-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
 .rp-ie-topbar__actions { display: flex; align-items: center; gap: 6px; }
 
 .rp-ie-iconbtn {

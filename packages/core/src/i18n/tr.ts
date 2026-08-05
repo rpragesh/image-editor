@@ -31,6 +31,7 @@ export const tr: LocalePack = {
     pen: 'Kalem',
     zoom: 'Yakınlaştırma',
     zoomIn: 'Yakınlaştır',
+    zoomOut: 'Uzaklaştır',
     rotateLeft: 'Sola döndür',
     rotateRight: 'Sağa döndür',
     flipH: 'Yatay çevir',

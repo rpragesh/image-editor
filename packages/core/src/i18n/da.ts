@@ -31,6 +31,7 @@ export const da: LocalePack = {
     pen: 'Pen',
     zoom: 'Zoom',
     zoomIn: 'Zoom ind',
+    zoomOut: 'Zoom ud',
     rotateLeft: 'Roter venstre',
     rotateRight: 'Roter højre',
     flipH: 'Vend V',

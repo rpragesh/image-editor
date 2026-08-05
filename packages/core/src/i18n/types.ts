@@ -66,6 +66,7 @@ export interface LocalePack {
     pen: string;
     zoom: string;
     zoomIn: string;
+    zoomOut: string;
     rotateLeft: string;
     rotateRight: string;
     flipH: string;
