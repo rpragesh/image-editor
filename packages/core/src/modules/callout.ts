@@ -387,16 +387,30 @@ export class CalloutModule {
    * callout with that id was found and removed.
    */
   removeCalloutById(id: number): boolean {
+    // Sweep EVERY canvas object tagged with this calloutId rather than only
+    // the handle's cached references. After a re-render/rehydration the tail
+    // (or any part) on the canvas can be a different object instance than the
+    // one stored on the handle — removing the stale reference then left an
+    // orphaned tail behind when only the box appeared to be erased.
+    const tagged = (this.canvas.getObjects() as any[]).filter(
+      (o) => o.calloutId === id,
+    );
+    for (const o of tagged) this.canvas.remove(o);
+
     const idx = this.callouts.findIndex((h) => h.calloutId === id);
-    if (idx === -1) return false;
-    const h = this.callouts[idx];
-    this.canvas.remove(h.tailImage);
-    this.canvas.remove(h.border);
-    this.canvas.remove(h.bgRect);
-    this.canvas.remove(h.label);
-    this.canvas.remove(h.anchor);
-    this.callouts.splice(idx, 1);
-    return true;
+    if (idx !== -1) {
+      const h = this.callouts[idx];
+      // Belt-and-suspenders: also remove the cached references in case they
+      // were never added to (or already detached from) the canvas above.
+      this.canvas.remove(h.tailImage);
+      this.canvas.remove(h.border);
+      this.canvas.remove(h.bgRect);
+      this.canvas.remove(h.label);
+      this.canvas.remove(h.anchor);
+      this.callouts.splice(idx, 1);
+    }
+
+    return idx !== -1 || tagged.length > 0;
   }
 
   /**
@@ -1045,16 +1059,17 @@ export class CalloutModule {
     const ctx = tailCanvas.getContext('2d')!;
     ctx.clearRect(0, 0, canvasW, canvasH);
 
-    // Box geometry
-    const bLeft = bgRect.left || 0;
-    const bTop = bgRect.top || 0;
+    // Box geometry. Use getCenterPoint()/angle so the tail is correct
+    // even when the box has been rotated (e.g. by an image rotation).
     const sx = bgRect.scaleX || 1;
     const sy = bgRect.scaleY || 1;
     const rw = (bgRect.width || 0) * sx;
     const rh = (bgRect.height || 0) * sy;
 
-    const boxCX = bLeft + rw / 2;
-    const boxCY = bTop + rh / 2;
+    const boxCenter = bgRect.getCenterPoint();
+    const boxCX = boxCenter.x;
+    const boxCY = boxCenter.y;
+    const angleRad = ((bgRect.angle || 0) * Math.PI) / 180;
 
     const aX = anchor.left || 0;
     const aY = anchor.top || 0;
@@ -1077,17 +1092,30 @@ export class CalloutModule {
     const perpY = dx / dist;
     const baseHalf = Math.min(Math.max(rw * 0.15, 10), 16);
 
-    // Where the tail exits the rect edge
-    const edgePoint = this.rayRectIntersection(
-      boxCX,
-      boxCY,
-      dx,
-      dy,
-      bLeft,
-      bTop,
+    // Where the tail exits the rect edge. The box may be rotated, so we
+    // solve the ray/rect intersection in the box's LOCAL (unrotated)
+    // frame — a rect centered at the origin spanning [-rw/2, rw/2] x
+    // [-rh/2, rh/2] — then rotate the hit point back into canvas space.
+    const cosNeg = Math.cos(-angleRad);
+    const sinNeg = Math.sin(-angleRad);
+    const localDx = dx * cosNeg - dy * sinNeg;
+    const localDy = dx * sinNeg + dy * cosNeg;
+    const localHit = this.rayRectIntersection(
+      0,
+      0,
+      localDx,
+      localDy,
+      -rw / 2,
+      -rh / 2,
       rw,
       rh,
     );
+    const cosPos = Math.cos(angleRad);
+    const sinPos = Math.sin(angleRad);
+    const edgePoint = {
+      x: boxCX + (localHit.x * cosPos - localHit.y * sinPos),
+      y: boxCY + (localHit.x * sinPos + localHit.y * cosPos),
+    };
 
     // Move base slightly INSIDE the box to avoid visual gap
     const overlap = 25;

@@ -172,19 +172,26 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     });
   }
 
-  /** Rebuild clip-paths for persisted freehand draw annotations. */
-  private refreshDrawClipPaths(): void {
+  /** Rebuild clip-paths for all annotations so they behave like image content. */
+  private refreshAnnotationClipPaths(): void {
     if (!this.fabricCanvas) return;
     this.fabricCanvas.getObjects().forEach((obj: any) => {
-      if (obj.type === 'path' && obj._rpType === 'draw') {
-        obj.clipPath = this.buildImageClipRect();
-        // Fabric caches path objects to an offscreen bitmap. Reassigning
-        // clipPath does not invalidate that cache, so without marking the
-        // object dirty the OLD (pre-resize) clip bitmap is reused and the
-        // stroke appears cropped/missing after a fullscreen resize.
-        obj.dirty = true;
-        obj.setCoords();
-      }
+      // The base image defines the clip region; never clip it to itself.
+      if (obj._rpBaseImage || !obj._rpAnnotation) return;
+      // Every annotation (draw stroke, shape, text, callout part) is treated
+      // as part of the image: anything spilling past the image footprint is
+      // clipped away, so crop/rotate/resize match a true raster crop and no
+      // annotation ever overhangs the image edge.
+      obj.clipPath = this.buildImageClipRect();
+      // An absolutePositioned clip-path must be re-evaluated against the live
+      // canvas transform every frame. With objectCaching on, Fabric renders
+      // the object (plus a stale absolute clip) to an offscreen bitmap once,
+      // then reuses that bitmap when zooming/panning — so the clip visually
+      // vanishes at other zoom levels. Disabling caching forces a correct
+      // re-clip on every render.
+      obj.objectCaching = false;
+      obj.dirty = true;
+      obj.setCoords();
     });
   }
 
@@ -1460,10 +1467,11 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       this.rebuildImageFilters(false);
     }
 
-    // Draw strokes are clipped to the image bounds using an absolute
-    // clip-path. Rebuild those clip-paths whenever the base image
-    // geometry changes (rotate/crop/reset/fullscreen resize path).
-    this.refreshDrawClipPaths();
+    // Every annotation (draw, shape, text, callout) is clipped to the
+    // image bounds using an absolute clip-path, so they behave like image
+    // content. Rebuild those clip-paths whenever the base image geometry
+    // changes (rotate/crop/reset/fullscreen resize path).
+    this.refreshAnnotationClipPaths();
 
     this.fabricCanvas.renderAll();
 
@@ -1601,6 +1609,17 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.fabricCanvas.on('object:added', (e: any) => {
       const tgt = e.target;
       if (!tgt) return;
+
+      // Every annotation is treated as part of the image, so clip it to the
+      // image footprint. Covers freshly-created objects and undo/redo
+      // rehydration (loadFromJSON), where runtime clip-paths are not
+      // preserved. The base image itself defines the bounds and is skipped.
+      // objectCaching is disabled so the absolute clip re-evaluates each
+      // frame instead of being frozen into a stale cached bitmap on zoom.
+      if (tgt._rpAnnotation && !tgt._rpBaseImage) {
+        tgt.clipPath = this.buildImageClipRect();
+        tgt.objectCaching = false;
+      }
 
       // Ensure all i-text objects (including undo/redo rehydration) are
       // configured to create their hidden textarea in our isolated host.
@@ -1945,6 +1964,63 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     const oldScale = result.oldDisplayScaleX || 1;
     const cropLeft = result.cropRectCanvas.left;
     const cropTop = result.cropRectCanvas.top;
+    const cropRight = cropLeft + result.cropRectCanvas.width;
+    const cropBottom = cropTop + result.cropRectCanvas.height;
+
+    // Drop annotations that fall entirely outside the crop region.
+    // These coordinates are still in the OLD canvas space (the same
+    // space the crop rect lives in), so the test must run BEFORE
+    // loadImageOntoCanvas() resizes/reflows the canvas. Without this,
+    // out-of-crop annotations are merely transformed to off-canvas
+    // positions and reappear as soon as the viewport reveals the area
+    // beyond the cropped image (e.g. after zooming out to 50%).
+    const intersectsCrop = (o: fabric.Object): boolean => {
+      const r = o.getBoundingRect(true, true);
+      return !(
+        r.left + r.width < cropLeft ||
+        r.left > cropRight ||
+        r.top + r.height < cropTop ||
+        r.top > cropBottom
+      );
+    };
+
+    // Callouts are multi-part annotations; decide keep/remove per callout
+    // id using its background box (bgRect) so a tail or anchor that pokes
+    // outside the crop doesn't force the whole callout to be dropped.
+    const calloutKeep = new Map<number, boolean>();
+    for (const o of oldAnnotations) {
+      const anyObj = o as any;
+      if (anyObj.calloutId != null && anyObj.calloutRole === 'bgRect') {
+        calloutKeep.set(anyObj.calloutId, intersectsCrop(o));
+      }
+    }
+
+    const removedObjs = new Set<fabric.Object>();
+    const removedCalloutIds = new Set<number>();
+    for (const o of oldAnnotations) {
+      const anyObj = o as any;
+      if (anyObj.calloutId != null) {
+        if (calloutKeep.get(anyObj.calloutId) === false) {
+          removedCalloutIds.add(anyObj.calloutId);
+          removedObjs.add(o);
+        }
+        continue;
+      }
+      if (!intersectsCrop(o)) {
+        removedObjs.add(o);
+      }
+    }
+
+    // removeCalloutById() cleans up every fabric part (box, label,
+    // anchor, border, tail) and the module's internal handle.
+    for (const id of removedCalloutIds) {
+      this.calloutModule?.removeCalloutById(id);
+    }
+    for (const o of removedObjs) {
+      if ((o as any).calloutId == null) this.fabricCanvas.remove(o);
+    }
+
+    const keptAnnotations = oldAnnotations.filter((o) => !removedObjs.has(o));
 
     // Reload base image — loadImageOntoCanvas() removes the prior base
     // image and resizes the fabric canvas to fit the new image.
@@ -1961,7 +2037,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     const newImgLeft = (this.baseImage as any)?.left || 0;
     const newImgTop = (this.baseImage as any)?.top || 0;
 
-    for (const obj of oldAnnotations) {
+    for (const obj of keptAnnotations) {
       this.transformAnnotationForCrop(
         obj as fabric.Object,
         cropLeft,
@@ -1983,9 +2059,19 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     // captures a fresh baseline against the cropped image.
     this.cumulativeRotation = 0;
     this.rotationImageBaseline = null;
-    for (const obj of oldAnnotations) {
+    for (const obj of keptAnnotations) {
       delete (obj as any)._rpRotBaseline;
     }
+
+    // rotate() re-renders from `processedSourceImage`, NOT from the
+    // Fabric base image. It still holds the ORIGINAL uncropped photo,
+    // so without this the first rotation after a crop would swap the
+    // cropped base image back for the full pre-crop image (with every
+    // annotation still on top). Point it at the freshly cropped image
+    // so rotations operate on what the user actually cropped to.
+    this.processedSourceImage = await this.loadHtmlImage(result.dataUrl).catch(
+      () => this.processedSourceImage,
+    );
 
     this.zoomLevel = 1;
     this.fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
@@ -2279,10 +2365,11 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
    * cumulative angle around the baseline image center, then mapping
    * into the new image center + scale.
    *
-   * Callout pieces (box/border/label/anchor) keep angle=0 so the
-   * axis-aligned tail-rendering logic keeps working and labels stay
-   * readable. The callout-tail object is regenerated by
-   * `refreshAllTails`, so we leave it alone here.
+   * Callout pieces (box/border/label/anchor) rotate WITH the image just
+   * like every other annotation so the callout stays visually locked to
+   * the photo content. The callout-tail bitmap is regenerated by
+   * `refreshAllTails` (which is now rotation-aware), so we leave it alone
+   * here.
    */
   private applyRotationFromBaseline(
     obj: fabric.Object,
@@ -2329,18 +2416,15 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       return;
     }
 
-    const isCalloutPiece = typeof anyObj._rpType === 'string'
-      && anyObj._rpType.startsWith('callout');
-
     obj.set({
       scaleX: b.scaleX * factor,
       scaleY: b.scaleY * factor,
     });
 
-    if (!isCalloutPiece) {
-      obj.set({ angle: ((b.angle + newCum) % 360 + 360) % 360 });
-    }
-
+    // Callout pieces (box/border/label/anchor) now rotate WITH the image
+    // like every other annotation. `redrawTail` is rotation-aware, so the
+    // tail still connects the (now rotated) box to the anchor.
+    obj.set({ angle: ((b.angle + newCum) % 360 + 360) % 360 });
     const newCenter = mapForward(b.cx, b.cy);
     obj.setPositionByOrigin(
       new fabric.Point(newCenter.x, newCenter.y),
@@ -2613,6 +2697,15 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       const ratio = newScale / oldScale;
       this.fabricCanvas.getObjects().forEach((obj: any) => {
         if (obj === this.baseImage || obj._rpBaseImage) return;
+        // rpArrow / rpPolyline store their geometry in ABSOLUTE canvas
+        // coordinates (x1/y1/x2/y2 or points[]) and expect left/top=0,
+        // scale=1. Their vertex control handles read those raw coords,
+        // so applying an object-level scaleX/left/top here scales the
+        // rendered body but leaves the drag dots behind. Remap the
+        // actual geometry instead so body and handles stay in sync.
+        if (this.remapGeometryShape(obj, oldLeft, oldTop, newLeft, newTop, ratio)) {
+          return;
+        }
         const objLeft = obj.left || 0;
         const objTop = obj.top || 0;
         obj.set({
@@ -2631,6 +2724,11 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       const dy = newTop - oldTop;
       this.fabricCanvas.getObjects().forEach((obj: any) => {
         if (obj === this.baseImage || obj._rpBaseImage) return;
+        // Geometry-based shapes: translate their absolute coords directly
+        // (ratio 1) so body and vertex handles move together.
+        if (this.remapGeometryShape(obj, oldLeft, oldTop, oldLeft + dx, oldTop + dy, 1)) {
+          return;
+        }
         obj.set({
           left: (obj.left || 0) + dx,
           top: (obj.top || 0) + dy,
@@ -2639,10 +2737,63 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       });
     }
 
-    this.refreshDrawClipPaths();
+    this.refreshAnnotationClipPaths();
 
     this.fabricCanvas.renderAll();
     this.refreshGhostImage();
+  }
+
+  /**
+   * Remap the absolute-coordinate geometry of an rpArrow / rpPolyline when
+   * the base image is re-fitted (e.g. entering/exiting fullscreen).
+   *
+   * These shapes keep their vertices in canvas-pixel coordinates
+   * (x1/y1/x2/y2 for arrows, points[] for polylines) and expect
+   * left/top = 0 and scale = 1. Their draggable vertex controls read those
+   * raw coordinates directly, so scaling them via object-level scaleX/left/top
+   * (like ordinary annotations) moves the rendered line but leaves the handle
+   * dots behind. Instead we transform every vertex by the same
+   * origin-relative scale used for the base image and rebuild the bounding
+   * box, keeping the body and its handles perfectly aligned.
+   *
+   * @returns true if the object was a geometry-based shape and was handled.
+   */
+  private remapGeometryShape(
+    obj: any,
+    oldLeft: number,
+    oldTop: number,
+    newLeft: number,
+    newTop: number,
+    ratio: number,
+  ): boolean {
+    const map = (x: number, y: number) => ({
+      x: newLeft + (x - oldLeft) * ratio,
+      y: newTop + (y - oldTop) * ratio,
+    });
+
+    if (obj.type === 'rpArrow') {
+      const p1 = map(obj.x1, obj.y1);
+      const p2 = map(obj.x2, obj.y2);
+      obj.x1 = p1.x;
+      obj.y1 = p1.y;
+      obj.x2 = p2.x;
+      obj.y2 = p2.y;
+      if (typeof obj.arrowheadSize === 'number') obj.arrowheadSize *= ratio;
+      if (typeof obj.strokeWidth === 'number') obj.strokeWidth *= ratio;
+      obj._updateBBox?.();
+      obj.setCoords();
+      return true;
+    }
+
+    if (obj.type === 'rpPolyline' && Array.isArray(obj.points)) {
+      obj.points = obj.points.map((p: any) => map(p.x, p.y));
+      if (typeof obj.strokeWidth === 'number') obj.strokeWidth *= ratio;
+      obj._updateBBox?.();
+      obj.setCoords();
+      return true;
+    }
+
+    return false;
   }
 
   private refreshBaseImageRef(): void {
@@ -2882,6 +3033,16 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       // full-canvas tail bitmap so we don't wipe out a callout just
       // because the cursor happens to be over its bounding rect.
       if (this.calloutModule) {
+        // If the eraser landed directly on a callout part (e.g. the box or
+        // anchor is the Fabric target), remove that whole callout by id.
+        // This is more reliable than coordinate hit-testing alone and
+        // prevents the case where only the box is removed while the tail
+        // is left orphaned behind.
+        const targetCid = (opt.target as any)?.calloutId;
+        if (targetCid != null && this.calloutModule.removeCalloutById(targetCid)) {
+          removed = true;
+        }
+
         let cid: number | null;
         while (
           (cid = this.calloutModule.getCalloutIdAtPoint(

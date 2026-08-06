@@ -25,11 +25,23 @@ export class EraserModule {
     this.canvas.selection = false;
 
     // Make all annotation objects selectable but with delete-on-click behavior.
-    // Skip callout parts — they are removed as a group by the editor's brush
-    // eraser (which does a per-pixel test on the tail so the full-canvas tail
-    // bitmap doesn't get erased on any click over the image).
+    // Callout parts are removed as a group by the editor's brush eraser (which
+    // does a per-pixel test on the tail so the full-canvas tail bitmap doesn't
+    // get erased on any click over the image). They must be made
+    // non-interactive here: if the box/anchor stay selectable+evented, pressing
+    // the box starts a Fabric move-transform, and after the brush eraser
+    // removes the callout the drag fires the box 'moving' handler → redrawTail()
+    // → canvas.sendToBack(tail), which re-inserts the just-erased tail. That
+    // leaves the tail behind while the box is gone. The brush eraser locates
+    // callouts by coordinate hit-testing, so it doesn't need them evented.
     this.canvas.getObjects().forEach((obj: any) => {
-      if (obj._rpAnnotation && obj.calloutId == null && obj._rpType !== 'draw') {
+      if (!obj._rpAnnotation) return;
+      if (obj.calloutId != null) {
+        obj.selectable = false;
+        obj.evented = false;
+        return;
+      }
+      if (obj._rpType !== 'draw') {
         obj.selectable = true;
         obj.evented = true;
         obj.hoverCursor = 'pointer';
@@ -46,6 +58,20 @@ export class EraserModule {
     this.isActive = false;
     this.canvas.defaultCursor = 'default';
     this.canvas.selection = true;
+
+    // Restore callout part interactivity that activate() locked. Only the box
+    // and anchor are interactive; the label/border/tail stay non-evented (their
+    // normal resting state). The next mode re-applies its own locking on top of
+    // this (e.g. move mode locks everything, callout mode re-enforces).
+    this.canvas.getObjects().forEach((obj: any) => {
+      if (obj._rpAnnotation && obj.calloutId != null) {
+        const interactive =
+          obj.calloutRole === 'bgRect' || obj.calloutRole === 'anchor';
+        obj.selectable = interactive;
+        obj.evented = interactive;
+      }
+    });
+
     this.canvas.off('mouse:down', this.handleEraserClick);
   }
 

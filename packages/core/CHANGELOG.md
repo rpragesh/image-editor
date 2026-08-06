@@ -2,6 +2,16 @@
 
 All notable changes to `@rageshpikalmunde/rp-image-editor` will be documented in this file.
 
+## [1.5.3] — 2026-08-06
+
+Patch release fixing shape handle alignment during fullscreen/resize and callout erasing edge cases. No API changes.
+
+### Fixed
+- **Line-path & arrow vertex handles now track the shape in fullscreen** — arrow endpoints and polyline (line-path) vertices are stored in absolute canvas coordinates, so re-fitting the base image on fullscreen/resize previously scaled the drawn line but left the draggable dots behind. The geometry (and stroke width) is now remapped in place so the handles stay locked to the line in both regular and fullscreen modes.
+- **Callout erasing no longer leaves an orphaned tail** — deleting a callout now sweeps every canvas object tagged with the callout id (not just the handle's cached references), so a rehydrated tail belonging to a different object instance is removed with the rest of the callout.
+- **Callout tail no longer reappears after erasing** — callout parts are made non-interactive while the eraser is active, preventing a stray box move-transform from re-inserting the just-erased tail; interactivity is restored when the eraser is deactivated.
+- **Callout tail stays attached when the box is rotated** — the tail geometry now uses the box center point and angle, so it renders correctly after an image rotation.
+
 ## [1.5.2] — 2026-08-05
 
 Patch release focused on fullscreen/resize annotation stability. No API changes.
