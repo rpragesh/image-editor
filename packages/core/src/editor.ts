@@ -741,6 +741,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     // "white text disappears on a white callout" issue without adding
     // a separate text-color picker to the panel.
     this.recolorSelectedCalloutLabels(color);
+    this.toolbar?.setActiveColor(color);
   }
 
   /**
@@ -1731,6 +1732,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
         labels: this.localePack,
         currentImageIndex: this.config.currentImageIndex,
         totalImages: this.config.totalImages,
+        activeColor: this.currentBrushColor,
       },
     );
     this.toolbar.render();

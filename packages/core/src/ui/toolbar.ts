@@ -190,6 +190,8 @@ export interface ToolbarOptions {
   currentImageIndex?: number;
   /** Total image count for multi-image flows. */
   totalImages?: number;
+  /** Currently active annotation color across tools. */
+  activeColor?: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -220,6 +222,8 @@ export class Toolbar {
   private canUndo = false;
   private canRedo = false;
   private recentColors: string[] = [];
+  private activeColor = '#000000';
+  private customPaletteColor: string | null = null;
   private outsideClickHandler: ((e: MouseEvent) => void) | null = null;
   /** Resolved i18n pack. `null` = fall back to the hard-coded English literals. */
   private labels: LocalePack | null = null;
@@ -241,6 +245,12 @@ export class Toolbar {
     this.disabledSet = expandDisabled(disabledFeatures);
     this.options = options;
     this.labels = options.labels ?? null;
+    const initialColor =
+      options.activeColor || this.colorPalette[0] || '#000000';
+    this.activeColor = this.normalizeColorKey(initialColor);
+    if (!this.isColorInBasePalette(this.activeColor)) {
+      this.customPaletteColor = this.activeColor;
+    }
   }
 
   /* ================================================================ */
@@ -343,6 +353,22 @@ export class Toolbar {
     this.updateActiveTool();
     this.updatePropsPanel();
     this.updateBottomSlider();
+  }
+
+  /**
+   * Keep the palette UI in sync with the editor's single active color,
+   * including custom colors that are not part of the static base palette.
+   */
+  setActiveColor(color: string): void {
+    const normalized = this.normalizeColorKey(color);
+    if (!normalized) return;
+
+    this.activeColor = normalized;
+    if (!this.isColorInBasePalette(normalized)) {
+      this.customPaletteColor = normalized;
+    }
+
+    this.syncColorSectionUi();
   }
 
   showToast(message: string, kind: 'info' | 'error' = 'info'): void {
@@ -1300,19 +1326,30 @@ export class Toolbar {
 
     const grid = document.createElement('div');
     grid.className = 'rp-ie-color-grid';
-    this.colorPalette.forEach((color, idx) => {
+    grid.dataset.role = 'palette';
+    const paletteColors = [...this.colorPalette];
+    if (
+      this.customPaletteColor &&
+      !paletteColors.some(
+        (base) => this.normalizeColorKey(base) === this.customPaletteColor,
+      )
+    ) {
+      paletteColors.push(this.customPaletteColor);
+    }
+
+    paletteColors.forEach((color) => {
       const sw = document.createElement('button');
       sw.type = 'button';
       sw.className = 'rp-ie-swatch';
       sw.style.setProperty('--swatch-color', color);
+      sw.dataset.color = this.normalizeColorKey(color);
       sw.setAttribute('aria-label', `Color ${color}`);
-      if (idx === 0) sw.classList.add('rp-ie-swatch--active');
-      sw.addEventListener('click', () => {
-        grid
-          .querySelectorAll('.rp-ie-swatch')
-          .forEach((s) => s.classList.remove('rp-ie-swatch--active'));
+      if (sw.dataset.color === this.activeColor) {
         sw.classList.add('rp-ie-swatch--active');
+      }
+      sw.addEventListener('click', () => {
         this.pushRecentColor(color);
+        this.setActiveColor(color);
         this.callbacks.onColorChange(color);
       });
       grid.appendChild(sw);
@@ -1332,8 +1369,16 @@ export class Toolbar {
         sw.type = 'button';
         sw.className = 'rp-ie-swatch';
         sw.style.setProperty('--swatch-color', color);
+        sw.dataset.color = this.normalizeColorKey(color);
         sw.setAttribute('aria-label', `Recent ${color}`);
-        sw.addEventListener('click', () => this.callbacks.onColorChange(color));
+        if (sw.dataset.color === this.activeColor) {
+          sw.classList.add('rp-ie-swatch--active');
+        }
+        sw.addEventListener('click', () => {
+          this.pushRecentColor(color);
+          this.setActiveColor(color);
+          this.callbacks.onColorChange(color);
+        });
         recentGrid.appendChild(sw);
       });
       wrap.appendChild(recentGrid);
@@ -1345,8 +1390,10 @@ export class Toolbar {
     const input = document.createElement('input');
     input.type = 'color';
     input.className = 'rp-ie-custom-color__input';
+    input.value = this.toHexColor(this.activeColor) || '#000000';
     input.addEventListener('input', () => {
       this.pushRecentColor(input.value);
+      this.setActiveColor(input.value);
       this.callbacks.onColorChange(input.value);
     });
     morePicker.appendChild(input);
@@ -1356,8 +1403,78 @@ export class Toolbar {
   }
 
   private pushRecentColor(color: string): void {
-    const c = color.toLowerCase();
+    const c = this.normalizeColorKey(color);
+    if (!c) return;
     this.recentColors = [c, ...this.recentColors.filter((x) => x !== c)].slice(0, 8);
+  }
+
+  private normalizeColorKey(color: string): string {
+    return (color || '').trim().toLowerCase();
+  }
+
+  private isColorInBasePalette(color: string): boolean {
+    return this.colorPalette.some(
+      (base) => this.normalizeColorKey(base) === color,
+    );
+  }
+
+  private toHexColor(color: string): string | null {
+    const rgb = parseColor(color);
+    if (!rgb) return null;
+    const toHex = (n: number) => n.toString(16).padStart(2, '0');
+    return `#${toHex(rgb.r)}${toHex(rgb.g)}${toHex(rgb.b)}`;
+  }
+
+  private syncColorSectionUi(): void {
+    if (!this.propsPanelEl) return;
+
+    const paletteGrid = this.propsPanelEl.querySelector(
+      '.rp-ie-color-grid[data-role="palette"]',
+    ) as HTMLElement | null;
+
+    // When a custom color is active, keep a dedicated swatch present in
+    // the main palette so it remains visibly selected across tool changes.
+    if (paletteGrid && this.customPaletteColor) {
+      const existingCustom = paletteGrid.querySelector(
+        '.rp-ie-swatch[data-custom="true"]',
+      ) as HTMLButtonElement | null;
+
+      if (existingCustom) {
+        existingCustom.style.setProperty('--swatch-color', this.customPaletteColor);
+        existingCustom.dataset.color = this.customPaletteColor;
+        existingCustom.setAttribute('aria-label', `Color ${this.customPaletteColor}`);
+      } else if (!this.isColorInBasePalette(this.customPaletteColor)) {
+        const sw = document.createElement('button');
+        sw.type = 'button';
+        sw.className = 'rp-ie-swatch';
+        sw.dataset.custom = 'true';
+        sw.dataset.color = this.customPaletteColor;
+        sw.style.setProperty('--swatch-color', this.customPaletteColor);
+        sw.setAttribute('aria-label', `Color ${this.customPaletteColor}`);
+        sw.addEventListener('click', () => {
+          const color = sw.dataset.color || this.customPaletteColor || '#000000';
+          this.pushRecentColor(color);
+          this.setActiveColor(color);
+          this.callbacks.onColorChange(color);
+        });
+        paletteGrid.appendChild(sw);
+      }
+    }
+
+    this.propsPanelEl
+      .querySelectorAll('.rp-ie-swatch')
+      .forEach((node) => {
+        const sw = node as HTMLElement;
+        const swColor = this.normalizeColorKey(sw.dataset.color || '');
+        sw.classList.toggle('rp-ie-swatch--active', swColor === this.activeColor);
+      });
+
+    const colorInput = this.propsPanelEl.querySelector(
+      '.rp-ie-custom-color__input',
+    ) as HTMLInputElement | null;
+    if (colorInput) {
+      colorInput.value = this.toHexColor(this.activeColor) || colorInput.value;
+    }
   }
 
   private buildSlider(

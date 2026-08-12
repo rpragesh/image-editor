@@ -18,12 +18,14 @@
 |---|---|
 | ✂️ **Crop** | Free crop and aspect-ratio locked crop. Initial ratio chip matches the actual rectangle; switching ratios (e.g. 4:3 ↔ 16:9) refits into the same 80% image-bounds envelope so sizes stay consistent. Annotations are preserved across crops. |
 | 🔍 **Zoom** | Zoom in/out with pinch-to-zoom gesture support |
-| 🖐️ **Pan/Drag** | Always-on drag — no need to enable a tool. A translucent **ghost preview** of the image sits behind the canvas so the picture is never hidden while panning past its edges or zooming out. |
+| 🖐️ **Pan/Drag** | Always-on drag — no need to enable a tool. |
 | 🔄 **Rotate** | Rotate left/right by 90° steps. Annotations are preserved across rotations and stay locked to the underlying pixels (no drift past 360°). Fast path skips PNG re-encoding so large 10–15 MB+ images rotate quickly; a loader overlay is shown during heavy renders. |
 | ✏️ **Freehand Draw** | Configurable brush color & width |
+| 🎨 **Unified Active Color** | One shared active color state across Draw, Text, Shapes, and Callout. Palette selection always reflects the true active color (including defaults). |
 | 🔤 **Add Text** | Inline editing with color and font size |
 | ⭕ **Shapes** | Circle, Ellipse, Square and Arrow primitives with resize handles. Circle/Square stay proportional, Ellipse resizes freely, Arrow has draggable start/end endpoints |
 | 💬 **Callout** | Editable label with draggable tail, min-resize clamping, text constraints (40 chars, word-wrap), mobile double-tap support. **Live color update**: picking a new color from the palette recolors the currently selected callout — same behaviour as shape/text/draw tools. |
+| 🧪 **Custom Color Sync** | Custom color picks are mirrored into the palette as a dynamic swatch and remain selected across tool switches. |
 | 🗑️ **Delete** | Delete selected callout/annotation via toolbar trash button |
 | 🧹 **Eraser** | Remove annotations without affecting the image |
 | ↩️ **Undo/Redo** | Configurable stack depth (default: 20) |

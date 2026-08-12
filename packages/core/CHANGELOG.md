@@ -2,6 +2,15 @@
 
 All notable changes to `@rageshpikalmunde/rp-image-editor` will be documented in this file.
 
+## [1.5.4] — 2026-08-12
+
+Patch release focused on color-state consistency across annotation tools. No API changes.
+
+### Fixed
+- **Unified active color state across annotation tools** — Draw, Text, Shapes, and Callout now stay synchronized to one active color source, so changing color in one context is reflected everywhere.
+- **Palette highlight now reflects the true active color** — the selected swatch is no longer tied to the first palette index; it tracks the currently active/default color and remains correct when switching tools.
+- **Custom color picker now updates the visible palette selection** — selecting a custom color adds/updates a dynamic swatch in the main palette and marks it as selected, keeping UI state aligned with runtime color state.
+
 ## [1.5.3] — 2026-08-06
 
 Patch release fixing shape handle alignment during fullscreen/resize and callout erasing edge cases. No API changes.
