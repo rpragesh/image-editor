@@ -2,247 +2,3463 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>rp-image-editor Demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>rp-image-editor - Lightweight Image Editor for Web and Mobile</title>
+  <meta name="description" content="rp-image-editor is a lightweight browser image editor for crop, draw, shapes, callouts, text, and mobile-friendly annotation workflows with PNG/JPEG/WebP export.">
+  <meta name="keywords" content="rp-image-editor, image editor, image annotation, screenshot markup, javascript image editor, typescript image editor, crop draw text shapes callouts, mobile image editor, browser image editor, npm image editor, react image editor, angular image editor, vue image editor, ionic image editor, capacitor image editor">
+  <meta name="author" content="Ragesh Pikalmunde">
+  <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
+  <link rel="canonical" href="https://rpragesh.github.io/image-editor/">
+  <link rel="icon" href="data:,">
+
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://rpragesh.github.io/image-editor/">
+  <meta property="og:title" content="rp-image-editor - Lightweight Image Editor for Web and Mobile">
+  <meta property="og:description" content="Lightweight browser image editor for crop, draw, shapes, callouts, text, and touch-friendly annotation workflows.">
+  <meta property="og:site_name" content="rp-image-editor">
+  <meta property="og:image" content="https://rpragesh.github.io/image-editor/sample.png">
+  <meta property="og:image:alt" content="rp-image-editor demo with image editing and annotation tools">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="rp-image-editor - Lightweight Image Editor for Web and Mobile">
+  <meta name="twitter:description" content="Crop, draw, shape, callout, text, and export images in a mobile-friendly browser editor.">
+  <meta name="twitter:image" content="https://rpragesh.github.io/image-editor/sample.png">
+
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "rp-image-editor",
+      "applicationCategory": "MultimediaApplication",
+      "operatingSystem": "Web Browser",
+      "license": "https://github.com/rpragesh/image-editor/blob/main/LICENSE",
+      "url": "https://rpragesh.github.io/image-editor/",
+      "downloadUrl": "https://www.npmjs.com/package/@rageshpikalmunde/rp-image-editor",
+      "codeRepository": "https://github.com/rpragesh/image-editor",
+      "description": "A lightweight browser image editor and annotation toolkit with crop, draw, shapes, callouts, text, and export workflows.",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    }
+  </script>
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "rp-image-editor",
+      "url": "https://rpragesh.github.io/image-editor/",
+      "description": "Live demo and documentation for rp-image-editor.",
+      "inLanguage": "en"
+    }
+  </script>
+
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #f4f7fc;
+      --bg-soft: #edf2fb;
+      --surface: #ffffff;
+      --surface-muted: #f8faff;
+      --text: #13233f;
+      --text-muted: #4f6282;
+      --line: #d9e2f0;
+      --brand: #2f6fde;
+      --brand-strong: #1f57bb;
+      --brand-soft: #e8f0ff;
+      --code: #111827;
+      --radius-lg: 20px;
+      --radius-md: 14px;
+      --radius-sm: 10px;
+      --shadow: 0 18px 48px rgba(17, 38, 78, 0.09);
+      --max-width: 1160px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #f0f0f0;
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      background:
+        radial-gradient(1300px 520px at 10% -10%, #e0ebff 0%, rgba(224, 235, 255, 0) 70%),
+        linear-gradient(180deg, #f8faff 0%, #f4f7fc 32%, #f4f7fc 100%);
+      color: var(--text);
+      line-height: 1.55;
       min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    img {
+      max-width: 100%;
+      height: auto;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    .container {
+      width: min(var(--max-width), calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      -webkit-backdrop-filter: blur(8px);
+      backdrop-filter: blur(8px);
+      background: rgba(248, 250, 255, 0.86);
+      border-bottom: 1px solid rgba(217, 226, 240, 0.9);
+    }
+
+    .site-header-inner {
+      min-height: 72px;
       display: flex;
-      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      color: var(--text);
+      white-space: nowrap;
+    }
+
+    .brand-mark {
+      width: 30px;
+      height: 30px;
+      border-radius: 9px;
+      background: linear-gradient(140deg, #2f6fde, #5a95ff);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+      position: relative;
+    }
+
+    .brand-mark::after {
+      content: "";
+      position: absolute;
+      inset: 8px;
+      border: 2px solid #ffffff;
+      border-radius: 4px;
+    }
+
+    .nav-toggle {
+      display: none;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
       align-items: center;
       justify-content: center;
-      padding: 20px;
-    }
-    h1 { margin-bottom: 20px; color: #333; font-size: 24px; }
-    .demo-container {
-      background: #fff;
-      padding: 30px;
-      border-radius: 12px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-      text-align: center;
-      max-width: 500px;
-      width: 100%;
-    }
-    .file-input-label {
-      display: inline-block;
-      padding: 14px 32px;
-      background: #4a90d9;
-      color: #fff;
-      border-radius: 8px;
       cursor: pointer;
-      font-size: 16px;
-      font-weight: 600;
-      transition: background 0.2s;
     }
-    .file-input-label:hover { background: #3a7bc8; }
-    input[type="file"] { display: none; }
-    .result-preview {
-      margin-top: 20px;
+
+    .nav-toggle span,
+    .nav-toggle::before,
+    .nav-toggle::after {
+      content: "";
+      display: block;
+      width: 18px;
+      height: 2px;
+      border-radius: 999px;
+      background: var(--text);
+      transition: transform 0.2s ease, opacity 0.2s ease;
+      position: relative;
+    }
+
+    .nav-toggle::before { top: -5px; }
+    .nav-toggle::after { top: 5px; }
+
+    .main-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex: 1;
+      gap: 16px;
+    }
+
+    .main-nav-links,
+    .main-nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      list-style: none;
+    }
+
+    .main-nav a {
+      text-decoration: none;
+      color: var(--text-muted);
+      font-size: 14px;
+      font-weight: 600;
+      padding: 10px 12px;
+      border-radius: 8px;
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    .main-nav a:hover,
+    .main-nav a:focus-visible {
+      background: var(--brand-soft);
+      color: var(--brand-strong);
+      outline: none;
+    }
+
+    .button-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      text-decoration: none;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 14px;
+      line-height: 1;
+      padding: 12px 16px;
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease, border-color 0.18s ease;
+    }
+
+    .button-link:hover,
+    .button-link:focus-visible {
+      transform: translateY(-1px);
+      outline: none;
+    }
+
+    .button-primary {
+      background: linear-gradient(135deg, var(--brand) 0%, #4f8fff 100%);
+      color: #ffffff;
+      box-shadow: 0 10px 26px rgba(47, 111, 222, 0.28);
+    }
+
+    .button-primary:hover,
+    .button-primary:focus-visible {
+      box-shadow: 0 14px 30px rgba(47, 111, 222, 0.35);
+    }
+
+    .button-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border-color: var(--line);
+    }
+
+    .section {
+      padding: 82px 0;
+    }
+
+    .hero {
+      padding-top: 62px;
+      padding-bottom: 20px;
+    }
+
+    .hero-layout {
+      display: grid;
+      gap: 34px;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      align-items: center;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.13em;
+      color: #2b5ea8;
+      background: #edf3ff;
+      border: 1px solid #dce9ff;
+      border-radius: 999px;
+      padding: 7px 12px;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      font-size: clamp(38px, 5.3vw, 62px);
+      line-height: 1.03;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+      max-width: 680px;
+    }
+
+    .hero-copy {
+      color: var(--text-muted);
+      font-size: clamp(16px, 1.9vw, 20px);
+      max-width: 620px;
+      margin-bottom: 24px;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .badge-row img {
+      height: 20px;
+    }
+
+    .code-card {
+      background: var(--code);
+      color: #e5ecff;
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(138, 161, 196, 0.28);
+      padding: 12px 14px;
+      font-family: "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      width: min(100%, 560px);
+      margin-top: 14px;
+    }
+
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .hero-meta-pill {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #2b5289;
+      background: #eef4ff;
+      border: 1px solid #d9e6fb;
+      border-radius: 999px;
+      padding: 6px 10px;
+    }
+
+    .copy-button {
+      border: 1px solid rgba(165, 182, 214, 0.45);
+      background: rgba(255, 255, 255, 0.06);
+      color: #e5ecff;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 8px 12px;
+      cursor: pointer;
+      transition: background-color 0.18s ease, color 0.18s ease;
+      white-space: nowrap;
+    }
+
+    .copy-button:hover,
+    .copy-button:focus-visible {
+      background: rgba(255, 255, 255, 0.16);
+      outline: none;
+    }
+
+    .hero-product {
+      position: relative;
+      border-radius: 24px;
+      padding: 16px;
+      border: 1px solid #d8e5fb;
+      background:
+        radial-gradient(140% 120% at 78% 6%, rgba(102, 151, 247, 0.16) 0%, rgba(102, 151, 247, 0) 55%),
+        linear-gradient(180deg, #fcfdff 0%, #f4f8ff 100%);
+      box-shadow: 0 24px 60px rgba(24, 50, 95, 0.14);
+    }
+
+    .hero-product-window {
+      background: #ffffff;
+      border-radius: 16px;
+      border: 1px solid #d7e4fa;
+      box-shadow: 0 12px 32px rgba(23, 52, 98, 0.12);
+      overflow: hidden;
+    }
+
+    .hero-product-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 14px;
+      background: #f7faff;
+      border-bottom: 1px solid #e2ebf9;
+    }
+
+    .hero-window-dots {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .hero-window-dots span {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #b8c9e6;
+    }
+
+    .hero-window-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #48618a;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .hero-product-link {
+      display: block;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .hero-product-media {
+      position: relative;
+      aspect-ratio: 16 / 10;
+      background: #eef3fd;
+      overflow: hidden;
+    }
+
+    .hero-product-media img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transform: scale(1.02);
+    }
+
+    .hero-product-overlay {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 14px;
+      background: linear-gradient(180deg, rgba(8, 22, 46, 0) 0%, rgba(8, 22, 46, 0.76) 100%);
+      color: #f8fbff;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .hero-product-overlay strong {
+      display: block;
+      font-size: 15px;
+      letter-spacing: 0.01em;
+    }
+
+    .hero-product-overlay span {
+      font-size: 12px;
+      color: #d7e5ff;
+    }
+
+    .hero-product-tools {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 12px 14px 14px;
+      border-top: 1px solid #e6eefb;
+      background: #fafcff;
+    }
+
+    .hero-product-tools span {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #355a91;
+      padding: 6px 9px;
+      border-radius: 999px;
+      border: 1px solid #d6e3fa;
+      background: #f1f6ff;
+    }
+
+    .hero-product-hint {
+      margin-top: 12px;
+      font-size: 13px;
+      color: #3f5f89;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .hero-product-hint strong {
+      color: #1f4f95;
+    }
+
+    .social-proof-strip {
+      margin-top: 14px;
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .social-proof-section {
+      padding-top: 0;
+      padding-bottom: 24px;
+    }
+
+    .social-proof-item {
+      border: 1px solid #d8e3f6;
+      border-radius: 12px;
+      background: #ffffff;
+      padding: 10px;
+      text-align: center;
+      box-shadow: 0 8px 18px rgba(20, 45, 84, 0.06);
+      display: grid;
+      gap: 6px;
+    }
+
+    .social-proof-item span {
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #486893;
+      font-weight: 700;
+    }
+
+    .social-proof-item img {
+      height: 22px;
+      margin: 0 auto;
+    }
+
+    .trust-strip {
+      padding: 10px 0 20px;
+    }
+
+    .trust-box {
+      border: 1px solid #d9e5f7;
+      border-radius: 16px;
+      background: #f8fbff;
+      padding: 16px 20px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .trust-kicker {
+      text-align: center;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: #3d649d;
+    }
+
+    .trust-tech {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 9px;
+    }
+
+    .trust-tech span {
+      font-size: 12px;
+      font-weight: 700;
+      color: #325987;
+      padding: 7px 10px;
+      border: 1px solid #d6e3fa;
+      border-radius: 999px;
+      background: #ffffff;
+    }
+
+    .section-head {
+      margin-bottom: 20px;
+      max-width: 760px;
+    }
+
+    .section-kicker {
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #325f9f;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .section h2 {
+      font-size: clamp(28px, 3.2vw, 40px);
+      line-height: 1.15;
+      letter-spacing: -0.01em;
+      margin-bottom: 10px;
+    }
+
+    .section-head p {
+      color: var(--text-muted);
+      font-size: 17px;
+      max-width: 680px;
+    }
+
+    .demo-shell {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .demo-top {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .demo-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #274f8c;
+      background: #eaf2ff;
+      border: 1px solid #d6e4ff;
+      border-radius: 999px;
+      padding: 6px 12px;
+    }
+
+    .demo-grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: 1.2fr 0.8fr;
+    }
+
+    .demo-main {
+      background: var(--surface-muted);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .demo-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .demo-button,
+    .demo-upload {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      font-weight: 700;
+      font-size: 14px;
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+      min-height: 44px;
+    }
+
+    .demo-button {
+      background: linear-gradient(135deg, var(--brand) 0%, #5a95ff 100%);
+      color: #ffffff;
+      box-shadow: 0 8px 22px rgba(47, 111, 222, 0.28);
+    }
+
+    .demo-upload {
+      background: #ffffff;
+      border-color: #c9d8ef;
+      color: #18345c;
+    }
+
+    .demo-button:hover,
+    .demo-button:focus-visible,
+    .demo-upload:hover,
+    .demo-upload:focus-visible {
+      transform: translateY(-1px);
+      outline: none;
+    }
+
+    .demo-input {
       display: none;
     }
-    .result-preview img {
-      max-width: 100%;
-      max-height: 300px;
-      border-radius: 8px;
-      border: 2px solid #eee;
-    }
-    .result-info {
-      margin-top: 10px;
-      font-size: 14px;
-      color: #666;
-    }
-    .batch-info {
-      margin-top: 10px;
-      font-size: 13px;
-      color: #666;
-    }
-    .theme-selector {
-      margin-top: 16px;
+
+    .theme-pills {
       display: flex;
-      gap: 8px;
-      justify-content: center;
       flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 4px;
     }
-    .theme-btn {
-      padding: 8px 16px;
-      border: 2px solid #ddd;
-      background: #fff;
-      border-radius: 6px;
+
+    .theme-pill {
+      border: 1px solid #cddbf1;
+      background: #ffffff;
+      color: #24466f;
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 700;
       cursor: pointer;
+      transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+    }
+
+    .theme-pill.active {
+      border-color: var(--brand);
+      background: var(--brand-soft);
+      color: var(--brand-strong);
+    }
+
+    .playground {
+      background: #f2f7ff;
+      border: 1px solid #d6e3f7;
+      border-radius: var(--radius-md);
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .playground h3 {
+      font-size: 15px;
+      margin-bottom: 2px;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+      font-size: 13px;
+      color: #36567f;
+    }
+
+    .field select,
+    .field input[type="color"] {
+      border: 1px solid #c8d7ee;
+      border-radius: 10px;
+      background: #ffffff;
+      color: #1f3659;
+      min-height: 40px;
+      padding: 8px 10px;
+      font-size: 14px;
+    }
+
+    .field-inline {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #2a476e;
+    }
+
+    .demo-status {
+      min-height: 20px;
+      font-size: 13px;
+      color: #385780;
+    }
+
+    .result-panel {
+      display: none;
+      margin-top: 8px;
+      background: #ffffff;
+      border: 1px solid #d7e1f1;
+      border-radius: 12px;
+      padding: 14px;
+    }
+
+    .default-preview {
+      background: #ffffff;
+      border: 1px solid #d7e1f1;
+      border-radius: 12px;
+      padding: 14px;
+    }
+
+    .default-preview.hidden {
+      display: none;
+    }
+
+    .default-preview img {
+      border-radius: 10px;
+      border: 1px solid #d4dfef;
+      background: #f9fbff;
+      width: 100%;
+      max-height: 280px;
+      object-fit: contain;
+    }
+
+    .default-preview p {
+      margin-top: 8px;
+      color: #3a5a83;
       font-size: 13px;
     }
-    .theme-btn.active { border-color: #4a90d9; background: #e8f0fe; }
+
+    .result-panel.visible {
+      display: block;
+    }
+
+    .result-panel img {
+      border-radius: 10px;
+      border: 1px solid #d4dfef;
+      background: #f9fbff;
+      width: 100%;
+      max-height: 320px;
+      object-fit: contain;
+    }
+
+    .result-meta {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .result-meta-item {
+      background: #f6f9ff;
+      border: 1px solid #dae5f6;
+      border-radius: 10px;
+      padding: 9px;
+      font-size: 12px;
+      color: #315278;
+    }
+
+    .demo-install {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 6px;
+      border-top: 1px dashed #d4e0f2;
+      padding-top: 14px;
+      color: #2f4d72;
+      font-size: 14px;
+    }
+
+    #features .section-head h2 {
+      font-size: clamp(32px, 4.3vw, 50px);
+      line-height: 1.12;
+      letter-spacing: -0.015em;
+      margin-bottom: 12px;
+      max-width: 780px;
+    }
+
+    #features .section-head p {
+      max-width: 760px;
+      font-size: 18px;
+    }
+
+    .feature-showcase-grid {
+      display: grid;
+      gap: 18px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .feature-showcase {
+      border: 1px solid rgba(35, 72, 125, 0.12);
+      border-radius: 18px;
+      background:
+        radial-gradient(120% 140% at 90% 8%, rgba(94, 145, 241, 0.12) 0%, rgba(94, 145, 241, 0) 60%),
+        #ffffff;
+      box-shadow: 0 10px 24px rgba(19, 43, 82, 0.05);
+      padding: 20px;
+      transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+    }
+
+    .feature-showcase:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 14px 28px rgba(19, 43, 82, 0.08);
+      border-color: rgba(47, 111, 222, 0.34);
+    }
+
+    .feature-showcase__inner {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(320px, 1.1fr);
+      gap: 18px;
+      align-items: center;
+    }
+
+    .feature-showcase--reverse .feature-showcase__inner {
+      grid-template-columns: minmax(320px, 1.1fr) minmax(0, 0.9fr);
+    }
+
+    .feature-showcase--reverse .feature-showcase__visual {
+      order: 1;
+    }
+
+    .feature-showcase--reverse .feature-showcase__copy {
+      order: 2;
+    }
+
+    .feature-showcase__title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .feature-showcase__title h3 {
+      font-size: 26px;
+      line-height: 1.2;
+      letter-spacing: -0.01em;
+    }
+
+    .feature-title-icon {
+      width: 54px;
+      height: 54px;
+      border-radius: 16px;
+      background: #eaf2ff;
+      color: #2d62b0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      flex: none;
+    }
+
+    .feature-title-icon--crop {
+      background: #e8f1ff;
+    }
+
+    .feature-title-icon--crop::before {
+      content: "";
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      border: 3px solid #2f6fde;
+      border-right: none;
+      border-top: none;
+      border-radius: 3px;
+      transform: rotate(0);
+    }
+
+    .feature-title-icon--shape {
+      background: #ecf7ea;
+    }
+
+    .feature-title-icon--draw {
+      background: #e8f1ff;
+    }
+
+    .feature-title-icon--draw::before {
+      content: "";
+      position: absolute;
+      width: 20px;
+      height: 4px;
+      background: #2f6fde;
+      border-radius: 999px;
+      transform: rotate(-38deg);
+      left: 15px;
+      top: 18px;
+    }
+
+    .feature-title-icon--draw::after {
+      content: "";
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      border: 3px solid #2f6fde;
+      border-radius: 3px;
+      right: 11px;
+      bottom: 13px;
+      transform: rotate(-38deg);
+      background: #fff;
+    }
+
+    .feature-title-icon--shape::before,
+    .feature-title-icon--shape::after {
+      content: "";
+      position: absolute;
+      border: 3px solid #63b04f;
+      background: rgba(255, 255, 255, 0.9);
+    }
+
+    .feature-title-icon--shape::before {
+      width: 17px;
+      height: 17px;
+      border-radius: 6px;
+      left: 11px;
+      top: 11px;
+    }
+
+    .feature-title-icon--shape::after {
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      right: 10px;
+      bottom: 10px;
+    }
+
+    .feature-title-icon--callout {
+      background: #efeaff;
+    }
+
+    .feature-title-icon--callout::before {
+      content: "";
+      position: absolute;
+      width: 21px;
+      height: 15px;
+      border-radius: 8px;
+      border: 2px solid #7c57ea;
+      background: #ffffff;
+      left: 14px;
+      top: 14px;
+    }
+
+    .feature-title-icon--callout::after {
+      content: "";
+      position: absolute;
+      width: 9px;
+      height: 9px;
+      border-left: 2px solid #7c57ea;
+      border-bottom: 2px solid #7c57ea;
+      left: 26px;
+      top: 26px;
+      transform: rotate(-39deg);
+      background: #fff;
+    }
+
+    .feature-showcase__copy p {
+      color: var(--text-muted);
+      font-size: 16px;
+      line-height: 1.5;
+      margin-bottom: 14px;
+    }
+
+    .feature-showcase__action {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 14px;
+      border-radius: 999px;
+      background: #edf3ff;
+      color: #2f6fde;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 15px;
+      line-height: 1;
+      box-shadow: inset 0 0 0 1px #d5e4ff;
+    }
+
+    .feature-showcase__action:hover,
+    .feature-showcase__action:focus-visible {
+      background: #e4eeff;
+      outline: none;
+    }
+
+    .feature-showcase__visual {
+      min-height: 250px;
+      border-radius: 14px;
+      border: 1px solid rgba(47, 111, 222, 0.14);
+      background: #dfe9fb;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .feature-showcase-image {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      filter: saturate(1.08) contrast(1.04);
+    }
+
+    .feature-showcase__visual::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(7, 20, 42, 0.04), rgba(7, 20, 42, 0.2));
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .feature-showcase__visual > *:not(.feature-showcase-image) {
+      position: absolute;
+      z-index: 2;
+    }
+
+    .feature-showcase__visual--crop .crop-outer,
+    .feature-showcase__visual--crop .crop-inner,
+    .feature-showcase__visual--crop .crop-handle {
+      border-radius: 6px;
+      border: 3px solid rgba(255, 255, 255, 0.92);
+    }
+
+    .feature-showcase__visual--crop .crop-outer {
+      inset: 28px 24px;
+      border-style: solid;
+      box-shadow: inset 0 0 0 1px rgba(62, 125, 226, 0.45);
+    }
+
+    .feature-showcase__visual--crop .crop-inner {
+      inset: 66px 70px;
+      border-style: dashed;
+      border-color: rgba(127, 191, 255, 0.95);
+    }
+
+    .feature-showcase__visual--crop .crop-handle {
+      width: 14px;
+      height: 14px;
+      background: #3f7de5;
+      border: 2px solid #ffffff;
+      border-radius: 4px;
+    }
+
+    .feature-showcase__visual--crop .crop-handle--tl { top: 24px; left: 20px; }
+    .feature-showcase__visual--crop .crop-handle--tr { top: 24px; right: 20px; }
+    .feature-showcase__visual--crop .crop-handle--bl { bottom: 24px; left: 20px; }
+    .feature-showcase__visual--crop .crop-handle--br { bottom: 24px; right: 20px; }
+
+    .feature-showcase__visual--draw .draw-stroke {
+      left: 34px;
+      right: 26px;
+      border-top: 4px solid #2e74f0;
+      border-radius: 999px;
+      box-shadow: 0 2px 8px rgba(16, 60, 139, 0.22);
+    }
+
+    .feature-showcase__visual--draw .draw-stroke--a {
+      top: 66px;
+      transform: rotate(-13deg);
+    }
+
+    .feature-showcase__visual--draw .draw-stroke--b {
+      top: 138px;
+      left: 42px;
+      right: 44px;
+      border-top-width: 5px;
+      transform: rotate(3deg);
+    }
+
+    .feature-showcase__visual--draw .draw-toolbar {
+      left: 48px;
+      right: 36px;
+      bottom: 16px;
+      height: 42px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.95);
+      box-shadow: 0 6px 16px rgba(17, 34, 68, 0.18);
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+    }
+
+    .feature-showcase__visual--draw .draw-dot {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #2f6fde;
+      box-shadow: 0 0 0 5px rgba(47, 111, 222, 0.14);
+    }
+
+    .feature-showcase__visual--draw .draw-line {
+      width: 18px;
+      height: 0;
+      border-top: 3px solid #203a63;
+      border-radius: 999px;
+    }
+
+    .feature-showcase__visual--draw .draw-check {
+      color: #2e74f0;
+      font-weight: 800;
+      font-size: 20px;
+      line-height: 1;
+    }
+
+    .feature-showcase__visual--shapes .shape-circle,
+    .feature-showcase__visual--shapes .shape-rect,
+    .feature-showcase__visual--shapes .shape-line {
+      border-width: 4px;
+    }
+
+    .feature-showcase__visual--shapes .shape-circle {
+      width: 98px;
+      height: 98px;
+      border-color: #67cc53;
+      border-radius: 50%;
+      top: 44px;
+      left: 38px;
+    }
+
+    .feature-showcase__visual--shapes .shape-rect {
+      width: 86px;
+      height: 52px;
+      border-color: #f5c815;
+      border-radius: 6px;
+      top: 70px;
+      right: 52px;
+    }
+
+    .feature-showcase__visual--shapes .shape-line {
+      border: none;
+      width: 128px;
+      height: 0;
+      border-top: 5px solid #f53a35;
+      left: 86px;
+      bottom: 58px;
+      transform: rotate(-28deg);
+    }
+
+    .feature-showcase__visual--shapes .shape-line::after {
+      content: "";
+      position: absolute;
+      right: -3px;
+      top: -10px;
+      border-left: 16px solid #f53a35;
+      border-top: 10px solid transparent;
+      border-bottom: 10px solid transparent;
+    }
+
+    .feature-showcase__visual--shapes .shape-toolbar {
+      left: 18px;
+      right: 18px;
+      bottom: 10px;
+      height: 34px;
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 10px;
+      box-shadow: 0 4px 14px rgba(17, 34, 68, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .feature-showcase__visual--shapes .shape-swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--swatch);
+    }
+
+    .feature-showcase__visual--shapes .shape-swatch--dark { --swatch: #0f172a; }
+    .feature-showcase__visual--shapes .shape-swatch--blue { --swatch: #5f87ca; }
+    .feature-showcase__visual--shapes .shape-swatch--green { --swatch: #66b959; }
+    .feature-showcase__visual--shapes .shape-swatch--yellow { --swatch: #f6cf34; }
+    .feature-showcase__visual--shapes .shape-swatch--red { --swatch: #ff534f; }
+
+    .feature-showcase__visual--callout .callout-target {
+      display: none;
+    }
+
+    .feature-showcase__visual--callout .callout-label {
+      left: 20px;
+      top: 56px;
+      border-radius: 14px;
+      border: none;
+      background: #f9150e;
+      color: #ffffff;
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: 0.01em;
+      line-height: 1;
+      padding: 12px 18px;
+      box-shadow: 0 10px 22px rgba(184, 26, 18, 0.38);
+      text-transform: lowercase;
+    }
+
+    .feature-showcase__visual--callout .callout-label::after {
+      content: "";
+      position: absolute;
+      left: 40px;
+      bottom: -46px;
+      width: 0;
+      height: 0;
+      border-top: 50px solid #f9150e;
+      border-right: 24px solid transparent;
+      transform: rotate(22deg);
+    }
+
+    .feature-showcase__visual--callout .callout-label::before {
+      content: none;
+    }
+
+    .feature-support-grid {
+      margin-top: 16px;
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .feature-support {
+      border: 1px solid rgba(42, 73, 119, 0.14);
+      background: rgba(255, 255, 255, 0.78);
+      border-radius: 14px;
+      padding: 12px 13px;
+      display: grid;
+      gap: 6px;
+      min-height: 88px;
+    }
+
+    .feature-support__title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #1f3a66;
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .feature-support__icon {
+      width: 14px;
+      height: 14px;
+      border-radius: 4px;
+      border: 1.5px solid rgba(45, 90, 159, 0.8);
+      position: relative;
+      flex: none;
+    }
+
+    .feature-support__icon::after {
+      content: "";
+      position: absolute;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: rgba(45, 90, 159, 0.85);
+      top: 4px;
+      left: 4px;
+    }
+
+    .feature-support p {
+      font-size: 13px;
+      line-height: 1.45;
+      color: #5a7092;
+    }
+
+    .feature-bridge {
+      margin-top: 20px;
+      text-align: center;
+      display: grid;
+      gap: 5px;
+      justify-items: center;
+    }
+
+    .feature-bridge p {
+      color: #47638a;
+      font-size: 14px;
+    }
+
+    .feature-bridge a {
+      color: #2457a3;
+      font-size: 14px;
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    .feature-bridge a:hover,
+    .feature-bridge a:focus-visible {
+      text-decoration: underline;
+      outline: none;
+    }
+
+    .annotation-showcase {
+      border: 1px solid #d4e2f8;
+      border-radius: 22px;
+      padding: 28px;
+      background:
+        radial-gradient(130% 140% at 8% 0%, rgba(152, 188, 255, 0.22) 0%, rgba(152, 188, 255, 0) 55%),
+        linear-gradient(180deg, #fbfdff 0%, #f4f8ff 100%);
+      box-shadow: 0 22px 52px rgba(31, 59, 103, 0.11);
+      display: grid;
+      gap: 20px;
+    }
+
+    .annotation-compare {
+      display: grid;
+      gap: 18px;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      align-items: center;
+    }
+
+    .annotation-arrow {
+      font-size: 28px;
+      color: #4a72b3;
+      font-weight: 700;
+    }
+
+    .annotation-panel {
+      background: #ffffff;
+      border: 1px solid #cfddf3;
+      border-radius: 16px;
+      padding: 14px;
+      box-shadow: 0 12px 28px rgba(24, 52, 96, 0.09);
+    }
+
+    .annotation-panel-label {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #3e6096;
+      margin-bottom: 10px;
+    }
+
+    .annotation-frame {
+      position: relative;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #d6e1f4;
+      aspect-ratio: 16 / 10;
+      background: #edf3ff;
+    }
+
+    .annotation-frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .annotation-mark {
+      position: absolute;
+      pointer-events: none;
+    }
+
+    .annotation-mark--circle {
+      width: 94px;
+      height: 94px;
+      border: 14px solid rgba(249, 21, 14, 0.92);
+      border-radius: 50%;
+      top: 24%;
+      left: 64%;
+      box-shadow: 0 0 0 8px rgba(249, 21, 14, 0.18);
+    }
+
+    .annotation-mark--arrow {
+      width: 154px;
+      height: 14px;
+      background: linear-gradient(90deg, #ff3b30 0%, #f9150e 100%);
+      border-radius: 999px;
+      top: 53%;
+      left: 33%;
+      transform: rotate(-24deg);
+      box-shadow: 0 5px 12px rgba(184, 26, 18, 0.34);
+    }
+
+    .annotation-mark--arrow::after {
+      content: "";
+      position: absolute;
+      right: -12px;
+      top: -10px;
+      border-left: 26px solid #f9150e;
+      border-top: 17px solid transparent;
+      border-bottom: 17px solid transparent;
+    }
+
+    .annotation-mark--callout {
+      left: 14%;
+      top: 58%;
+      background: #f9150e;
+      color: #ffffff;
+      border-radius: 12px;
+      font-size: 27px;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: 0.01em;
+      padding: 13px 20px;
+      box-shadow: 0 10px 22px rgba(180, 20, 17, 0.42);
+      text-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+    }
+
+    .annotation-mark--callout::after {
+      content: "";
+      position: absolute;
+      left: 18px;
+      bottom: -36px;
+      border-top: 40px solid #f9150e;
+      border-right: 28px solid transparent;
+      transform: skewX(-13deg);
+    }
+
+    .annotation-mark--text {
+      top: 14%;
+      left: 10%;
+      color: #ffffff;
+      text-shadow: 0 1px 5px rgba(5, 12, 27, 0.7);
+      font-weight: 700;
+      font-size: clamp(12px, 1.35vw, 16px);
+      letter-spacing: 0.02em;
+    }
+
+    .annotation-tools {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .annotation-tools span {
+      border: 1px solid #d4e1f5;
+      background: #ffffff;
+      color: #30588a;
+      border-radius: 999px;
+      padding: 7px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+    }
+
+    .annotation-message {
+      text-align: center;
+      color: #3c5f8c;
+      font-size: 14px;
+    }
+
+    .split-grid {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .value-card,
+    .stack-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 18px;
+      box-shadow: 0 10px 24px rgba(24, 42, 70, 0.06);
+    }
+
+    .value-card h3,
+    .stack-card h3 {
+      font-size: 18px;
+      margin-bottom: 6px;
+    }
+
+    .value-card p,
+    .stack-card p {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .why-highlight {
+      border: 1px solid #cddcf7;
+      border-radius: 16px;
+      background: linear-gradient(140deg, #eef4ff 0%, #f9fbff 55%, #ffffff 100%);
+      padding: 22px;
+      box-shadow: 0 14px 32px rgba(29, 55, 98, 0.08);
+      margin-bottom: 14px;
+    }
+
+    .why-highlight h3 {
+      font-size: 24px;
+      margin-bottom: 8px;
+      line-height: 1.2;
+    }
+
+    .why-highlight p {
+      color: #3f5f89;
+      font-size: 15px;
+      margin-bottom: 14px;
+    }
+
+    .why-flow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #24508f;
+    }
+
+    .why-flow span {
+      background: #ffffff;
+      border: 1px solid #c7d9f6;
+      border-radius: 999px;
+      padding: 7px 10px;
+    }
+
+    .why-flow i {
+      color: #567fbc;
+      font-style: normal;
+      font-size: 13px;
+    }
+
+    .stack-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .stack-pill {
+      border: 1px solid #c9d8f1;
+      border-radius: 999px;
+      background: #f2f7ff;
+      color: #214d8f;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 8px 12px;
+    }
+
+    .code-section {
+      background: linear-gradient(180deg, #f6f9ff 0%, #f2f7ff 100%);
+      border: 1px solid #d3e1f7;
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      box-shadow: 0 16px 36px rgba(31, 58, 104, 0.08);
+    }
+
+    .code-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .code-header p {
+      color: #3c5d89;
+      font-size: 13px;
+    }
+
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .tab-button {
+      border: 1px solid #c8d7ef;
+      background: #ffffff;
+      color: #1f3e66;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 8px 13px;
+      cursor: pointer;
+    }
+
+    .tab-button.active {
+      border-color: var(--brand);
+      background: var(--brand-soft);
+      color: var(--brand-strong);
+    }
+
+    .tab-panel {
+      display: none;
+      margin-top: 14px;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    pre {
+      overflow: auto;
+      border-radius: 12px;
+      border: 1px solid rgba(153, 169, 199, 0.25);
+      background: #0f172a;
+      color: #dbe8ff;
+      padding: 16px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .code-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .use-case-grid {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .use-case-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+      box-shadow: 0 10px 24px rgba(24, 42, 70, 0.06);
+      display: grid;
+      gap: 12px;
+    }
+
+    .use-case-media {
+      position: relative;
+      border: 1px solid #d5e1f3;
+      border-radius: 10px;
+      overflow: hidden;
+      aspect-ratio: 16 / 9;
+      background: #edf2ff;
+    }
+
+    .use-case-media img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .use-case-card--document .use-case-media img {
+      object-position: left center;
+      filter: saturate(1.08) contrast(1.04);
+    }
+
+    .use-case-card--screenshot .use-case-media img {
+      object-position: center center;
+      filter: saturate(1.15);
+    }
+
+    .use-case-card--workflow .use-case-media img {
+      object-position: 42% center;
+      filter: contrast(1.06);
+    }
+
+    .use-case-card--mobile .use-case-media img {
+      object-position: right center;
+      transform: scale(1.12);
+      transform-origin: center center;
+      filter: saturate(1.18);
+    }
+
+    .use-case-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .use-case-overlay--document::before {
+      content: "";
+      position: absolute;
+      top: 22%;
+      left: 14%;
+      width: 118px;
+      height: 74px;
+      border: 8px solid rgba(249, 21, 14, 0.92);
+      border-radius: 10px;
+      box-shadow: 0 0 0 10px rgba(249, 21, 14, 0.14);
+    }
+
+    .use-case-overlay--document::after {
+      content: "";
+      position: absolute;
+      right: 18%;
+      top: 45%;
+      width: 60px;
+      height: 60px;
+      border: 8px solid rgba(249, 21, 14, 0.92);
+      border-radius: 8px;
+      box-shadow: 0 0 0 10px rgba(249, 21, 14, 0.14);
+    }
+
+    .use-case-overlay--screenshot::before,
+    .use-case-overlay--screenshot::after {
+      content: "";
+      position: absolute;
+      border: 8px solid rgba(249, 21, 14, 0.9);
+      border-radius: 50%;
+    }
+
+    .use-case-overlay--screenshot::before {
+      width: 74px;
+      height: 74px;
+      right: 17%;
+      top: 22%;
+    }
+
+    .use-case-overlay--screenshot::after {
+      width: 56px;
+      height: 56px;
+      left: 18%;
+      bottom: 18%;
+    }
+
+    .use-case-overlay--workflow::before {
+      content: "Upload  →  Annotate  →  Export";
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      background: rgba(10, 25, 52, 0.8);
+      color: #edf4ff;
+      border-radius: 999px;
+      text-align: center;
+      padding: 8px 12px;
+      font-size: 12px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    .use-case-overlay--mobile::before {
+      content: "";
+      position: absolute;
+      width: 118px;
+      height: 188px;
+      right: 12%;
+      top: 10%;
+      border-radius: 26px;
+      border: 5px solid rgba(255, 255, 255, 0.92);
+      background: rgba(8, 16, 33, 0.26);
+      box-shadow: 0 10px 26px rgba(6, 14, 31, 0.34);
+    }
+
+    .use-case-overlay--mobile::after {
+      content: "";
+      position: absolute;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 6px solid rgba(249, 21, 14, 0.92);
+      right: 20%;
+      bottom: 16%;
+      box-shadow: 0 0 0 14px rgba(249, 21, 14, 0.2);
+    }
+
+    .use-case-chip {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      background: rgba(7, 26, 56, 0.78);
+      color: #f0f6ff;
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .use-case-card h3 {
+      font-size: 17px;
+      margin-bottom: 4px;
+    }
+
+    .use-case-card p {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .workflow-strip {
+      border: 1px solid #d2e0f6;
+      border-radius: 16px;
+      background: #f8fbff;
+      padding: 14px;
+      display: grid;
+      gap: 10px;
+      box-shadow: 0 12px 26px rgba(22, 49, 93, 0.07);
+    }
+
+    .workflow-steps {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      align-items: start;
+    }
+
+    .workflow-step {
+      text-align: center;
+      padding: 10px 6px;
+      border-radius: 12px;
+      border: 1px solid #d9e4f8;
+      background: #ffffff;
+    }
+
+    .workflow-step strong {
+      display: block;
+      color: #244f8e;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-size: 11px;
+      margin-bottom: 5px;
+    }
+
+    .workflow-step p {
+      color: #557198;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .faq {
+      display: grid;
+      gap: 8px;
+    }
+
+    .faq details {
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+
+    .faq summary {
+      cursor: pointer;
+      font-weight: 700;
+      color: #1b3860;
+      list-style: none;
+      font-size: 15px;
+    }
+
+    .faq summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .faq p {
+      color: var(--text-muted);
+      margin-top: 6px;
+      font-size: 13px;
+    }
+
+    .why-reasons {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-top: 8px;
+    }
+
+    .why-reason {
+      border: 1px solid #cfddf3;
+      border-radius: 12px;
+      background: #ffffff;
+      box-shadow: 0 8px 18px rgba(24, 52, 96, 0.06);
+      padding: 12px;
+      display: grid;
+      gap: 7px;
+    }
+
+    .why-reason-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 17px;
+      line-height: 1.2;
+      color: #1d3c67;
+      font-weight: 800;
+    }
+
+    .why-reason-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 7px;
+      background: #e8f0ff;
+      border: 1px solid #c8daf9;
+      position: relative;
+      flex: none;
+    }
+
+    .why-reason-icon--oss::before,
+    .why-reason-icon--annotation::before,
+    .why-reason-icon--mobile::before,
+    .why-reason-icon--custom::before {
+      content: "";
+      position: absolute;
+      inset: 6px;
+      border: 2px solid #2f6fde;
+      border-radius: 3px;
+    }
+
+    .why-reason-icon--annotation::before {
+      border-radius: 50%;
+    }
+
+    .why-reason-icon--mobile::before {
+      inset: 5px 7px;
+      border-radius: 4px;
+    }
+
+    .why-reason-icon--custom::before {
+      border: none;
+      border-top: 3px solid #2f6fde;
+      border-right: 3px solid #2f6fde;
+      transform: rotate(45deg);
+      inset: 7px;
+      border-radius: 0;
+    }
+
+    .why-reason p {
+      color: #4c6487;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .why-choose {
+      margin-top: 12px;
+      border: 1px solid #d0ddf2;
+      border-radius: 14px;
+      background: linear-gradient(180deg, #f8fbff 0%, #f1f6ff 100%);
+      padding: 14px;
+      box-shadow: 0 10px 22px rgba(24, 52, 96, 0.07);
+      display: grid;
+      gap: 10px;
+    }
+
+    .why-choose h3 {
+      font-size: 19px;
+      line-height: 1.25;
+    }
+
+    .why-choose p {
+      color: #425f86;
+      font-size: 14px;
+    }
+
+    .why-choose-stack {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .why-choose-stack span {
+      border: 1px solid #c8d8f2;
+      border-radius: 999px;
+      background: #ffffff;
+      color: #1f4f92;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 5px 9px;
+    }
+
+    .cta-panel {
+      background: linear-gradient(125deg, #17345f 0%, #234a84 54%, #2f6fde 100%);
+      border-radius: var(--radius-lg);
+      color: #ffffff;
+      padding: 24px;
+      box-shadow: 0 20px 48px rgba(23, 52, 95, 0.3);
+      display: grid;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .cta-panel p {
+      color: #d7e6ff;
+      max-width: 740px;
+    }
+
+    .cta-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .cta-panel .button-secondary {
+      background: rgba(255, 255, 255, 0.12);
+      color: #ffffff;
+      border-color: rgba(255, 255, 255, 0.45);
+    }
+
+    footer {
+      margin-top: 84px;
+      border-top: 1px solid #d5e0f2;
+      background: #f8faff;
+      padding: 32px 0 40px;
+    }
+
+    .footer-grid {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+      align-items: start;
+    }
+
+    .footer-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .footer-links a {
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+      color: #31547f;
+      padding: 8px 10px;
+      border-radius: 8px;
+    }
+
+    .footer-links a:hover,
+    .footer-links a:focus-visible {
+      background: #e7f0ff;
+      color: #1f4f95;
+      outline: none;
+    }
+
+    .muted {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .footer-note-primary {
+      margin-top: 10px;
+    }
+
+    .footer-note {
+      margin-top: 8px;
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(16px);
+      transition: opacity 0.45s ease, transform 0.45s ease;
+    }
+
+    .reveal.in-view {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @media (max-width: 1024px) {
+      .hero-layout,
+      .demo-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .hero {
+        padding-top: 62px;
+      }
+
+      .feature-showcase-grid,
+      .feature-support-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .feature-showcase__inner,
+      .feature-showcase--reverse .feature-showcase__inner {
+        grid-template-columns: 1fr;
+      }
+
+      .feature-showcase--reverse .feature-showcase__visual,
+      .feature-showcase--reverse .feature-showcase__copy {
+        order: initial;
+      }
+
+      .feature-showcase__title h3 {
+        font-size: 24px;
+      }
+
+      .feature-showcase__visual {
+        min-height: 230px;
+      }
+
+      .annotation-compare {
+        grid-template-columns: 1fr;
+      }
+
+      .annotation-arrow {
+        display: none;
+      }
+
+      .workflow-steps {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .split-grid,
+      .use-case-grid,
+      .footer-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .social-proof-strip,
+      .why-reasons {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .footer-links {
+        justify-content: flex-start;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .section {
+        padding: 62px 0;
+      }
+
+      .hero {
+        padding-top: 52px;
+        padding-bottom: 14px;
+      }
+
+      .section h2 {
+        font-size: clamp(26px, 7vw, 34px);
+      }
+
+      .section-head p {
+        font-size: 16px;
+      }
+
+      .demo-shell,
+      .code-section,
+      .annotation-showcase,
+      .cta-panel {
+        padding: 16px;
+      }
+
+      pre {
+        font-size: 12px;
+        padding: 12px;
+      }
+
+      .cta-actions {
+        width: 100%;
+      }
+
+      .cta-actions .button-link {
+        flex: 1;
+      }
+    }
+
+    @media (max-width: 860px) {
+      .nav-toggle {
+        display: inline-flex;
+      }
+
+      .main-nav {
+        position: absolute;
+        top: 72px;
+        left: 0;
+        right: 0;
+        display: none;
+        background: rgba(248, 250, 255, 0.98);
+        border-bottom: 1px solid var(--line);
+        padding: 12px 16px 16px;
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .main-nav.open {
+        display: flex;
+      }
+
+      .main-nav-links,
+      .main-nav-actions {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .main-nav a,
+      .main-nav .button-link {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .section {
+        padding: 56px 0;
+      }
+
+      .hero {
+        padding-top: 56px;
+      }
+
+      .container {
+        width: min(var(--max-width), calc(100% - 22px));
+      }
+
+      .hero-product {
+        padding: 12px;
+      }
+
+      .social-proof-strip,
+      .why-reasons {
+        grid-template-columns: 1fr;
+      }
+
+      .trust-box {
+        padding: 14px 12px;
+      }
+
+      .code-card {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .result-meta {
+        grid-template-columns: 1fr;
+      }
+
+      #features .section-head h2 {
+        font-size: clamp(30px, 8vw, 40px);
+      }
+
+      #features .section-head p {
+        font-size: 16px;
+      }
+
+      .feature-showcase-grid,
+      .feature-support-grid,
+      .workflow-steps {
+        grid-template-columns: 1fr;
+      }
+
+      .feature-showcase {
+        padding: 16px;
+      }
+
+      .feature-showcase__title h3 {
+        font-size: 22px;
+      }
+
+      .feature-showcase__visual {
+        min-height: 210px;
+      }
+
+      .feature-showcase__visual--callout .callout-label {
+        font-size: 18px;
+        padding: 10px 14px;
+      }
+
+      .feature-showcase__visual--callout .callout-label::after {
+        left: 28px;
+        bottom: -34px;
+        border-top-width: 36px;
+        border-right-width: 18px;
+      }
+
+      .feature-support {
+        min-height: 0;
+      }
+
+      .annotation-mark--circle {
+        width: 66px;
+        height: 66px;
+        border-width: 10px;
+      }
+
+      .annotation-mark--arrow {
+        width: 108px;
+        height: 10px;
+        left: 29%;
+      }
+
+      .annotation-mark--arrow::after {
+        right: -10px;
+        top: -8px;
+        border-left-width: 20px;
+        border-top-width: 13px;
+        border-bottom-width: 13px;
+      }
+
+      .annotation-mark--callout {
+        font-size: 18px;
+        padding: 10px 14px;
+      }
+
+      .annotation-mark--callout::after {
+        bottom: -24px;
+        border-top-width: 28px;
+        border-right-width: 20px;
+      }
+
+      .use-case-overlay--mobile::before {
+        width: 88px;
+        height: 136px;
+      }
+
+      .use-case-overlay--mobile::after {
+        width: 34px;
+        height: 34px;
+      }
+
+      .annotation-showcase {
+        padding: 18px;
+      }
+
+      .why-choose {
+        padding: 12px;
+      }
+
+      .workflow-strip {
+        padding: 12px;
+      }
+
+      .why-highlight h3 {
+        font-size: 20px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+
+      * {
+        animation: none !important;
+        transition: none !important;
+      }
+
+      .reveal,
+      .reveal.in-view {
+        opacity: 1;
+        transform: none;
+      }
+    }
   </style>
 </head>
 <body>
-  <h1>📷 rp-image-editor Demo</h1>
+  <header class="site-header">
+    <div class="container site-header-inner">
+      <a class="brand" href="#top" aria-label="rp-image-editor home">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>rp-image-editor</span>
+      </a>
 
-  <div class="demo-container">
-    <p style="margin-bottom: 16px; color: #555;">Select one or more images to open the editor</p>
+      <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="mainNav" aria-label="Toggle navigation">
+        <span></span>
+      </button>
 
-    <label class="file-input-label" for="imageInput">
-      Choose Image(s)
-    </label>
-    <input type="file" id="imageInput" accept=".png,.jpeg,.jpg,.heic,.heif" multiple />
-
-    <div class="theme-selector">
-      <button class="theme-btn active" data-theme="dark">Dark Theme</button>
-      <button class="theme-btn" data-theme="light">Light Theme</button>
-      <button class="theme-btn" data-theme="blue">Blue Theme</button>
-      <button class="theme-btn" data-theme="green">Green Theme</button>
+      <nav class="main-nav" id="mainNav" aria-label="Main navigation">
+        <ul class="main-nav-links">
+          <li><a href="#features">Features</a></li>
+          <li><a href="#demo">Demo</a></li>
+          <li><a href="#installation">Installation</a></li>
+          <li><a href="https://github.com/rpragesh/image-editor#readme" target="_blank" rel="noopener">Documentation</a></li>
+          <li><a href="https://github.com/rpragesh/image-editor" target="_blank" rel="noopener">GitHub</a></li>
+        </ul>
+        <ul class="main-nav-actions">
+          <li><a class="button-link button-primary" href="#demo">Try Live Demo</a></li>
+          <li><a class="button-link button-secondary" href="#installation">Get Started</a></li>
+        </ul>
+      </nav>
     </div>
+  </header>
 
-    <p class="batch-info" id="batchInfo">Tip: when you pick multiple files, they open one by one.</p>
+  <main id="top">
+    <section class="hero section">
+      <div class="container hero-layout">
+        <div class="reveal">
+          <p class="eyebrow">Open Source Image Editor</p>
+          <h1>Powerful Image Editing for Modern Web &amp; Mobile Apps</h1>
+          <p class="hero-copy">A lightweight, framework-agnostic image editor for cropping, drawing, annotations, shapes, text, filters and more.</p>
 
-    <div class="result-preview" id="resultPreview">
-      <h3 style="margin-bottom: 10px; color: #333;">Edited Result:</h3>
-      <img id="resultImage" />
-      <div class="result-info" id="resultInfo"></div>
+          <div class="hero-actions">
+            <a class="button-link button-primary" href="#demo" id="heroTryDemo">Try Live Demo</a>
+            <a class="button-link button-secondary" href="#installation">Get Started</a>
+          </div>
+
+          <div class="code-card" role="group" aria-label="Installation command">
+            <span id="installCommandHero">npm install @rageshpikalmunde/rp-image-editor</span>
+            <button class="copy-button" data-copy-target="installCommandHero">Copy</button>
+          </div>
+
+          <div class="hero-meta" aria-label="Project facts">
+            <span class="hero-meta-pill">MIT License</span>
+            <span class="hero-meta-pill">TypeScript</span>
+            <span class="hero-meta-pill">Open Source</span>
+          </div>
+
+          <div class="badge-row" aria-label="Package badges">
+            <a href="https://www.npmjs.com/package/@rageshpikalmunde/rp-image-editor" target="_blank" rel="noopener">
+              <img src="https://img.shields.io/badge/npm-package-CB3837?style=flat-square" alt="NPM package">
+            </a>
+            <a href="https://www.npmjs.com/package/@rageshpikalmunde/rp-image-editor" target="_blank" rel="noopener">
+              <img src="https://img.shields.io/npm/v/@rageshpikalmunde/rp-image-editor.svg?style=flat-square" alt="NPM version">
+            </a>
+            <a href="https://github.com/rpragesh/image-editor/blob/main/LICENSE" target="_blank" rel="noopener">
+              <img src="https://img.shields.io/badge/license-MIT-3DA639?style=flat-square" alt="MIT License">
+            </a>
+          </div>
+        </div>
+
+        <aside class="hero-product reveal" aria-label="Product preview">
+          <div class="hero-product-window">
+            <div class="hero-product-top">
+              <div class="hero-window-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+              <p class="hero-window-title">rp-image-editor live preview</p>
+            </div>
+            <a class="hero-product-link" href="#demo" id="heroPreviewLaunch" aria-label="Open live demo with sample image">
+              <div class="hero-product-media">
+                <img id="heroPreviewImage" alt="Preview image used in the live image editor" loading="lazy">
+                <div class="hero-product-overlay">
+                  <div>
+                    <strong>Real editor demo</strong>
+                    <span>Click to launch with sample image</span>
+                  </div>
+                </div>
+              </div>
+            </a>
+            <div class="hero-product-tools" aria-hidden="true">
+              <span>Crop</span>
+              <span>Draw</span>
+              <span>Shapes</span>
+              <span>Text</span>
+              <span>Callouts</span>
+            </div>
+          </div>
+          <p class="hero-product-hint"><span>This preview uses the same sample asset as the interactive demo.</span><strong>Try Live Demo</strong></p>
+        </aside>
+      </div>
+    </section>
+
+    <section class="trust-strip" aria-label="Technology support">
+      <div class="container">
+        <div class="trust-box reveal">
+          <p class="trust-kicker">Built for modern web applications</p>
+          <div class="trust-tech" role="list" aria-label="Compatible technology stack">
+            <span role="listitem">Angular</span>
+            <span role="listitem">React</span>
+            <span role="listitem">Ionic</span>
+            <span role="listitem">Vue</span>
+            <span role="listitem">JavaScript</span>
+            <span role="listitem">TypeScript</span>
+            <span role="listitem">Capacitor</span>
+            <span role="listitem">Mobile Web</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section social-proof-section" aria-label="Social proof">
+      <div class="container">
+        <div class="social-proof-strip reveal">
+          <article class="social-proof-item">
+            <span>NPM Total Downloads</span>
+            <img src="https://img.shields.io/npm/dt/@rageshpikalmunde/rp-image-editor?style=flat-square&label=downloads" alt="NPM total downloads">
+          </article>
+          <article class="social-proof-item">
+            <span>Current Version</span>
+            <img src="https://img.shields.io/npm/v/@rageshpikalmunde/rp-image-editor.svg?style=flat-square" alt="NPM package version">
+          </article>
+          <article class="social-proof-item">
+            <span>GitHub Stars</span>
+            <img src="https://img.shields.io/github/stars/rpragesh/image-editor?style=flat-square&label=stars" alt="GitHub stars">
+          </article>
+          <article class="social-proof-item">
+            <span>License</span>
+            <img src="https://img.shields.io/github/license/rpragesh/image-editor?style=flat-square" alt="MIT license">
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="demo">
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="section-kicker">Interactive Demo</p>
+          <h2>Try the Editor</h2>
+          <p>Upload an image and experience the editor directly in your browser.</p>
+        </div>
+
+        <div class="demo-shell reveal">
+          <div class="demo-top">
+            <span class="demo-label">Interactive Demo</span>
+            <p class="muted" id="demoStatus">Ready. Open the sample image or upload your own files.</p>
+          </div>
+
+          <div class="demo-grid">
+            <div class="demo-main">
+              <div>
+                <p class="muted">Theme</p>
+                <div class="theme-pills" id="themePills">
+                  <button class="theme-pill active" data-theme="light" type="button">Light</button>
+                  <button class="theme-pill" data-theme="dark" type="button">Dark</button>
+                  <button class="theme-pill" data-theme="blue" type="button">Blue</button>
+                  <button class="theme-pill" data-theme="green" type="button">Green</button>
+                </div>
+              </div>
+
+              <div class="demo-buttons">
+                <button class="demo-button" id="trySampleBtn" type="button">Try with sample image</button>
+                <button class="demo-upload" id="chooseImagesBtn" type="button">Choose image(s) to edit</button>
+                <input class="demo-input" id="imageInput" type="file" accept="image/*,.heic,.heif" multiple>
+              </div>
+
+              <div class="default-preview" id="defaultPreview" aria-live="polite">
+                <img id="defaultPreviewImage" alt="Default sample preview" loading="lazy">
+                <p>Default sample image preview. Click "Try with sample image" to open the editor.</p>
+              </div>
+
+              <div class="result-panel" id="resultPanel" aria-live="polite">
+                <img id="resultImage" alt="Edited result preview" loading="lazy">
+                <div class="result-meta" id="resultMeta"></div>
+              </div>
+
+              <div class="demo-install">
+                <span>Use this in your app:</span>
+                <a class="button-link button-secondary" href="#installation">Get Started</a>
+              </div>
+            </div>
+
+            <aside class="playground" aria-label="Configuration playground">
+              <h3>Configuration Playground</h3>
+              <p class="muted">Adjust options and launch the editor with real package config.</p>
+
+              <label class="field" for="exportFormatSelect">
+                Export format
+                <select id="exportFormatSelect">
+                  <option value="jpeg" selected>jpeg</option>
+                  <option value="png">png</option>
+                </select>
+              </label>
+
+              <label class="field" for="brushColorInput">
+                Default brush color
+                <input id="brushColorInput" type="color" value="#2f6fde">
+              </label>
+
+              <label class="field-inline" for="disableFiltersInput">
+                <input id="disableFiltersInput" type="checkbox">
+                Disable filters tool
+              </label>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="features">
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="section-kicker">Core Features</p>
+          <h2>Everything you need to edit and annotate images</h2>
+          <p>Powerful tools for cropping, drawing, shapes, callouts and more.</p>
+        </div>
+
+        <div class="reveal">
+          <div class="feature-showcase-grid">
+            <article class="feature-showcase">
+              <div class="feature-showcase__inner">
+                <div class="feature-showcase__copy">
+                  <div class="feature-showcase__title">
+                    <span class="feature-title-icon feature-title-icon--crop" aria-hidden="true"></span>
+                    <h3>Crop</h3>
+                  </div>
+                  <p>Refine framing with responsive handles and precise crop guides for profile photos, banners, and product visuals.</p>
+                  <a class="feature-showcase__action" href="#demo">Learn more <span aria-hidden="true">&rarr;</span></a>
+                </div>
+                <div class="feature-showcase__visual feature-showcase__visual--crop" aria-hidden="true">
+                  <img class="feature-showcase-image" alt="" loading="lazy">
+                  <span class="crop-outer"></span>
+                  <span class="crop-inner"></span>
+                  <span class="crop-handle crop-handle--tl"></span>
+                  <span class="crop-handle crop-handle--tr"></span>
+                  <span class="crop-handle crop-handle--bl"></span>
+                  <span class="crop-handle crop-handle--br"></span>
+                </div>
+              </div>
+            </article>
+
+            <article class="feature-showcase feature-showcase--reverse">
+              <div class="feature-showcase__inner">
+                <div class="feature-showcase__copy">
+                  <div class="feature-showcase__title">
+                    <span class="feature-title-icon feature-title-icon--draw" aria-hidden="true"></span>
+                    <h3>Draw</h3>
+                  </div>
+                  <p>Highlight exactly what matters using smooth freehand strokes in configurable colors and brush widths.</p>
+                  <a class="feature-showcase__action" href="#demo">Learn more <span aria-hidden="true">&rarr;</span></a>
+                </div>
+                <div class="feature-showcase__visual feature-showcase__visual--draw" aria-hidden="true">
+                  <img class="feature-showcase-image" alt="" loading="lazy">
+                  <span class="draw-stroke draw-stroke--a"></span>
+                  <span class="draw-stroke draw-stroke--b"></span>
+                  <span class="draw-toolbar">
+                    <span class="draw-dot"></span>
+                    <span class="draw-line"></span>
+                    <span class="draw-line"></span>
+                    <span class="draw-check">&#10003;</span>
+                  </span>
+                </div>
+              </div>
+            </article>
+
+            <article class="feature-showcase feature-showcase--reverse">
+              <div class="feature-showcase__inner">
+                <div class="feature-showcase__copy">
+                  <div class="feature-showcase__title">
+                    <span class="feature-title-icon feature-title-icon--shape" aria-hidden="true"></span>
+                    <h3>Shapes</h3>
+                  </div>
+                  <p>Add rectangles, circles, and lines with controlled fill and border settings that stay crisp on export.</p>
+                  <a class="feature-showcase__action" href="#demo">Learn more <span aria-hidden="true">&rarr;</span></a>
+                </div>
+                <div class="feature-showcase__visual feature-showcase__visual--shapes" aria-hidden="true">
+                  <img class="feature-showcase-image" alt="" loading="lazy">
+                  <span class="shape-circle"></span>
+                  <span class="shape-rect"></span>
+                  <span class="shape-line"></span>
+                  <span class="shape-toolbar">
+                    <span class="shape-swatch shape-swatch--dark"></span>
+                    <span class="shape-swatch shape-swatch--blue"></span>
+                    <span class="shape-swatch shape-swatch--green"></span>
+                    <span class="shape-swatch shape-swatch--yellow"></span>
+                    <span class="shape-swatch shape-swatch--red"></span>
+                  </span>
+                </div>
+              </div>
+            </article>
+
+            <article class="feature-showcase">
+              <div class="feature-showcase__inner">
+                <div class="feature-showcase__copy">
+                  <div class="feature-showcase__title">
+                    <span class="feature-title-icon feature-title-icon--callout" aria-hidden="true"></span>
+                    <h3>Callouts</h3>
+                  </div>
+                  <p>Direct attention with annotation bubbles and pointers that make reviews, tutorials, and bug reports clear at a glance.</p>
+                  <a class="feature-showcase__action" href="#demo">Learn more <span aria-hidden="true">&rarr;</span></a>
+                </div>
+                <div class="feature-showcase__visual feature-showcase__visual--callout" aria-hidden="true">
+                  <img class="feature-showcase-image" alt="" loading="lazy">
+                  <span class="callout-target"></span>
+                  <span class="callout-label">check this</span>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <div class="feature-support-grid">
+            <article class="feature-support">
+              <h3 class="feature-support__title"><span class="feature-support__icon" aria-hidden="true"></span>Text</h3>
+              <p>Layer labels and notes with adjustable font size and color for easy communication.</p>
+            </article>
+            <article class="feature-support">
+              <h3 class="feature-support__title"><span class="feature-support__icon" aria-hidden="true"></span>Eraser</h3>
+              <p>Remove unwanted strokes quickly to correct details without resetting your progress.</p>
+            </article>
+            <article class="feature-support">
+              <h3 class="feature-support__title"><span class="feature-support__icon" aria-hidden="true"></span>Undo / Redo</h3>
+              <p>Step backward or forward through edits with predictable history controls.</p>
+            </article>
+            <article class="feature-support">
+              <h3 class="feature-support__title"><span class="feature-support__icon" aria-hidden="true"></span>Save in Multiple Formats</h3>
+              <p>Export final images as PNG, JPEG, or WebP for every delivery channel.</p>
+            </article>
+            <article class="feature-support">
+              <h3 class="feature-support__title"><span class="feature-support__icon" aria-hidden="true"></span>Theme Customization</h3>
+              <p>Match your product with light and dark themes plus configurable color tokens.</p>
+            </article>
+            <article class="feature-support">
+              <h3 class="feature-support__title"><span class="feature-support__icon" aria-hidden="true"></span>Multilingual Support</h3>
+              <p>Deliver a localized editor experience with built-in language packs.</p>
+            </article>
+            <article class="feature-support">
+              <h3 class="feature-support__title"><span class="feature-support__icon" aria-hidden="true"></span>Modal + Embedded Modes</h3>
+              <p>Launch as a popup for quick tasks or mount inline for persistent editing flows.</p>
+            </article>
+            <article class="feature-support">
+              <h3 class="feature-support__title"><span class="feature-support__icon" aria-hidden="true"></span>Responsive Layout</h3>
+              <p>Maintain usability across desktop and mobile viewports without custom wrappers.</p>
+            </article>
+          </div>
+
+          <div class="feature-bridge">
+            <p>And that's only the beginning.</p>
+            <a href="#annotation-showcase">See annotation in action &rarr;</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="annotation-showcase">
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="section-kicker">Image Annotation</p>
+          <h2>Annotate images like a pro</h2>
+          <p>Highlight problems, explain designs, mark screenshots and communicate visually with drawing, shapes, text and callouts.</p>
+        </div>
+
+        <div class="annotation-showcase reveal">
+          <div class="annotation-compare">
+            <article class="annotation-panel">
+              <p class="annotation-panel-label">Original</p>
+              <div class="annotation-frame">
+                <img id="annotationOriginalImage" alt="Original sample image" loading="lazy">
+              </div>
+            </article>
+
+            <div class="annotation-arrow" aria-hidden="true">→</div>
+
+            <article class="annotation-panel">
+              <p class="annotation-panel-label">Annotated</p>
+              <div class="annotation-frame">
+                <img id="annotationAnnotatedImage" alt="Annotated sample image output style" loading="lazy">
+                <span class="annotation-mark annotation-mark--circle"></span>
+                <span class="annotation-mark annotation-mark--arrow"></span>
+                <span class="annotation-mark annotation-mark--callout">Label</span>
+                <span class="annotation-mark annotation-mark--text">Review this edge</span>
+              </div>
+            </article>
+          </div>
+
+          <div class="annotation-tools" aria-label="Annotation tools">
+            <span>✏ Draw</span>
+            <span>◯ Shapes</span>
+            <span>↗ Callouts</span>
+            <span>T Text</span>
+            <span>⌫ Eraser</span>
+          </div>
+
+          <p class="annotation-message">From screenshots to technical workflows, turn images into actionable visual information.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="section-kicker">Why rp-image-editor</p>
+          <h2>Built for teams shipping image features</h2>
+        </div>
+
+        <div class="why-highlight reveal">
+          <h3>Built for real image workflows</h3>
+          <p>From first upload to final export, rp-image-editor keeps every essential step in one consistent interface.</p>
+          <div class="why-flow" aria-hidden="true">
+            <span>Crop</span><i>→</i><span>Annotate</span><i>→</i><span>Edit</span><i>→</i><span>Export</span>
+          </div>
+        </div>
+
+        <div class="why-reasons reveal">
+          <article class="why-reason">
+            <h3 class="why-reason-title"><span class="why-reason-icon why-reason-icon--oss" aria-hidden="true"></span>Open Source / MIT</h3>
+            <p>MIT-licensed package with public source and contribution-friendly workflows.</p>
+          </article>
+          <article class="why-reason">
+            <h3 class="why-reason-title"><span class="why-reason-icon why-reason-icon--annotation" aria-hidden="true"></span>Powerful Annotation</h3>
+            <p>Combine draw, shapes, callouts, text, and erasing in one editor session.</p>
+          </article>
+          <article class="why-reason">
+            <h3 class="why-reason-title"><span class="why-reason-icon why-reason-icon--mobile" aria-hidden="true"></span>Mobile Ready</h3>
+            <p>Touch-friendly interactions support practical image editing on mobile web.</p>
+          </article>
+          <article class="why-reason">
+            <h3 class="why-reason-title"><span class="why-reason-icon why-reason-icon--custom" aria-hidden="true"></span>Customizable</h3>
+            <p>Theme tokens, labels, export settings, and tool controls adapt to your product.</p>
+          </article>
+        </div>
+
+        <div class="why-choose reveal">
+          <h3>Why choose rp-image-editor?</h3>
+          <p>Basic croppers handle framing. rp-image-editor gives your users a complete browser workflow for review, markup, and export without switching tools.</p>
+          <div class="why-choose-stack" aria-label="Differentiator capabilities">
+            <span>Crop</span>
+            <span>Draw</span>
+            <span>Shapes</span>
+            <span>Callouts</span>
+            <span>Text</span>
+            <span>Mobile</span>
+            <span>Export</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="section-kicker">Platform Support</p>
+          <h2>Built for your stack</h2>
+          <p>Package documentation references support for these modern web and mobile environments.</p>
+        </div>
+
+        <div class="stack-card reveal">
+          <h3>Framework and platform compatibility</h3>
+          <p>Use the core package directly or integrate with wrappers where available.</p>
+          <div class="stack-pills">
+            <span class="stack-pill">JavaScript</span>
+            <span class="stack-pill">TypeScript</span>
+            <span class="stack-pill">React</span>
+            <span class="stack-pill">Angular</span>
+            <span class="stack-pill">Vue</span>
+            <span class="stack-pill">Ionic</span>
+            <span class="stack-pill">Capacitor</span>
+            <span class="stack-pill">Mobile Web</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="installation">
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="section-kicker">Developer Experience</p>
+          <h2>Get started in minutes</h2>
+          <p>Install the package and open the editor with the documented API.</p>
+        </div>
+
+        <div class="code-section reveal">
+          <div class="code-card" role="group" aria-label="Installation command">
+            <span id="installCommandSection">npm install @rageshpikalmunde/rp-image-editor</span>
+            <button class="copy-button" data-copy-target="installCommandSection">Copy</button>
+          </div>
+
+          <div class="code-header">
+            <p>Developer workspace examples</p>
+            <button class="copy-button" id="copyActiveSnippet" type="button">Copy Example</button>
+          </div>
+
+          <div class="tabs" role="tablist" aria-label="Code examples">
+            <button class="tab-button active" role="tab" aria-selected="true" aria-controls="tab-js" id="tab-btn-js" data-tab="js" type="button">JavaScript</button>
+            <button class="tab-button" role="tab" aria-selected="false" aria-controls="tab-react" id="tab-btn-react" data-tab="react" type="button">React</button>
+            <button class="tab-button" role="tab" aria-selected="false" aria-controls="tab-angular" id="tab-btn-angular" data-tab="angular" type="button">Angular</button>
+          </div>
+
+          <section class="tab-panel active" id="tab-js" role="tabpanel" aria-labelledby="tab-btn-js">
+<pre><code>import { openEditorModal } from '@rageshpikalmunde/rp-image-editor';
+
+const fileInput = document.querySelector('#fileInput');
+
+fileInput.addEventListener('change', async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  const result = await openEditorModal({
+    image: file,
+    config: {
+      exportFormat: 'jpeg',
+      exportQuality: 0.92
+    }
+  });
+
+  if (result) {
+    console.log(result.file);
+    console.log(result.base64);
+  }
+});</code></pre>
+          </section>
+
+          <section class="tab-panel" id="tab-react" role="tabpanel" aria-labelledby="tab-btn-react">
+<pre><code>import { openEditorModal } from '@rageshpikalmunde/rp-image-editor';
+
+function ImageUploader() {
+  const handleFile = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const result = await openEditorModal({
+      image: file,
+      config: { exportFormat: 'jpeg' }
+    });
+
+    if (result) {
+      console.log(result.file);
+    }
+  };
+
+  return &lt;input type="file" accept="image/*" onChange={handleFile} /&gt;;
+}</code></pre>
+          </section>
+
+          <section class="tab-panel" id="tab-angular" role="tabpanel" aria-labelledby="tab-btn-angular">
+<pre><code>import { openEditorModal } from '@rageshpikalmunde/rp-image-editor';
+
+async function onFileSelected(file: File) {
+  const result = await openEditorModal({
+    image: file,
+    config: { exportFormat: 'jpeg', exportQuality: 0.92 }
+  });
+
+  if (result) {
+    console.log(result.file);
+  }
+}</code></pre>
+          </section>
+
+          <div class="code-actions">
+            <a class="button-link button-primary" href="https://github.com/rpragesh/image-editor" target="_blank" rel="noopener">View on GitHub</a>
+            <a class="button-link button-secondary" href="https://www.npmjs.com/package/@rageshpikalmunde/rp-image-editor" target="_blank" rel="noopener">View on NPM</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="section-kicker">Use Cases</p>
+          <h2>Where teams use rp-image-editor</h2>
+        </div>
+
+        <div class="use-case-grid reveal">
+          <article class="use-case-card use-case-card--document">
+            <div class="use-case-media"><img class="use-case-image" alt="Document annotation use case" loading="lazy"><span class="use-case-overlay use-case-overlay--document" aria-hidden="true"></span><span class="use-case-chip">Document</span></div>
+            <div><h3>Document Annotation</h3><p>Mark up uploaded documents and snapshots before sharing or saving.</p></div>
+          </article>
+          <article class="use-case-card use-case-card--screenshot">
+            <div class="use-case-media"><img class="use-case-image" alt="Screenshot markup use case" loading="lazy"><span class="use-case-overlay use-case-overlay--screenshot" aria-hidden="true"></span><span class="use-case-chip">Screenshot</span></div>
+            <div><h3>Screenshot Markup</h3><p>Add arrows, labels, and highlights for product feedback and bug reporting.</p></div>
+          </article>
+          <article class="use-case-card use-case-card--workflow">
+            <div class="use-case-media"><img class="use-case-image" alt="Image upload workflow use case" loading="lazy"><span class="use-case-overlay use-case-overlay--workflow" aria-hidden="true"></span><span class="use-case-chip">Workflow</span></div>
+            <div><h3>Image Upload Workflow</h3><p>Allow users to adjust and annotate images before final upload.</p></div>
+          </article>
+          <article class="use-case-card use-case-card--mobile">
+            <div class="use-case-media"><img class="use-case-image" alt="Mobile editing use case" loading="lazy"><span class="use-case-overlay use-case-overlay--mobile" aria-hidden="true"></span><span class="use-case-chip">Mobile</span></div>
+            <div><h3>Mobile Editing</h3><p>Enable in-browser touch-friendly editing flows for mobile web applications.</p></div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="workflow-strip reveal">
+          <p class="section-kicker">Product Workflow</p>
+          <div class="workflow-steps">
+            <article class="workflow-step"><strong>Upload</strong><p>Select or drop source images.</p></article>
+            <article class="workflow-step"><strong>Crop</strong><p>Frame content and normalize dimensions.</p></article>
+            <article class="workflow-step"><strong>Annotate</strong><p>Draw, shape, text, and callout overlays.</p></article>
+            <article class="workflow-step"><strong>Customize</strong><p>Apply filters and tuned theme settings.</p></article>
+            <article class="workflow-step"><strong>Export</strong><p>Return output as File, Blob, or Base64.</p></article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="section-kicker">Open Source</p>
+          <h2>Built in the open</h2>
+          <p>Explore the source, report issues, suggest improvements, or contribute to rp-image-editor.</p>
+        </div>
+
+        <div class="code-actions reveal">
+          <a class="button-link button-primary" href="https://github.com/rpragesh/image-editor" target="_blank" rel="noopener">View on GitHub</a>
+          <a class="button-link button-secondary" href="https://www.npmjs.com/package/@rageshpikalmunde/rp-image-editor" target="_blank" rel="noopener">View on NPM</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="section-kicker">FAQ</p>
+          <h2>Common questions</h2>
+        </div>
+
+        <div class="faq reveal">
+          <details>
+            <summary>What frameworks can I use with rp-image-editor?</summary>
+            <p>The package is framework-agnostic and documentation references JavaScript, React, Angular, Vue, Ionic, and Capacitor usage.</p>
+          </details>
+          <details>
+            <summary>Is rp-image-editor free?</summary>
+            <p>Yes. The package is available on npm and released under the MIT license.</p>
+          </details>
+          <details>
+            <summary>Is it open source?</summary>
+            <p>Yes. The source code and issue tracker are available on GitHub.</p>
+          </details>
+          <details>
+            <summary>Does it work on mobile?</summary>
+            <p>The editor supports touch interactions, including pinch zoom and drag behavior for mobile workflows.</p>
+          </details>
+          <details>
+            <summary>Can I customize the editor?</summary>
+            <p>Yes. Theme colors and several behavior options are configurable through the editor config.</p>
+          </details>
+          <details>
+            <summary>How do I install it?</summary>
+            <p>Run npm install @rageshpikalmunde/rp-image-editor and then call openEditorModal with an image file.</p>
+          </details>
+          <details>
+            <summary>Where can I find documentation?</summary>
+            <p>Use the package README in the GitHub repository for setup details and API examples.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="cta-panel reveal">
+          <h2>Ready to add image editing to your application?</h2>
+          <p>Try the live demo, then integrate using the same API shown in this page.</p>
+          <div class="cta-actions">
+            <a class="button-link button-primary" href="#demo">Try Live Demo</a>
+            <a class="button-link button-secondary" href="#installation">Get Started</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container footer-grid">
+      <div>
+        <p class="brand"><span class="brand-mark" aria-hidden="true"></span><span>rp-image-editor</span></p>
+        <p class="muted footer-note-primary">A lightweight, framework-agnostic image editor package for modern web and mobile apps.</p>
+        <p class="muted footer-note">MIT License. Made by Ragesh Pikalmunde.</p>
+        <p class="muted footer-note">Copyright <span id="currentYear"></span>.</p>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/rpragesh/image-editor" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://www.npmjs.com/package/@rageshpikalmunde/rp-image-editor" target="_blank" rel="noopener">NPM</a>
+        <a href="https://github.com/rpragesh/image-editor#readme" target="_blank" rel="noopener">Documentation</a>
+        <a href="https://rpragesh.github.io/image-editor/">Demo</a>
+      </div>
     </div>
-  </div>
+  </footer>
 
-  <!-- Load the editor from local build -->
+  <script src="rp-image-editor.bundle.js"></script>
   <script>
-    // Cache-bust the bundle so hard-refreshes always pull the latest
-    // build during development.
-    document.write(
-      '<script src="rp-image-editor.bundle.js?v=' + Date.now() + '"><' + '/script>'
-    );
-  </script>
-  <script>
-    // Use the IIFE global
     const { openEditorModal } = RpImageEditor;
 
     const themes = {
-      dark: {
-        headerBackground: '#1a1a2e',
-        headerTextColor: '#ffffff',
-        editorBackground: '#000000',
-        toolbarBackground: '#2d2d2d',
-        toolbarActiveBackground: '#083a81',
-        toolbarActiveTextColor: '#ffffff',
-        footerBackground: '#1a1a2e',
-        applyButtonBackground: '#083a81',
-        applyButtonBorderColor: '#083a81',
-      },
       light: {
         variant: 'light',
         headerBackground: '#ffffff',
-        headerTextColor: '#333333',
-        editorBackground: '#f5f5f5',
-        toolbarBackground: '#e0e0e0',
-        toolbarIconColor: '#333333',
-        toolbarActiveBackground: '#083a81',
+        headerTextColor: '#233758',
+        editorBackground: '#f4f8ff',
+        toolbarBackground: '#e6eefb',
+        toolbarIconColor: '#24476f',
+        toolbarActiveBackground: '#2f6fde',
         toolbarActiveTextColor: '#ffffff',
         footerBackground: '#ffffff',
-        cancelButtonTextColor: '#333333',
-        cancelButtonBorderColor: '#999999',
-        applyButtonBackground: '#083a81',
-        applyButtonBorderColor: '#083a81',
+        cancelButtonBackground: '#ffffff',
+        cancelButtonTextColor: '#233758',
+        cancelButtonBorderColor: '#c9d8ef',
+        applyButtonBackground: '#2f6fde',
+        applyButtonTextColor: '#ffffff'
+      },
+      dark: {
+        headerBackground: '#122442',
+        headerTextColor: '#ffffff',
+        editorBackground: '#081120',
+        toolbarBackground: '#1d2d4a',
+        toolbarIconColor: '#e3ecff',
+        toolbarActiveBackground: '#2f6fde',
+        toolbarActiveTextColor: '#ffffff',
+        footerBackground: '#122442',
+        cancelButtonBackground: 'transparent',
+        cancelButtonTextColor: '#ffffff',
+        cancelButtonBorderColor: '#8aa0c2',
+        applyButtonBackground: '#2f6fde',
+        applyButtonTextColor: '#ffffff'
       },
       blue: {
-        headerBackground: '#1565c0',
+        headerBackground: '#0f3f88',
         headerTextColor: '#ffffff',
-        editorBackground: '#0d47a1',
-        toolbarBackground: '#1976d2',
-        toolbarActiveBackground: '#4a90d9',
-        toolbarActiveTextColor: '#ffffff',
-        footerBackground: '#1565c0',
-        applyButtonBackground: '#42a5f5',
-        applyButtonBorderColor: '#42a5f5',
+        editorBackground: '#0d2f63',
+        toolbarBackground: '#1d56a7',
+        toolbarIconColor: '#ffffff',
+        toolbarActiveBackground: '#7fb0ff',
+        toolbarActiveTextColor: '#062650',
+        footerBackground: '#0f3f88',
+        applyButtonBackground: '#7fb0ff',
+        applyButtonTextColor: '#09284d'
       },
       green: {
-        headerBackground: '#2e7d32',
+        headerBackground: '#1f5d4d',
         headerTextColor: '#ffffff',
-        editorBackground: '#1b5e20',
-        toolbarBackground: '#388e3c',
-        toolbarActiveBackground: '#4a90d9',
-        toolbarActiveTextColor: '#ffffff',
-        footerBackground: '#2e7d32',
-        applyButtonBackground: '#66bb6a',
-        applyButtonBorderColor: '#66bb6a',
-      },
+        editorBackground: '#123d34',
+        toolbarBackground: '#2c7c68',
+        toolbarIconColor: '#ffffff',
+        toolbarActiveBackground: '#78c2ab',
+        toolbarActiveTextColor: '#10372f',
+        footerBackground: '#1f5d4d',
+        applyButtonBackground: '#78c2ab',
+        applyButtonTextColor: '#10372f'
+      }
     };
 
-    let selectedTheme = 'dark';
+    const SAMPLE_CANDIDATES = ['sample.png', 'sample.jpg', 'sample.jpeg', 'sample.webp'];
+    const state = {
+      selectedTheme: 'light',
+      exportFormat: 'jpeg',
+      brushColor: '#2f6fde',
+      disableFilters: false
+    };
 
-    // Theme selector buttons
-    document.querySelectorAll('.theme-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        selectedTheme = btn.dataset.theme;
-      });
-    });
+    const demoStatus = document.getElementById('demoStatus');
+    const imageInput = document.getElementById('imageInput');
+    const heroPreviewImage = document.getElementById('heroPreviewImage');
+    const annotationOriginalImage = document.getElementById('annotationOriginalImage');
+    const annotationAnnotatedImage = document.getElementById('annotationAnnotatedImage');
+    const useCaseImages = Array.from(document.querySelectorAll('.use-case-image'));
+    const featureShowcaseImages = Array.from(document.querySelectorAll('.feature-showcase-image'));
+    const heroPreviewLaunch = document.getElementById('heroPreviewLaunch');
+    const defaultPreview = document.getElementById('defaultPreview');
+    const defaultPreviewImage = document.getElementById('defaultPreviewImage');
+    const resultPanel = document.getElementById('resultPanel');
+    const resultImage = document.getElementById('resultImage');
+    const resultMeta = document.getElementById('resultMeta');
 
-    // File input handler
-    document.getElementById('imageInput').addEventListener('change', async (e) => {
-      const input = e.target;
-      const files = Array.from(input.files || []);
+    function setStatus(text) {
+      demoStatus.textContent = text;
+    }
+
+    function getEditorConfig(index, total) {
+      const disabledFeatures = state.disableFilters ? ['filters'] : [];
+      return {
+        exportFormat: state.exportFormat,
+        defaultBrushColor: state.brushColor,
+        defaultTextColor: state.brushColor,
+        defaultShapeColor: state.brushColor,
+        disabledFeatures,
+        currentImageIndex: index,
+        totalImages: total,
+        theme: {
+          ...themes[state.selectedTheme],
+          modalMaxWidth: '1240px',
+          modalHeight: 'min(86vh, 760px)',
+          headerTitle: 'rp-image-editor Demo',
+          cancelButtonText: 'Close',
+          applyButtonText: 'Apply'
+        }
+      };
+    }
+
+    function renderResult(result, editedCount, total) {
+      defaultPreview.classList.add('hidden');
+      resultPanel.classList.add('visible');
+      resultImage.src = result.base64;
+      resultMeta.innerHTML = [
+        '<div class="result-meta-item"><strong>Batch</strong><br>' + editedCount + '/' + total + ' edited</div>',
+        '<div class="result-meta-item"><strong>Dimensions</strong><br>' + result.width + ' x ' + result.height + '</div>',
+        '<div class="result-meta-item"><strong>Format</strong><br>' + result.format.toUpperCase() + '</div>',
+        '<div class="result-meta-item"><strong>File Size</strong><br>' + (result.blob.size / 1024).toFixed(1) + ' KB</div>'
+      ].join('');
+    }
+
+    async function fetchSampleFile() {
+      for (const name of SAMPLE_CANDIDATES) {
+        try {
+          const response = await fetch(name, { cache: 'no-cache' });
+          if (!response.ok) continue;
+          const blob = await response.blob();
+          const ext = name.split('.').pop();
+          const type = blob.type || (ext === 'jpg' ? 'image/jpeg' : 'image/' + ext);
+          return new File([blob], name, { type });
+        } catch {
+          // try next sample candidate
+        }
+      }
+      throw new Error('No sample image found.');
+    }
+
+    async function runDemoBatch(files) {
       if (!files.length) return;
-
-      const batchInfo = document.getElementById('batchInfo');
       const total = files.length;
       let editedCount = 0;
       let lastResult = null;
+      imageInput.disabled = true;
 
-      input.disabled = true;
-      batchInfo.textContent = `Opening ${total} image${total > 1 ? 's' : ''}...`;
+      setStatus('Opening ' + total + ' image' + (total > 1 ? 's' : '') + '...');
 
       try {
-        for (let i = 0; i < total; i++) {
+        for (let i = 0; i < total; i += 1) {
           const file = files[i];
-          batchInfo.textContent = `Editing image ${i + 1} of ${total}: ${file.name}`;
-
+          setStatus('Editing image ' + (i + 1) + ' of ' + total + ': ' + file.name);
           const result = await openEditorModal({
             image: file,
-            config: {
-              theme: {
-                ...themes[selectedTheme],
-                headerTitle: 'Photo Editor',
-              },
-              currentImageIndex: i + 1,
-              totalImages: total,
-            },
+            config: getEditorConfig(i + 1, total)
           });
 
           if (result) {
             editedCount += 1;
             lastResult = result;
-            console.log(`Edit result [${i + 1}/${total}]:`, result);
-            console.log('File object (for upload):', result.file);
-          } else {
-            console.log(`Editor cancelled [${i + 1}/${total}]`);
           }
         }
 
         if (lastResult) {
-          // Show result preview (last edited image)
-          const preview = document.getElementById('resultPreview');
-          const img = document.getElementById('resultImage');
-          const info = document.getElementById('resultInfo');
-
-          preview.style.display = 'block';
-          img.src = lastResult.base64;
-          info.textContent = `${lastResult.width}×${lastResult.height} | ${lastResult.format.toUpperCase()} | ${(lastResult.blob.size / 1024).toFixed(1)} KB | Edited ${editedCount}/${total}`;
+          renderResult(lastResult, editedCount, total);
+          setStatus('Done. Edited ' + editedCount + ' of ' + total + ' image' + (total > 1 ? 's' : '') + '.');
         } else {
-          console.log('All images were cancelled');
+          setStatus('Editor closed without saved output.');
         }
-
-        batchInfo.textContent = `Done: edited ${editedCount} of ${total} image${total > 1 ? 's' : ''}.`;
-      } catch (err) {
-        console.error('Editor error:', err);
-        batchInfo.textContent = 'Error while editing. Check console for details.';
+      } catch (error) {
+        console.error('Demo error:', error);
+        setStatus('Error while opening the editor. Check console for details.');
       } finally {
-        input.disabled = false;
+        imageInput.disabled = false;
+        imageInput.value = '';
       }
+    }
 
-      // Reset input so same file can be selected again
-      input.value = '';
+    async function openSampleDemo() {
+      try {
+        setStatus('Loading sample image...');
+        const sampleFile = await fetchSampleFile();
+        await runDemoBatch([sampleFile]);
+      } catch (error) {
+        console.warn('[demo] sample image unavailable', error);
+        setStatus('Sample image not found. Please upload your own image.');
+      }
+    }
+
+    async function loadDefaultPreviewImage() {
+      try {
+        const sampleFile = await fetchSampleFile();
+        const objectUrl = URL.createObjectURL(sampleFile);
+        defaultPreviewImage.src = objectUrl;
+        heroPreviewImage.src = objectUrl;
+        if (annotationOriginalImage) annotationOriginalImage.src = objectUrl;
+        if (annotationAnnotatedImage) annotationAnnotatedImage.src = objectUrl;
+        useCaseImages.forEach((img) => { img.src = objectUrl; });
+        featureShowcaseImages.forEach((img) => { img.src = objectUrl; });
+        setStatus('Ready. Explore the page, then launch the sample editor anytime.');
+      } catch (error) {
+        console.warn('[demo] default preview unavailable', error);
+        defaultPreview.classList.add('hidden');
+        if (heroPreviewImage) heroPreviewImage.removeAttribute('src');
+        if (annotationOriginalImage) annotationOriginalImage.removeAttribute('src');
+        if (annotationAnnotatedImage) annotationAnnotatedImage.removeAttribute('src');
+        useCaseImages.forEach((img) => { img.removeAttribute('src'); });
+        featureShowcaseImages.forEach((img) => { img.removeAttribute('src'); });
+        setStatus('Ready. Upload your own image to start the editor.');
+      }
+    }
+
+    document.getElementById('chooseImagesBtn').addEventListener('click', () => {
+      imageInput.click();
     });
+
+    imageInput.addEventListener('change', (event) => {
+      const files = Array.from(event.target.files || []);
+      runDemoBatch(files);
+    });
+
+    document.getElementById('trySampleBtn').addEventListener('click', openSampleDemo);
+
+    document.getElementById('heroTryDemo').addEventListener('click', () => {
+      setTimeout(openSampleDemo, 250);
+    });
+
+    if (heroPreviewLaunch) {
+      heroPreviewLaunch.addEventListener('click', () => {
+        setTimeout(openSampleDemo, 250);
+      });
+    }
+
+    document.getElementById('exportFormatSelect').addEventListener('change', (event) => {
+      state.exportFormat = event.target.value;
+      setStatus('Config updated: export format set to ' + state.exportFormat + '.');
+    });
+
+    document.getElementById('brushColorInput').addEventListener('input', (event) => {
+      state.brushColor = event.target.value;
+      setStatus('Config updated: brush color changed.');
+    });
+
+    document.getElementById('disableFiltersInput').addEventListener('change', (event) => {
+      state.disableFilters = event.target.checked;
+      setStatus('Config updated: filters ' + (state.disableFilters ? 'disabled' : 'enabled') + '.');
+    });
+
+    document.querySelectorAll('.theme-pill').forEach((button) => {
+      button.addEventListener('click', () => {
+        document.querySelectorAll('.theme-pill').forEach((pill) => pill.classList.remove('active'));
+        button.classList.add('active');
+        state.selectedTheme = button.dataset.theme;
+        setStatus('Theme set to ' + state.selectedTheme + '.');
+      });
+    });
+
+    document.querySelectorAll('[data-copy-target]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const targetId = button.getAttribute('data-copy-target');
+        const target = document.getElementById(targetId);
+        if (!target) return;
+
+        try {
+          await navigator.clipboard.writeText(target.textContent.trim());
+          const previous = button.textContent;
+          button.textContent = 'Copied';
+          setTimeout(() => {
+            button.textContent = previous;
+          }, 1500);
+        } catch (error) {
+          console.warn('Clipboard copy failed', error);
+          button.textContent = 'Copy failed';
+          setTimeout(() => {
+            button.textContent = 'Copy';
+          }, 1500);
+        }
+      });
+    });
+
+    const navToggle = document.getElementById('navToggle');
+    const mainNav = document.getElementById('mainNav');
+    navToggle.addEventListener('click', () => {
+      const expanded = navToggle.getAttribute('aria-expanded') === 'true';
+      navToggle.setAttribute('aria-expanded', String(!expanded));
+      mainNav.classList.toggle('open');
+    });
+
+    mainNav.querySelectorAll('a').forEach((link) => {
+      link.addEventListener('click', () => {
+        mainNav.classList.remove('open');
+        navToggle.setAttribute('aria-expanded', 'false');
+      });
+    });
+
+    document.querySelectorAll('.tab-button').forEach((button) => {
+      button.addEventListener('click', () => {
+        const tab = button.dataset.tab;
+        document.querySelectorAll('.tab-button').forEach((btn) => {
+          const selected = btn === button;
+          btn.classList.toggle('active', selected);
+          btn.setAttribute('aria-selected', String(selected));
+        });
+
+        document.querySelectorAll('.tab-panel').forEach((panel) => {
+          panel.classList.toggle('active', panel.id === 'tab-' + tab);
+        });
+      });
+    });
+
+    const copyActiveSnippetBtn = document.getElementById('copyActiveSnippet');
+    if (copyActiveSnippetBtn) {
+      copyActiveSnippetBtn.addEventListener('click', async () => {
+        const activePanel = document.querySelector('.tab-panel.active code');
+        if (!activePanel) return;
+        try {
+          await navigator.clipboard.writeText(activePanel.textContent.trim());
+          const prev = copyActiveSnippetBtn.textContent;
+          copyActiveSnippetBtn.textContent = 'Copied!';
+          setTimeout(() => {
+            copyActiveSnippetBtn.textContent = prev;
+          }, 1500);
+        } catch (error) {
+          console.warn('Snippet copy failed', error);
+          copyActiveSnippetBtn.textContent = 'Copy failed';
+          setTimeout(() => {
+            copyActiveSnippetBtn.textContent = 'Copy Example';
+          }, 1500);
+        }
+      });
+    }
+
+    const revealItems = document.querySelectorAll('.reveal');
+    if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('in-view');
+            observer.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.2 });
+
+      revealItems.forEach((element) => observer.observe(element));
+    } else {
+      revealItems.forEach((element) => element.classList.add('in-view'));
+    }
+
+    document.getElementById('currentYear').textContent = String(new Date().getFullYear());
+
+    window.addEventListener('load', loadDefaultPreviewImage);
   </script>
 </body>
 </html>
