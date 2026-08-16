@@ -2064,7 +2064,7 @@
       border-color: rgba(255, 255, 255, 0.45);
     }
 
-    footer {
+    .site-footer {
       margin-top: 84px;
       border-top: 1px solid #d5e0f2;
       background: #f8faff;
@@ -3093,7 +3093,7 @@ async function onFileSelected(file: File) {
     </section>
   </main>
 
-  <footer>
+  <footer class="site-footer">
     <div class="container footer-grid">
       <div>
         <p class="brand"><span class="brand-mark" aria-hidden="true"></span><span>rp-image-editor</span></p>
@@ -3210,8 +3210,6 @@ async function onFileSelected(file: File) {
         totalImages: total,
         theme: {
           ...themes[state.selectedTheme],
-          modalMaxWidth: '1240px',
-          modalHeight: 'min(86vh, 760px)',
           headerTitle: 'rp-image-editor Demo',
           cancelButtonText: 'Close',
           applyButtonText: 'Apply'
