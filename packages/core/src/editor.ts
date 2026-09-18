@@ -172,6 +172,50 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     });
   }
 
+  /**
+   * Return the visible geometry bounds for an annotation.
+   *
+   * rpArrow and rpPolyline store their actual geometry separately from the
+   * padded Fabric bbox used for hit-testing, so we need to measure those
+   * shapes from their endpoints / vertices directly.
+   */
+  private getAnnotationGeometryBounds(
+    obj: fabric.Object,
+  ): { left: number; top: number; width: number; height: number } {
+    const anyObj = obj as any;
+    if (obj.type === 'rpArrow' && typeof anyObj.x1 === 'number' && typeof anyObj.x2 === 'number') {
+      const left = Math.min(anyObj.x1, anyObj.x2);
+      const top = Math.min(anyObj.y1, anyObj.y2);
+      return {
+        left,
+        top,
+        width: Math.max(Math.abs(anyObj.x2 - anyObj.x1), 1),
+        height: Math.max(Math.abs(anyObj.y2 - anyObj.y1), 1),
+      };
+    }
+
+    if (obj.type === 'rpPolyline' && Array.isArray(anyObj.points) && anyObj.points.length > 0) {
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const point of anyObj.points) {
+        if (point.x < minX) minX = point.x;
+        if (point.y < minY) minY = point.y;
+        if (point.x > maxX) maxX = point.x;
+        if (point.y > maxY) maxY = point.y;
+      }
+      return {
+        left: minX,
+        top: minY,
+        width: Math.max(maxX - minX, 1),
+        height: Math.max(maxY - minY, 1),
+      };
+    }
+
+    return obj.getBoundingRect(true, true);
+  }
+
   /** Rebuild clip-paths for all annotations so they behave like image content. */
   private refreshAnnotationClipPaths(): void {
     if (!this.fabricCanvas) return;
@@ -199,7 +243,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   private intersectsImageBounds(obj: fabric.Object): boolean {
     const b = this.getImageAnnotationBounds();
     if (!b) return true;
-    const r = obj.getBoundingRect(true, true);
+    const r = this.getAnnotationGeometryBounds(obj);
     return !(
       r.left + r.width < b.left ||
       r.left > b.right ||
@@ -213,12 +257,16 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     if (!obj || !this.baseImage) return;
     const anyObj = obj as any;
     if (anyObj._rpBaseImage) return;
-    if (anyObj._rpType === 'callout-border' || anyObj._rpType === 'callout-tail') return;
+    // Callouts are multi-part annotations (box, border, label, anchor, tail)
+    // whose bounds are managed as a unit by the CalloutModule. Translating a
+    // single part here (e.g. the box) would desync it from the others, leaving
+    // the dashed border floating away from the box. Let the module handle it.
+    if (anyObj.calloutId != null) return;
 
     const b = this.getImageAnnotationBounds();
     if (!b) return;
 
-    const r = obj.getBoundingRect(true, true);
+    const r = this.getAnnotationGeometryBounds(obj);
     let dx = 0;
     let dy = 0;
     if (r.left < b.left) dx = b.left - r.left;
@@ -273,7 +321,9 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     if (!obj) return;
     const anyObj = obj as any;
     if (anyObj._rpBaseImage) return;
-    if (anyObj._rpType === 'callout-border' || anyObj._rpType === 'callout-tail') return;
+    // Callout parts are kept in sync by the CalloutModule; capping the box
+    // scale here would desync its border/label/anchor. Let the module manage it.
+    if (anyObj.calloutId != null) return;
     // Arrows / polylines are reshaped through their own endpoint controls,
     // which clamp each point directly — they don't use box scaling.
     if (obj.type === 'rpArrow' || obj.type === 'rpPolyline') return;
@@ -1557,7 +1607,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     // Listen for text editing completion
     this.fabricCanvas.on('text:editing:entered', (e: any) => {
       const tgt = e?.target as any;
-      if (!tgt || tgt.type !== 'i-text') return;
+      if (!tgt || (tgt.type !== 'i-text' && tgt.type !== 'textbox')) return;
 
       const host = this.textInputHostEl || this.container;
       if (host) {
@@ -1622,9 +1672,9 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
         tgt.objectCaching = false;
       }
 
-      // Ensure all i-text objects (including undo/redo rehydration) are
-      // configured to create their hidden textarea in our isolated host.
-      if (tgt.type === 'i-text') {
+      // Ensure all i-text / textbox objects (including undo/redo rehydration)
+      // are configured to create their hidden textarea in our isolated host.
+      if (tgt.type === 'i-text' || tgt.type === 'textbox') {
         const host = this.textInputHostEl || this.container;
         if (host) {
           tgt.hiddenTextareaContainer = host;
@@ -1758,7 +1808,10 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       // When Fabric IText is in editing mode, keystrokes should update text,
       // not trigger global editor shortcuts.
       const active = this.fabricCanvas?.getActiveObject() as any;
-      if (active?.type === 'i-text' && active?.isEditing) {
+      if (
+        (active?.type === 'i-text' || active?.type === 'textbox') &&
+        active?.isEditing
+      ) {
         return;
       }
 

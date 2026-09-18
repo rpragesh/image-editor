@@ -6,15 +6,16 @@
  *   1. tailImage  — filled triangle rendered via off-screen canvas
  *   2. bgRect     — colored rounded rectangle behind the text
  *   3. border     — dashed selection border around bgRect
- *   4. label      — fabric.IText so the user can click (desktop) or
- *                   double-tap (mobile) to edit inline
+ *   4. label      — fabric.Textbox so the user can click (desktop) or
+ *                   double-tap (mobile) to edit inline. It auto-wraps at a
+ *                   fixed width so the font size stays constant.
  *   5. anchor     — small draggable circle at the tail tip
  *
  * Moving the rect drags border + label along and redraws the tail.
  * Moving the anchor redraws only the tail.
- * Text constraints (max 40 chars, word-wrap at ~15 chars) are enforced
- * when the user finishes editing.
- * The box cannot be resized smaller than the label's natural size + minimum padding.
+ * While typing the font size never changes: the box grows to fit the text up
+ * to a maximum width/height, then the text wraps and (if still too big) is
+ * truncated with an ellipsis. A hard cap of 40 characters is always enforced.
  */
 import { fabric } from 'fabric';
 
@@ -38,7 +39,7 @@ interface CalloutHandle {
   calloutId: number;
   bgRect: fabric.Rect;
   border: fabric.Rect;
-  label: fabric.IText;
+  label: fabric.Textbox;
   anchor: fabric.Circle;
   tailCanvas: HTMLCanvasElement;
   tailImage: fabric.Image;
@@ -49,6 +50,49 @@ interface CalloutHandle {
   labelNaturalW: number;
   /** Intrinsic (unscaled) label height */
   labelNaturalH: number;
+  /** Anchor position stored in the bgRect's local space */
+  anchorLocalX: number;
+  anchorLocalY: number;
+}
+
+function toLocalPoint(
+  x: number,
+  y: number,
+  centerX: number,
+  centerY: number,
+  angleDeg: number,
+  scaleX: number,
+  scaleY: number,
+): { x: number; y: number } {
+  const angleRad = (angleDeg * Math.PI) / 180;
+  const dx = x - centerX;
+  const dy = y - centerY;
+  const cos = Math.cos(-angleRad);
+  const sin = Math.sin(-angleRad);
+  return {
+    x: (dx * cos - dy * sin) / (scaleX || 1),
+    y: (dx * sin + dy * cos) / (scaleY || 1),
+  };
+}
+
+function toCanvasPoint(
+  localX: number,
+  localY: number,
+  centerX: number,
+  centerY: number,
+  angleDeg: number,
+  scaleX: number,
+  scaleY: number,
+): { x: number; y: number } {
+  const angleRad = (angleDeg * Math.PI) / 180;
+  const sx = localX * (scaleX || 1);
+  const sy = localY * (scaleY || 1);
+  const cos = Math.cos(angleRad);
+  const sin = Math.sin(angleRad);
+  return {
+    x: centerX + sx * cos - sy * sin,
+    y: centerY + sx * sin + sy * cos,
+  };
 }
 
 export class CalloutModule {
@@ -67,6 +111,10 @@ export class CalloutModule {
   private calloutLineBreakAt = 15;
   /** Initial text used for newly-placed callouts */
   private defaultText = 'Label';
+  /** Smallest allowed inner (text) width for the label, in px */
+  private minLabelInnerW = 24;
+  /** Reusable 2D context for measuring text width */
+  private measureCtx: CanvasRenderingContext2D | null = null;
   private boundsProvider:
     | (() => { left: number; top: number; right: number; bottom: number } | null)
     | null = null;
@@ -205,13 +253,6 @@ export class CalloutModule {
     h.bgRect.setCoords();
 
     this.syncBoxParts(h);
-
-    const clampedAnchor = this.clampPointToBounds(
-      h.anchor.left || 0,
-      h.anchor.top || 0,
-    );
-    h.anchor.set({ left: clampedAnchor.x, top: clampedAnchor.y });
-    h.anchor.setCoords();
   }
 
   /**
@@ -251,7 +292,7 @@ export class CalloutModule {
           slot.border = obj as fabric.Rect;
           break;
         case 'label':
-          slot.label = obj as fabric.IText;
+          slot.label = obj as fabric.Textbox;
           break;
         case 'anchor':
           slot.anchor = obj as fabric.Circle;
@@ -285,6 +326,16 @@ export class CalloutModule {
       const rectH = (bgRect.height || 0) * (bgRect.scaleY || 1);
       const paddingH = Math.max(0, (rectW - textW) / 2);
       const paddingV = Math.max(0, (rectH - textH) / 2);
+      const center = bgRect.getCenterPoint();
+      const localAnchor = toLocalPoint(
+        anchor.left || 0,
+        anchor.top || 0,
+        center.x,
+        center.y,
+        bgRect.angle || 0,
+        bgRect.scaleX || 1,
+        bgRect.scaleY || 1,
+      );
 
       const handle: CalloutHandle = {
         calloutId: id,
@@ -299,6 +350,8 @@ export class CalloutModule {
         paddingV,
         labelNaturalW: textW,
         labelNaturalH: textH,
+        anchorLocalX: localAnchor.x,
+        anchorLocalY: localAnchor.y,
       };
 
       this.enforceCalloutPartLocks(handle);
@@ -383,7 +436,7 @@ export class CalloutModule {
 
   /**
    * Remove all fabric objects belonging to a callout (tail, border, box,
-   * label, anchor) and drop the internal handle. Returns true if a
+    * label, anchor) and drop the internal handle. Returns true if a
    * callout with that id was found and removed.
    */
   removeCalloutById(id: number): boolean {
@@ -500,18 +553,18 @@ export class CalloutModule {
     const textColor = opts?.textColor || this.calloutTextColor;
     const fontSize = opts?.fontSize || this.fontSize;
     const rawText = opts?.text || this.defaultText;
-    const labelText = this.formatCalloutText(
+    const cappedText = this.constrainText(
       rawText,
-      opts?.maxChars,
-      opts?.lineBreakAt,
+      opts?.maxChars ?? this.calloutMaxChars,
     );
 
     const id = ++this.calloutCounter;
     const paddingH = 22;
     const paddingV = 14;
 
-    // ── 1. Editable label (IText) — measure first ──
-    const label = new fabric.IText(labelText, {
+    // ── 1. Editable label (Textbox) — auto-wraps within a fixed width so the
+    // font size stays constant and the box grows to fit instead of shrinking.
+    const label = new fabric.Textbox(cappedText, {
       fontSize,
       fontFamily: 'Arial, Helvetica, sans-serif',
       fontWeight: '600',
@@ -520,6 +573,8 @@ export class CalloutModule {
       originY: 'top',
       left: 0,
       top: 0,
+      width: 10,
+      splitByGrapheme: true,
       selectable: false,
       evented: false,
       editable: true,
@@ -529,6 +584,16 @@ export class CalloutModule {
     (label as any)._rpType = 'callout-label';
     (label as any).calloutId = id;
     (label as any).calloutRole = 'label';
+
+    // Size the label width to the text's natural (single-line) width, capped
+    // at the maximum inner width so long text wraps instead of overflowing.
+    const maxDims = this.getMaxBoxDims();
+    const measuredW = this.measureTextWidth(label, cappedText) + 2;
+    const innerW = Math.min(
+      maxDims.maxW - paddingH * 2,
+      Math.max(this.minLabelInnerW, measuredW),
+    );
+    label.set({ width: innerW });
 
     const textW = label.getScaledWidth();
     const textH = label.getScaledHeight();
@@ -558,7 +623,8 @@ export class CalloutModule {
       cornerStyle: 'circle',
       cornerSize: 8,
       transparentCorners: false,
-      lockRotation: true,
+      lockRotation: false,
+      hasRotatingPoint: true,
       hoverCursor: 'move',
       shadow: new fabric.Shadow({
         color: 'rgba(0,0,0,0.25)',
@@ -575,8 +641,8 @@ export class CalloutModule {
     // ── 3. Dashed border ──
     const borderPad = 3;
     const border = new fabric.Rect({
-      left: boxLeft - borderPad,
-      top: boxTop - borderPad,
+      left: boxLeft + rectW / 2,
+      top: boxTop + rectH / 2,
       width: rectW + borderPad * 2,
       height: rectH + borderPad * 2,
       fill: 'transparent',
@@ -585,8 +651,8 @@ export class CalloutModule {
       strokeWidth: 1.5,
       rx: 5,
       ry: 5,
-      originX: 'left',
-      originY: 'top',
+      originX: 'center',
+      originY: 'center',
       selectable: false,
       evented: false,
       visible: false,
@@ -646,6 +712,16 @@ export class CalloutModule {
     (tailImage as any).calloutRole = 'tail';
 
     // ── Build handle ──
+    const center = bgRect.getCenterPoint();
+    const localAnchor = toLocalPoint(
+      anchor.left || 0,
+      anchor.top || 0,
+      center.x,
+      center.y,
+      bgRect.angle || 0,
+      bgRect.scaleX || 1,
+      bgRect.scaleY || 1,
+    );
     const handle: CalloutHandle = {
       calloutId: id,
       bgRect,
@@ -659,6 +735,8 @@ export class CalloutModule {
       paddingV,
       labelNaturalW: textW,
       labelNaturalH: textH,
+      anchorLocalX: localAnchor.x,
+      anchorLocalY: localAnchor.y,
     };
     this.callouts.push(handle);
 
@@ -694,22 +772,33 @@ export class CalloutModule {
       evented: true,
       hasControls: true,
       hasBorders: false,
-      lockRotation: true,
+      lockRotation: false,
+      hasRotatingPoint: true,
       hoverCursor: 'move',
+      // Corner styling is not serialized by fabric's toObject(), so after a
+      // JSON round-trip (undo/redo) it would revert to the default square,
+      // transparent corners. Re-apply the same styling used in addCallout so
+      // the selection handles look identical to when the callout was created.
+      cornerColor: '#0ea5e9',
+      cornerStyle: 'circle',
+      cornerSize: 8,
+      transparentCorners: false,
     });
 
     h.border.set({
       selectable: false,
       evented: false,
       visible: false,
+      originX: 'center',
+      originY: 'center',
     });
 
     h.label.set({
       selectable: false,
       evented: false,
       editable: true,
-      originX: 'left',
-      originY: 'top',
+      originX: 'center',
+      originY: 'center',
     });
 
     h.anchor.set({
@@ -745,6 +834,8 @@ export class CalloutModule {
 
     bgRect.off('moving');
     bgRect.off('scaling');
+    bgRect.off('rotating');
+    bgRect.off('modified');
     anchor.off('moving');
     label.off('changed');
     bgRect.off('mousedblclick');
@@ -770,16 +861,43 @@ export class CalloutModule {
       this.redrawTail(handle);
     });
 
+    bgRect.on('rotating', () => {
+      this.syncBoxParts(handle);
+      this.redrawTail(handle);
+    });
+
+    bgRect.on('modified', () => {
+      this.clampCalloutIntoBounds(handle);
+      this.syncBoxParts(handle);
+      this.redrawTail(handle);
+    });
+
     anchor.on('moving', () => {
       const p = this.clampPointToBounds(anchor.left || 0, anchor.top || 0);
       anchor.set({ left: p.x, top: p.y });
       anchor.setCoords();
+      const center = bgRect.getCenterPoint();
+      const local = toLocalPoint(
+        p.x,
+        p.y,
+        center.x,
+        center.y,
+        bgRect.angle || 0,
+        bgRect.scaleX || 1,
+        bgRect.scaleY || 1,
+      );
+      handle.anchorLocalX = local.x;
+      handle.anchorLocalY = local.y;
       this.redrawTail(handle);
     });
 
     label.on('changed', () => {
-      this.resizeBoxToFitLabel(handle);
-      this.redrawTail(handle);
+      // Hard-cap the character count, then grow the box to fit the text at a
+      // constant font size (wrapping once the max width is reached). The box
+      // centre and rotation never move, so typing can't nudge the callout.
+      this.enforceMaxLength(handle);
+      this.growBoxToLabel(handle);
+      this.canvas.requestRenderAll();
     });
 
     bgRect.on('mousedblclick', () => {
@@ -891,6 +1009,136 @@ export class CalloutModule {
     );
   }
 
+  /**
+   * Enforce the hard character limit while the user is actively typing.
+   * When the text exceeds `calloutMaxChars`, the just-inserted overflow
+   * characters (immediately before the caret) are removed and the caret is
+   * kept stable, so no further input is accepted once the limit is reached.
+   */
+  private enforceMaxLength(h: CalloutHandle): void {
+    const label = h.label as any;
+    const max = this.calloutMaxChars;
+    const text: string = label.text || '';
+    if (text.length <= max) return;
+
+    const overflow = text.length - max;
+    const caret: number =
+      typeof label.selectionStart === 'number'
+        ? label.selectionStart
+        : text.length;
+    // Drop the overflow characters that sit just before the caret (the ones
+    // the user just typed or pasted) rather than trimming the tail, so any
+    // existing text after the caret and the caret position stay intact.
+    const removeStart = Math.max(0, caret - overflow);
+    const newText = text.slice(0, removeStart) + text.slice(caret);
+
+    label.set({ text: newText });
+    label.selectionStart = removeStart;
+    label.selectionEnd = removeStart;
+    if (label.hiddenTextarea) {
+      label.hiddenTextarea.value = newText;
+    }
+    label._updateTextarea?.();
+  }
+
+  /**
+   * Reasonable maximum box dimensions (in canvas px). The box grows with the
+   * text up to these limits; beyond them the text wraps / is ellipsized rather
+   * than the box growing without bound. Bounded by the placement area (image)
+   * when available so a callout never exceeds the image.
+   */
+  private getMaxBoxDims(): { maxW: number; maxH: number } {
+    const b = this.getBounds();
+    const areaW = b ? b.right - b.left : this.canvas.getWidth();
+    const areaH = b ? b.bottom - b.top : this.canvas.getHeight();
+    const maxW = Math.max(140, Math.min(360, areaW * 0.85));
+    const maxH = Math.max(90, Math.min(220, areaH * 0.85));
+    return { maxW, maxH };
+  }
+
+  /** Build a CSS font string matching the label, for text measurement. */
+  private labelFontString(label: fabric.Textbox): string {
+    const style = (label as any).fontStyle || 'normal';
+    const weight = (label as any).fontWeight || 'normal';
+    const size = label.fontSize || 20;
+    const family = label.fontFamily || 'Arial';
+    return `${style} ${weight} ${size}px ${family}`;
+  }
+
+  /** Measure the unwrapped width of `text` at the label's current font. */
+  private measureTextWidth(label: fabric.Textbox, text: string): number {
+    if (!this.measureCtx) {
+      this.measureCtx = document.createElement('canvas').getContext('2d');
+    }
+    if (!this.measureCtx) return text.length * (label.fontSize || 20) * 0.6;
+    this.measureCtx.font = this.labelFontString(label);
+    return this.measureCtx.measureText(text).width;
+  }
+
+  /**
+   * Grow (or shrink) the box to fit the current label text while keeping the
+   * font size constant. Width follows the text up to a maximum, after which
+   * the Textbox wraps; height follows the wrapped text up to a maximum. The
+   * box centre, rotation and font size never change from typing, so a rotated
+   * callout stays perfectly still while editing.
+   */
+  private growBoxToLabel(h: CalloutHandle): void {
+    const { bgRect, label, paddingH, paddingV } = h;
+
+    label.set({ scaleX: 1, scaleY: 1 });
+
+    const raw = (label.text || '').replace(/\n/g, ' ');
+    const { maxW, maxH } = this.getMaxBoxDims();
+    const maxInnerW = Math.max(1, maxW - paddingH * 2);
+
+    const measuredW = this.measureTextWidth(label, raw) + 2;
+    const innerW = Math.min(maxInnerW, Math.max(this.minLabelInnerW, measuredW));
+    label.set({ width: innerW });
+
+    const innerH =
+      typeof (label as any).calcTextHeight === 'function'
+        ? (label as any).calcTextHeight()
+        : label.getScaledHeight();
+
+    const newW = innerW + paddingH * 2;
+    const newH = Math.min(maxH, innerH + paddingV * 2);
+
+    const center = bgRect.getCenterPoint();
+    bgRect.set({ width: newW, height: newH, scaleX: 1, scaleY: 1 });
+    bgRect.setPositionByOrigin(center, 'center', 'center');
+    bgRect.setCoords();
+
+    h.labelNaturalW = label.getScaledWidth();
+    h.labelNaturalH = label.getScaledHeight();
+
+    this.syncBoxParts(h);
+    this.redrawTail(h);
+  }
+
+  /**
+   * If the wrapped text is taller than the (capped) box, trim trailing
+   * characters and append an ellipsis until it fits. Only used on commit —
+   * never mid-keystroke — so it can safely mutate the text.
+   */
+  private applyEllipsisIfOverflow(h: CalloutHandle): void {
+    const { bgRect, label, paddingV } = h;
+    const innerH = (bgRect.height || 0) * (bgRect.scaleY || 1) - paddingV * 2;
+    const fits = () =>
+      (typeof (label as any).calcTextHeight === 'function'
+        ? (label as any).calcTextHeight()
+        : label.getScaledHeight()) <= innerH;
+
+    if (fits()) return;
+
+    let text = (label.text || '').replace(/\s+$/, '');
+    let guard = 0;
+    while (text.length > 1 && guard++ < 500) {
+      text = text.slice(0, -1);
+      label.set({ text: text.replace(/\s+$/, '') + '...' });
+      if (fits()) break;
+    }
+  }
+
   /* ═══════════════ editing helpers ═══════════════════ */
 
   /** Focus the label IText and enter inline editing mode */
@@ -907,22 +1155,19 @@ export class CalloutModule {
   /** Called when the user finishes editing — enforce constraints, resize, re-lock label */
   private onLabelEditingExited(h: CalloutHandle): void {
     const raw = h.label.text || '';
-    const formatted = this.formatCalloutText(raw);
-
-    // Apply constrained text back (may differ from what user typed)
-    if (formatted !== raw) {
-      h.label.set({ text: formatted });
+    // Enforce the hard character cap; the Textbox handles wrapping, so no
+    // manual line breaks are inserted.
+    const capped = this.constrainText(raw, this.calloutMaxChars);
+    if (capped !== raw) {
+      h.label.set({ text: capped });
     }
-
-    // Reset label scale to 1 so natural dimensions are correct
     h.label.set({ scaleX: 1, scaleY: 1 });
 
-    // Update cached intrinsic dimensions
-    h.labelNaturalW = h.label.getScaledWidth();
-    h.labelNaturalH = h.label.getScaledHeight();
-
-    // Resize box to fit new text
-    this.resizeBoxToFitLabel(h);
+    // Size the box to the final text (up to the maximum). If the text is still
+    // too tall for the capped box, truncate it with an ellipsis and re-size.
+    this.growBoxToLabel(h);
+    this.applyEllipsisIfOverflow(h);
+    this.growBoxToLabel(h);
     this.redrawTail(h);
 
     // Lock label again — it should only be interactable via bgRect selection
@@ -942,25 +1187,72 @@ export class CalloutModule {
 
   /* ═══════════════ private geometry helpers ═══════════════════ */
 
-  /** Prevent the box from being resized smaller than the label's natural size + minimum padding */
+  /**
+   * Clamp the box during resize so the text is always fully contained.
+   *
+   * The font size stays constant, so the text re-wraps as the box width
+   * changes. This computes content-aware minimum/maximum dimensions:
+   *   • Minimum width  — wide enough for the longest single word (never clips
+   *     horizontally) and at least a readable minimum.
+   *   • Maximum width  — the placement-area-bounded cap from getMaxBoxDims.
+   *   • Height         — for the (clamped) width, the box must be at least tall
+   *     enough to contain every wrapped line (+padding); capped at the maximum
+   *     height. If the text can't fit within the max height at the chosen
+   *     width, the box is widened (up to the max width) to reduce wrapping
+   *     before, as a last resort, being allowed to grow past the max height.
+   */
   private clampBoxSize(h: CalloutHandle): void {
-    const { bgRect } = h;
-    const minPadH = 14;
-    const minPadV = 8;
-    const minW = h.labelNaturalW + minPadH * 2;
-    const minH = h.labelNaturalH + minPadV * 2;
+    const { bgRect, label, paddingH, paddingV } = h;
+    const { maxW, maxH } = this.getMaxBoxDims();
 
+    // Longest word sets the narrowest width at which text won't overflow.
+    const raw = (label.text || '').replace(/\n/g, ' ');
+    const words = raw.split(/\s+/).filter(Boolean);
+    let longestWordW = 0;
+    for (const w of words) {
+      longestWordW = Math.max(longestWordW, this.measureTextWidth(label, w));
+    }
+    const minInnerW = Math.max(this.minLabelInnerW, Math.ceil(longestWordW) + 2);
+    const minW = Math.min(maxW, minInnerW + paddingH * 2);
+
+    const baseW = bgRect.width || 1;
+    const baseH = bgRect.height || 1;
     const sx = bgRect.scaleX || 1;
     const sy = bgRect.scaleY || 1;
-    const currentW = (bgRect.width || 0) * sx;
-    const currentH = (bgRect.height || 0) * sy;
 
-    if (currentW < minW) {
-      bgRect.set({ scaleX: minW / (bgRect.width || 1) });
+    // Clamp the scaled width to [minW, maxW].
+    let curW = Math.max(minW, Math.min(maxW, baseW * sx));
+
+    // Measure the height the text needs at the chosen width (constant font).
+    label.set({ scaleX: 1, scaleY: 1 });
+    const maxInnerW = Math.max(this.minLabelInnerW, maxW - paddingH * 2);
+    let innerW = Math.max(this.minLabelInnerW, curW - paddingH * 2);
+    label.set({ width: innerW });
+    const measureH = (): number =>
+      typeof (label as any).calcTextHeight === 'function'
+        ? (label as any).calcTextHeight()
+        : label.getScaledHeight();
+    let textH = measureH();
+
+    // If the wrapped text is too tall for the max height, widen the box (up to
+    // the max width) so it wraps into fewer lines instead of overflowing.
+    let guard = 0;
+    while (textH + paddingV * 2 > maxH && innerW < maxInnerW && guard++ < 200) {
+      innerW = Math.min(maxInnerW, innerW + 8);
+      label.set({ width: innerW });
+      textH = measureH();
     }
-    if (currentH < minH) {
-      bgRect.set({ scaleY: minH / (bgRect.height || 1) });
-    }
+    curW = Math.min(maxW, innerW + paddingH * 2);
+
+    const requiredH = textH + paddingV * 2;
+    // Height never shrinks below what the text needs; capped at the max height
+    // unless the text genuinely requires more (very long word / narrow box).
+    const curH = Math.max(requiredH, Math.min(Math.max(maxH, requiredH), baseH * sy));
+
+    bgRect.set({
+      scaleX: curW / baseW,
+      scaleY: curH / baseH,
+    });
     bgRect.setCoords();
   }
 
@@ -973,39 +1265,47 @@ export class CalloutModule {
     const sy = bgRect.scaleY || 1;
     const rw = (bgRect.width || 0) * sx;
     const rh = (bgRect.height || 0) * sy;
+    const angleRad = ((bgRect.angle || 0) * Math.PI) / 180;
+    const cos = Math.cos(angleRad);
+    const sin = Math.sin(angleRad);
+    const center = bgRect.getCenterPoint();
 
     const borderPad = 3;
     border.set({
-      left: bLeft - borderPad,
-      top: bTop - borderPad,
+      left: center.x,
+      top: center.y,
       width: rw + borderPad * 2,
       height: rh + borderPad * 2,
+      originX: 'center',
+      originY: 'center',
       scaleX: 1,
       scaleY: 1,
+      angle: bgRect.angle || 0,
     });
     border.setCoords();
 
-    // Use stored intrinsic dimensions so repeated scaling never drifts.
-    const naturalW = h.labelNaturalW;
-    const naturalH = h.labelNaturalH;
-    const availW = rw - paddingH * 2;
-    const availH = rh - paddingV * 2;
-    // Clamp so the font never shrinks below its base size (scale >= 1)
-    const uniformScale = Math.max(
-      1,
-      Math.min(availW / (naturalW || 1), availH / (naturalH || 1)),
-    );
-
-    // Center the label inside the box
-    const scaledTextW = naturalW * uniformScale;
-    const scaledTextH = naturalH * uniformScale;
+    // Keep the font size constant — the label is never scaled. Its wrap width
+    // follows the box's inner width so text re-flows (never shrinks) when the
+    // box is resized, and it stays centred inside the box.
     label.set({
-      left: bLeft + (rw - scaledTextW) / 2,
-      top: bTop + (rh - scaledTextH) / 2,
-      scaleX: uniformScale,
-      scaleY: uniformScale,
+      left: center.x,
+      top: center.y,
+      width: Math.max(this.minLabelInnerW, rw - paddingH * 2),
+      scaleX: 1,
+      scaleY: 1,
+      originX: 'center',
+      originY: 'center',
+      angle: bgRect.angle || 0,
     });
     label.setCoords();
+
+    const anchorX = h.anchorLocalX * sx;
+    const anchorY = h.anchorLocalY * sy;
+    h.anchor.set({
+      left: center.x + anchorX * cos - anchorY * sin,
+      top: center.y + anchorX * sin + anchorY * cos,
+    });
+    h.anchor.setCoords();
   }
 
   /** After text edit, resize bgRect + border to fit the new label */
@@ -1015,26 +1315,46 @@ export class CalloutModule {
     const th = label.getScaledHeight();
     const newW = tw + paddingH * 2;
     const newH = th + paddingV * 2;
-
-    const bLeft = bgRect.left || 0;
-    const bTop = bgRect.top || 0;
+    const angle = bgRect.angle || 0;
+    const center = bgRect.getCenterPoint();
 
     bgRect.set({ width: newW, height: newH, scaleX: 1, scaleY: 1 });
+    bgRect.set({ left: center.x - newW / 2, top: center.y - newH / 2 });
     bgRect.setCoords();
+    const newCenter = bgRect.getCenterPoint();
 
     const borderPad = 3;
     border.set({
-      left: bLeft - borderPad,
-      top: bTop - borderPad,
+      left: newCenter.x - (newW + borderPad * 2) / 2,
+      top: newCenter.y - (newH + borderPad * 2) / 2,
       width: newW + borderPad * 2,
       height: newH + borderPad * 2,
       scaleX: 1,
       scaleY: 1,
+      angle,
     });
     border.setCoords();
 
-    label.set({ left: bLeft + paddingH, top: bTop + paddingV });
+    label.set({
+      left: newCenter.x,
+      top: newCenter.y,
+      originX: 'center',
+      originY: 'center',
+      angle,
+    });
     label.setCoords();
+
+    const shifted = toCanvasPoint(
+      h.anchorLocalX,
+      h.anchorLocalY,
+      center.x,
+      center.y,
+      angle,
+      1,
+      1,
+    );
+    h.anchor.set({ left: shifted.x, top: shifted.y });
+    h.anchor.setCoords();
 
     this.canvas.renderAll();
   }

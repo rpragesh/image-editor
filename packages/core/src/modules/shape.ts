@@ -72,6 +72,66 @@ function clampPointToShapeBounds(x: number, y: number): { x: number; y: number }
 /** Lazily registered so we only patch fabric once per page-load */
 let arrowClassRegistered = false;
 
+function offsetPointAlongVector(
+    x: number,
+    y: number,
+    dx: number,
+    dy: number,
+    distance: number,
+): { x: number; y: number } {
+    const length = Math.sqrt(dx * dx + dy * dy);
+    if (length < 0.5 || distance === 0) return { x, y };
+    const ux = dx / length;
+    const uy = dy / length;
+    return {
+        x: x + ux * distance,
+        y: y + uy * distance,
+    };
+}
+
+function getArrowStartHandlePoint(arrow: any): { x: number; y: number } {
+    const strokeWidth = arrow.strokeWidth || 3;
+    return offsetPointAlongVector(
+        arrow.x1,
+        arrow.y1,
+        arrow.x2 - arrow.x1,
+        arrow.y2 - arrow.y1,
+        -(strokeWidth / 2),
+    );
+}
+
+function getPolylineEndpointHandlePoint(poly: any, index: number): { x: number; y: number } {
+    const points = Array.isArray(poly.points) ? poly.points : [];
+    const point = points[index];
+    if (!point) return { x: 0, y: 0 };
+    if (poly._rpClosed || points.length < 2) return { x: point.x, y: point.y };
+
+    const strokeWidth = poly.strokeWidth || 3;
+    if (index === 0) {
+        const next = points[1];
+        return offsetPointAlongVector(
+            point.x,
+            point.y,
+            next.x - point.x,
+            next.y - point.y,
+            -(strokeWidth / 2),
+        );
+    }
+
+    if (index === points.length - 1) {
+        const prev = points[points.length - 2];
+        return offsetPointAlongVector(
+            point.x,
+            point.y,
+            point.x - prev.x,
+            point.y - prev.y,
+            strokeWidth / 2,
+        );
+    }
+
+    return { x: point.x, y: point.y };
+}
+
 function registerArrowClass(): any {
     if (arrowClassRegistered && (fabric as any).RpArrow) {
         return (fabric as any).RpArrow;
@@ -240,7 +300,8 @@ function attachArrowEndpointControls(arrow: any): void {
             // finalMatrix here would cancel the zoom (that's how Fabric keeps
             // corner handles a constant screen size) and the handles would
             // drift away from the shape when zoomed.
-            const pt = new fabric.Point(fabricObject.x1, fabricObject.y1);
+            const handle = getArrowStartHandlePoint(fabricObject);
+            const pt = new fabric.Point(handle.x, handle.y);
             const vpt = fabricObject.canvas?.viewportTransform;
             return vpt ? fabric.util.transformPoint(pt, vpt) : pt;
         },
@@ -478,8 +539,8 @@ function attachPolylineVertexControls(poly: any): void {
             cursorStyleHandler: () => 'crosshair',
             actionName: `polyVertex${idx}`,
             positionHandler(_dim: any, _finalMatrix: any, fabricObject: any) {
-                const p = fabricObject.points[idx];
-                const pt = new fabric.Point(p.x, p.y);
+                const handle = getPolylineEndpointHandlePoint(fabricObject, idx);
+                const pt = new fabric.Point(handle.x, handle.y);
                 const vpt = fabricObject.canvas?.viewportTransform;
                 return vpt ? fabric.util.transformPoint(pt, vpt) : pt;
             },
@@ -562,6 +623,32 @@ export class ShapeModule {
                     objectCaching: false,
                 });
                 obj._rpPolyBound = true;
+            }
+            if (obj && obj._rpShapeType && obj.type !== ARROW_TYPE && obj.type !== POLYLINE_TYPE) {
+                obj.set({
+                    selectable: true,
+                    evented: true,
+                    hasControls: true,
+                    hasBorders: true,
+                    lockRotation: false,
+                    hasRotatingPoint: true,
+                    cornerColor: '#0ea5e9',
+                    cornerStyle: 'circle',
+                    cornerSize: 10,
+                    transparentCorners: false,
+                    borderColor: '#0ea5e9',
+                    objectCaching: false,
+                });
+                if (obj.type === 'circle') {
+                    obj.setControlsVisibility({
+                        mt: false, mb: false, ml: false, mr: false, mtr: false,
+                    });
+                }
+                if (obj.type === 'square') {
+                    obj.setControlsVisibility({
+                        mt: false, mb: false, ml: false, mr: false,
+                    });
+                }
             }
         });
     }
@@ -909,8 +996,8 @@ export class ShapeModule {
             cornerSize: 10,
             transparentCorners: false,
             borderColor: '#0ea5e9',
-            lockRotation: true,
-            hasRotatingPoint: false,
+            lockRotation: false,
+            hasRotatingPoint: true,
             objectCaching: false,
         };
 
@@ -941,7 +1028,7 @@ export class ShapeModule {
                 lockUniScaling: true,
             });
             r.setControlsVisibility({
-                mt: false, mb: false, ml: false, mr: false, mtr: false,
+                mt: false, mb: false, ml: false, mr: false,
             });
             obj = r;
         } else if (type === 'rectangle') {

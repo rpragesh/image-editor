@@ -2,6 +2,15 @@
 
 All notable changes to `@rageshpikalmunde/rp-image-editor` will be documented in this file.
 
+## [1.5.5] — 2026-09-18
+
+Patch release focused on annotation geometry and callout editing stability. No API changes.
+
+### Fixed
+- **Shape and line-path bounds now follow the visible geometry** — arrow endpoints and polyline vertices are measured from their actual points instead of the padded Fabric hit-test box, so image containment and resize/crop clamping stay correct.
+- **Arrow controls stay aligned while zoomed** — the custom endpoint handles now map the stored canvas coordinates through the viewport transform, so they no longer drift away from the shape under zoom or pan.
+- **Callout editing now preserves box/label/anchor sync** — callout labels use fixed-size wrapping textboxes with proper overflow handling, and the box, dashed border, tail, and anchor stay locked together through move, resize, rotate, and undo/redo.
+
 ## [1.5.4] — 2026-08-12
 
 Patch release focused on color-state consistency across annotation tools. No API changes.
