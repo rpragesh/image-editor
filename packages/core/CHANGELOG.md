@@ -2,6 +2,14 @@
 
 All notable changes to `@rageshpikalmunde/rp-image-editor` will be documented in this file.
 
+## [1.5.6] — 2026-09-18
+
+Patch release fixing an EXIF orientation issue that could rotate portrait photos sideways when opened in Chromium-based browsers such as Microsoft Edge.
+
+### Fixed
+- **Portrait images now keep the correct orientation** — the editor now loads image sources using the browser's orientation-aware bitmap path and only applies fallback EXIF rotation when the browser has not already corrected the pixels.
+- **No double-rotation on Chrome / Edge** — the previous manual EXIF rotation was being applied after the browser had already normalized the image, which flipped portrait photos into landscape.
+
 ## [1.5.5] — 2026-09-18
 
 Patch release focused on annotation geometry and callout editing stability. No API changes.

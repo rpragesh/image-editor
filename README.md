@@ -26,7 +26,7 @@ Use it to crop, rotate, zoom, draw, add text, place callouts and shapes, apply f
 - **Native-resolution export** — output preserves the source image's intrinsic resolution; annotations stay sharp (toggle via `exportAtNativeResolution`)
 - **Multi-image workflows** — pass `currentImageIndex` and `totalImages` to render a compact `2/5`-style counter in the header while users step through batches of images
 - **HEIC support** — auto-converts iPhone HEIC to JPEG
-- **EXIF orientation** — auto-corrects rotated photos
+- **EXIF orientation** — auto-corrects rotated photos without double-rotating portrait images in Chromium-based browsers such as Microsoft Edge
 - **Smart resolution** — auto-downscales on iOS to stay within Safari canvas limits
 - **Touch gestures** — pinch zoom, drag, tap on mobile
 - **Theming** — fully customizable colors for header, footer, buttons, toolbar. Auto-contrast: when you customize a background without setting its paired text/icon color, a readable foreground is derived from the background's luminance, so dark themes never end up with invisible icons.

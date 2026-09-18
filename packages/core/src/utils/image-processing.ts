@@ -122,11 +122,56 @@ export function loadImageElement(blob: Blob): Promise<HTMLImageElement> {
   });
 }
 
+/** A drawable image source together with its pixel dimensions. */
+export interface OrientedImageSource {
+  source: CanvasImageSource & { width: number; height: number };
+  width: number;
+  height: number;
+  /**
+   * `true` when EXIF orientation has already been baked into the returned
+   * pixels (so callers must NOT rotate again). `false` only for the legacy
+   * `<img>` fallback on engines without `createImageBitmap`.
+   */
+  orientationApplied: boolean;
+}
+
+/**
+ * Load a blob as a correctly-oriented drawable source.
+ *
+ * Prefers `createImageBitmap(blob, { imageOrientation: 'from-image' })`, which
+ * applies the EXIF orientation exactly once and returns a bitmap with no
+ * residual EXIF metadata — so drawing it to a canvas can never re-rotate it.
+ * Falls back to a plain `<img>` on engines that lack `createImageBitmap`.
+ */
+export async function loadOrientedImage(blob: Blob): Promise<OrientedImageSource> {
+  if (typeof createImageBitmap === 'function') {
+    try {
+      const bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+      return {
+        source: bitmap,
+        width: bitmap.width,
+        height: bitmap.height,
+        orientationApplied: true,
+      };
+    } catch {
+      // Fall through to the <img> path below.
+    }
+  }
+
+  const img = await loadImageElement(blob);
+  return {
+    source: img,
+    width: img.naturalWidth,
+    height: img.naturalHeight,
+    orientationApplied: false,
+  };
+}
+
 /**
  * Downscale an image using step-down sampling for quality
  */
 export function downscaleImage(
-  img: HTMLImageElement,
+  img: CanvasImageSource & { width: number; height: number },
   maxDimension: number,
   rotation: number = 0
 ): { canvas: HTMLCanvasElement; width: number; height: number } {
@@ -237,14 +282,19 @@ export async function processImage(
     wasHeicConverted = true;
   }
 
-  // Step 2: EXIF orientation
-  const exifRotation = await getExifRotation(blob);
-  const wasExifCorrected = exifRotation !== 0;
+  // Step 3: Load a correctly-oriented drawable source. When the browser
+  // bakes EXIF orientation into the pixels (createImageBitmap / auto-orient),
+  // the source is already upright and must NOT be rotated again — doing so
+  // would flip portrait photos to landscape. Only the legacy <img> fallback
+  // needs the manual EXIF rotation.
+  const oriented = await loadOrientedImage(blob);
+  const originalWidth = oriented.width;
+  const originalHeight = oriented.height;
 
-  // Step 3: Load image element
-  const img = await loadImageElement(blob);
-  const originalWidth = img.naturalWidth;
-  const originalHeight = img.naturalHeight;
+  // Step 2: EXIF orientation — only apply manually when the source pixels
+  // were NOT already oriented by the browser.
+  const exifRotation = oriented.orientationApplied ? 0 : await getExifRotation(blob);
+  const wasExifCorrected = exifRotation !== 0 || oriented.orientationApplied;
 
   // Step 4: Determine max resolution
   const maxRes = getMaxResolution(configMaxResolution);
@@ -254,8 +304,8 @@ export async function processImage(
   let processedWidth: number;
   let processedHeight: number;
 
-  if (needsDownscale || wasExifCorrected) {
-    const result = downscaleImage(img, maxRes || Math.max(originalWidth, originalHeight), exifRotation);
+  if (needsDownscale || exifRotation !== 0) {
+    const result = downscaleImage(oriented.source, maxRes || Math.max(originalWidth, originalHeight), exifRotation);
     dataUrl = result.canvas.toDataURL('image/png');
     processedWidth = result.width;
     processedHeight = result.height;
@@ -267,12 +317,17 @@ export async function processImage(
     canvas.width = originalWidth;
     canvas.height = originalHeight;
     const ctx = canvas.getContext('2d')!;
-    ctx.drawImage(img, 0, 0);
+    ctx.drawImage(oriented.source, 0, 0);
     dataUrl = canvas.toDataURL('image/png');
     processedWidth = originalWidth;
     processedHeight = originalHeight;
     canvas.width = 1;
     canvas.height = 1;
+  }
+
+  // Release the decoded bitmap if the browser gave us one.
+  if (typeof (oriented.source as ImageBitmap).close === 'function') {
+    (oriented.source as ImageBitmap).close();
   }
 
   return {
