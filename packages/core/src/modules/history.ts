@@ -29,6 +29,7 @@ export class HistoryModule {
       '_rpShapeType',
       'calloutId',
       'calloutRole',
+      '_rpFullText',
       'x1',
       'y1',
       'x2',

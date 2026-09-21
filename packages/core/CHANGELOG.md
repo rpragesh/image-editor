@@ -2,6 +2,15 @@
 
 All notable changes to `@rageshpikalmunde/rp-image-editor` will be documented in this file.
 
+## [1.5.8] — 2026-09-21
+
+Patch release focused on annotation text-state reliability. No API changes.
+
+### Fixed
+- **Text annotation controls now survive undo/redo** — Fabric does not serialize the custom text-control styling, so restoring history could bring back plain square handles. The editor now re-applies the expected text interaction styling after history rehydration.
+- **Callout labels now preserve their full text through history and resize flows** — callout label state now serializes the full untruncated text, so undo/redo and older restored annotations keep their editable content instead of only the shortened preview.
+- **Callout ellipsis is now reversible and readable** — when a callout box is too small, the preview now shortens by whole words where possible, restores the full text before fit calculations, and reveals more content again as the box grows.
+
 ## [1.5.6] — 2026-09-18
 
 Patch release fixing an EXIF orientation issue that could rotate portrait photos sideways when opened in Chromium-based browsers such as Microsoft Edge.

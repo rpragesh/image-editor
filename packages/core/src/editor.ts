@@ -1681,6 +1681,24 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
         }
       }
 
+      // Fabric does not serialize text selection handle styling, so undo/redo
+      // would otherwise restore plain square controls for text annotations.
+      // Re-apply the same interaction styling used at creation time.
+      if (tgt._rpType === 'text' && tgt.type === 'i-text') {
+        tgt.set({
+          editable: true,
+          selectable: true,
+          evented: true,
+          cornerColor: '#4a90d9',
+          cornerStyle: 'circle',
+          cornerSize: 10,
+          transparentCorners: false,
+          borderColor: '#4a90d9',
+          hasRotatingPoint: true,
+          padding: 5,
+        });
+      }
+
       // Keep draw paths non-interactive after undo/redo rehydration.
       if (tgt.type === 'path' && tgt._rpType === 'draw') {
         tgt.clipPath = this.buildImageClipRect();

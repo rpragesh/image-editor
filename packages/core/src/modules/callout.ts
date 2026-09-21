@@ -354,10 +354,16 @@ export class CalloutModule {
         anchorLocalY: localAnchor.y,
       };
 
+      // If the serialized label predates full-text tracking (or lost the
+      // custom prop), seed it from the rendered text so editing/resizing still
+      // works.
+      if (typeof (label as any)._rpFullText !== 'string') {
+        (label as any)._rpFullText = label.text || '';
+      }
+
       this.enforceCalloutPartLocks(handle);
       this.wireHandleEvents(handle);
       this.redrawTail(handle);
-
       this.callouts.push(handle);
       if (id > maxId) maxId = id;
     }
@@ -584,6 +590,11 @@ export class CalloutModule {
     (label as any)._rpType = 'callout-label';
     (label as any).calloutId = id;
     (label as any).calloutRole = 'label';
+    // Remember the complete label text. The rendered `text` may later be
+    // shortened to a readable preview when it can't fit the box, but the full
+    // text is always kept here so it can be restored when the box grows or the
+    // user re-enters editing.
+    (label as any)._rpFullText = cappedText;
 
     // Size the label width to the text's natural (single-line) width, capped
     // at the maximum inner width so long text wraps instead of overflowing.
@@ -855,9 +866,14 @@ export class CalloutModule {
     });
 
     bgRect.on('scaling', () => {
+      // Restore the full text before measuring so enlarging the box reveals
+      // more of it; a preview is re-applied afterwards only if it still can't
+      // fit the new size.
+      this.restoreFullTextForFit(handle);
       this.clampBoxSize(handle);
       this.clampCalloutIntoBounds(handle);
       this.syncBoxParts(handle);
+      this.applyEllipsisIfOverflow(handle);
       this.redrawTail(handle);
     });
 
@@ -867,8 +883,11 @@ export class CalloutModule {
     });
 
     bgRect.on('modified', () => {
+      this.restoreFullTextForFit(handle);
+      this.clampBoxSize(handle);
       this.clampCalloutIntoBounds(handle);
       this.syncBoxParts(handle);
+      this.applyEllipsisIfOverflow(handle);
       this.redrawTail(handle);
     });
 
@@ -896,6 +915,9 @@ export class CalloutModule {
       // constant font size (wrapping once the max width is reached). The box
       // centre and rotation never move, so typing can't nudge the callout.
       this.enforceMaxLength(handle);
+      // Keep the full-text cache in sync with what the user is typing so the
+      // complete text is preserved even if a preview is shown later.
+      (label as any)._rpFullText = label.text || '';
       this.growBoxToLabel(handle);
       this.canvas.requestRenderAll();
     });
@@ -1116,33 +1138,100 @@ export class CalloutModule {
   }
 
   /**
-   * If the wrapped text is taller than the (capped) box, trim trailing
-   * characters and append an ellipsis until it fits. Only used on commit —
-   * never mid-keystroke — so it can safely mutate the text.
+   * Restore the complete label text (from `_rpFullText`) so measurement-based
+   * sizing works against the real content rather than a shortened preview.
+   * Safe to call repeatedly; a preview is re-applied afterwards by
+   * `applyEllipsisIfOverflow` when the text still can't fit.
+   */
+  private restoreFullTextForFit(h: CalloutHandle): void {
+    const full = (h.label as any)._rpFullText;
+    if (typeof full === 'string' && full !== h.label.text) {
+      h.label.set({ text: full });
+    }
+  }
+
+  /**
+   * Ensure the label shows as much of the *full* text as fits the (capped)
+   * box. The full text is read from `_rpFullText`, so this is fully
+   * reversible: whenever the box is large enough the complete text is shown
+   * again, and growing the box always reveals more.
+   *
+   * When the full text genuinely can't fit, a readable preview is built by
+   * dropping whole words from the end (falling back to trimming characters
+   * only within a single over-long word) and appending an ellipsis — never
+   * collapsing to a single character like the old character-by-character loop.
    */
   private applyEllipsisIfOverflow(h: CalloutHandle): void {
     const { bgRect, label, paddingV } = h;
+    const full =
+      typeof (label as any)._rpFullText === 'string'
+        ? (label as any)._rpFullText
+        : label.text || '';
+
     const innerH = (bgRect.height || 0) * (bgRect.scaleY || 1) - paddingV * 2;
-    const fits = () =>
-      (typeof (label as any).calcTextHeight === 'function'
-        ? (label as any).calcTextHeight()
-        : label.getScaledHeight()) <= innerH;
+    const fits = (t: string): boolean => {
+      label.set({ text: t });
+      const th =
+        typeof (label as any).calcTextHeight === 'function'
+          ? (label as any).calcTextHeight()
+          : label.getScaledHeight();
+      return th <= innerH + 0.5;
+    };
 
-    if (fits()) return;
+    // If the whole text fits, always show it in full.
+    if (fits(full)) {
+      label.set({ text: full });
+      return;
+    }
 
-    let text = (label.text || '').replace(/\s+$/, '');
+    // Try dropping whole words from the end, keeping the longest prefix that
+    // still fits once an ellipsis is appended.
+    const tokens = full.split(/(\s+)/); // keeps the separators
+    let prefix = '';
+    let best = '';
+    for (let i = 0; i < tokens.length; i++) {
+      const candidate = prefix + tokens[i];
+      const trimmed = candidate.replace(/\s+$/, '');
+      if (trimmed && fits(trimmed + '...')) {
+        best = trimmed;
+        prefix = candidate;
+      } else if (trimmed) {
+        break;
+      } else {
+        prefix = candidate; // whitespace-only token, keep accumulating
+      }
+    }
+
+    if (best) {
+      label.set({ text: best + '...' });
+      return;
+    }
+
+    // The very first word alone is too tall — trim characters within it as a
+    // last resort so the box never overflows.
+    let text = full.replace(/\s+$/, '');
     let guard = 0;
     while (text.length > 1 && guard++ < 500) {
       text = text.slice(0, -1);
-      label.set({ text: text.replace(/\s+$/, '') + '...' });
-      if (fits()) break;
+      if (fits(text + '...')) {
+        label.set({ text: text + '...' });
+        return;
+      }
     }
+    label.set({ text: text.slice(0, 1) + '...' });
   }
 
   /* ═══════════════ editing helpers ═══════════════════ */
 
   /** Focus the label IText and enter inline editing mode */
   private enterLabelEditing(h: CalloutHandle): void {
+    // Restore the complete text (the box may currently be showing a shortened
+    // preview) so the user always edits the full label, then re-fit the box.
+    const full = (h.label as any)._rpFullText;
+    if (typeof full === 'string' && full !== h.label.text) {
+      h.label.set({ text: full });
+      this.growBoxToLabel(h);
+    }
     // Temporarily make the label interactive so it can be focused
     h.label.selectable = true;
     h.label.evented = true;
@@ -1161,10 +1250,13 @@ export class CalloutModule {
     if (capped !== raw) {
       h.label.set({ text: capped });
     }
+    // Persist the complete text. The rendered text may be shortened to a
+    // preview below if it can't fit, but the full text is always recoverable.
+    (h.label as any)._rpFullText = capped;
     h.label.set({ scaleX: 1, scaleY: 1 });
 
     // Size the box to the final text (up to the maximum). If the text is still
-    // too tall for the capped box, truncate it with an ellipsis and re-size.
+    // too tall for the capped box, show a readable shortened preview instead.
     this.growBoxToLabel(h);
     this.applyEllipsisIfOverflow(h);
     this.growBoxToLabel(h);
