@@ -78,6 +78,7 @@ export class CropModule {
       excludeFromExport: true,
     });
     (this.cropRect as any)._rpCropRect = true;
+    this.applyCropInteractionMode();
 
     // Add rule-of-thirds lines inside the crop rect
     this.addGridLines();
@@ -249,20 +250,12 @@ export class CropModule {
         scaleY: 1,
       });
 
-      // Hide side handles while a ratio is locked — only corner handles
-      // can keep the ratio consistent. Side drags would otherwise appear
-      // broken because `constrainCropScale` snaps the rect back to ratio.
-      this.cropRect.setControlsVisibility({
-        mt: false, mb: false, ml: false, mr: false,
-      });
+      this.applyCropInteractionMode();
 
       this.constrainCropRect();
       this.canvas.renderAll();
     } else if (this.cropRect) {
-      // Unlock aspect ratio — reset to uniform controls
-      this.cropRect.setControlsVisibility({
-        mt: true, mb: true, ml: true, mr: true,
-      });
+      this.applyCropInteractionMode();
       this.canvas.renderAll();
     }
   }
@@ -341,5 +334,27 @@ export class CropModule {
     if (!this.cropRect) return;
     // Grid lines will be drawn during render — for now we use the crop rect's visual
     // A more advanced version could use fabric.Line objects that follow the crop rect
+  }
+
+  private applyCropInteractionMode(): void {
+    if (!this.cropRect) return;
+
+    const aspectRatioLocked = this.aspectRatio !== null;
+
+    this.cropRect.set({
+      lockUniScaling: aspectRatioLocked,
+    });
+
+    this.cropRect.setControlsVisibility({
+      tl: true,
+      tr: true,
+      bl: true,
+      br: true,
+      mt: !aspectRatioLocked,
+      mb: !aspectRatioLocked,
+      ml: !aspectRatioLocked,
+      mr: !aspectRatioLocked,
+      mtr: false,
+    });
   }
 }

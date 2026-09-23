@@ -382,17 +382,17 @@ const result = await openEditorModal({
 
 Contributions are welcome! Please open an issue or submit a pull request on [GitHub](https://github.com/rpragesh/image-editor).
 
-## Upgrading to 1.5.0
+## Upgrading to 1.5.9
 
-**Nothing in your existing code has to change.** 1.5.0 is backward-compatible with 1.4.x. If you install it and touch nothing, your existing crop / rotate / draw / filter / i18n behavior continues to work as before; the new image counter is opt-in.
+**Nothing in your existing code has to change.** 1.5.9 is backward-compatible with 1.4.x. If you install it and touch nothing, your existing crop / rotate / draw / filter / i18n behavior continues to work as before; the crop fix and earlier annotation improvements apply automatically.
 
 ### 1. Bump the version
 
 ```bash
-npm install @rageshpikalmunde/rp-image-editor@^1.5.0
-# and if you use the framework wrappers (they peer-depend on core ^1.5.0):
-npm install @rageshpikalmunde/rp-image-editor-react@^1.5.0
-npm install @rageshpikalmunde/rp-image-editor-angular@^1.5.0
+npm install @rageshpikalmunde/rp-image-editor@^1.5.9
+# and if you use the framework wrappers (they peer-depend on core ^1.5.9):
+npm install @rageshpikalmunde/rp-image-editor-react@^1.5.9
+npm install @rageshpikalmunde/rp-image-editor-angular@^1.5.9
 ```
 
 ### 2. Opt into the new features (all optional)
@@ -450,12 +450,12 @@ await openEditorModal({
 
 ### Rolling back
 
-1.5.0 is additive — no data, export, or storage format changed — so you can downgrade at any time with no code changes:
+1.5.9 is additive — no data, export, or storage format changed — so you can downgrade at any time with no code changes:
 
 ```bash
-npm install @rageshpikalmunde/rp-image-editor@1.4.1
-npm install @rageshpikalmunde/rp-image-editor-react@1.4.0
-npm install @rageshpikalmunde/rp-image-editor-angular@1.4.0
+npm install @rageshpikalmunde/rp-image-editor@1.5.8
+npm install @rageshpikalmunde/rp-image-editor-react@1.5.8
+npm install @rageshpikalmunde/rp-image-editor-angular@1.5.8
 ```
 
 ## License

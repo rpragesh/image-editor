@@ -173,19 +173,19 @@ Recent releases expose the following config keys:
 | `theme.headerSubtitle` | Customize the subtitle rendered under the header title. Pass `''` to hide it. |
 | `currentImageIndex` / `totalImages` | Show a compact `current/total` image counter in the editor header for multi-image review flows. |
 
-See [`packages/core/CHANGELOG.md`](packages/core/CHANGELOG.md) for the full 1.5.0 release notes.
+See [`packages/core/CHANGELOG.md`](packages/core/CHANGELOG.md) for the latest release notes.
 
-## Upgrading to 1.5.0
+## Upgrading to 1.5.9
 
-**Nothing in your existing code has to change.** 1.5.0 is backward-compatible with 1.4.x. If you install 1.5.0 and change nothing, your existing integration keeps working; the new image counter is opt-in and the annotation fixes apply automatically.
+**Nothing in your existing code has to change.** 1.5.9 is backward-compatible with 1.4.x. If you install 1.5.9 and change nothing, your existing integration keeps working; the crop fix and earlier annotation improvements apply automatically.
 
 ### 1. Bump the versions
 
 ```bash
-npm install @rageshpikalmunde/rp-image-editor@^1.5.0
-# and if you use the framework wrappers (they peer-depend on core ^1.5.0):
-npm install @rageshpikalmunde/rp-image-editor-react@^1.5.0
-npm install @rageshpikalmunde/rp-image-editor-angular@^1.5.0
+npm install @rageshpikalmunde/rp-image-editor@^1.5.9
+# and if you use the framework wrappers (they peer-depend on core ^1.5.9):
+npm install @rageshpikalmunde/rp-image-editor-react@^1.5.9
+npm install @rageshpikalmunde/rp-image-editor-angular@^1.5.9
 ```
 
 ### 2. Opt into the new features (all optional)
@@ -245,12 +245,12 @@ See the [core README's Disabling Features](packages/core/README.md#disabling-fea
 
 ### Rolling back
 
-1.5.0 is additive — no data, export, or storage format changed — so you can downgrade at any time with no code changes:
+1.5.9 is additive — no data, export, or storage format changed — so you can downgrade at any time with no code changes:
 
 ```bash
-npm install @rageshpikalmunde/rp-image-editor@1.4.1
-npm install @rageshpikalmunde/rp-image-editor-react@1.4.0
-npm install @rageshpikalmunde/rp-image-editor-angular@1.4.0
+npm install @rageshpikalmunde/rp-image-editor@1.5.8
+npm install @rageshpikalmunde/rp-image-editor-react@1.5.8
+npm install @rageshpikalmunde/rp-image-editor-angular@1.5.8
 ```
 
 ## License

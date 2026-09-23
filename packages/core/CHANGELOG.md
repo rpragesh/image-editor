@@ -2,6 +2,14 @@
 
 All notable changes to `@rageshpikalmunde/rp-image-editor` will be documented in this file.
 
+## [1.5.9] — 2026-09-23
+
+Patch release tightening crop aspect-ratio behavior.
+
+### Fixed
+- **Aspect-ratio crop mode now stays inside the image bounds** — switching crop ratios now recomputes the rectangle from the image bounds instead of stretching the existing width, so the crop box no longer overflows the image and exports no longer pick up blank strips.
+- **Crop ratio switches keep the box centered and the controls consistent** — the crop rect now recenters itself when the ratio changes and always applies the correct locked/unlocked handle state for crop mode.
+
 ## [1.5.8] — 2026-09-21
 
 Patch release focused on annotation text-state reliability. No API changes.
