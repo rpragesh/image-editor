@@ -2,6 +2,14 @@
 
 All notable changes to `@rageshpikalmunde/rp-image-editor` will be documented in this file.
 
+## [1.5.10] — 2026-09-23
+
+Patch release fixing image flip behavior so annotations stay aligned with the mirrored image. No API changes.
+
+### Fixed
+- **Horizontal and vertical image flips now move annotations with the image** — text, shapes, draw polylines, arrows, and callouts are mirrored across the base image center when the image is flipped, so overlays no longer stay behind on the pre-flip side.
+- **Callout tails stay attached after flips** — callout boxes/anchors are mirrored first and tails are regenerated from the flipped geometry, preventing detached or stale tail segments after a flip.
+
 ## [1.5.9] — 2026-09-23
 
 Patch release tightening crop aspect-ratio behavior.

@@ -899,6 +899,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       'flipX',
       !((this.baseImage as any).flipX || false),
     );
+    this.flipAnnotations('horizontal');
     this.fabricCanvas.requestRenderAll();
     this.refreshGhostImage();
     this.historyModule?.saveState();
@@ -913,9 +914,92 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       'flipY',
       !((this.baseImage as any).flipY || false),
     );
+    this.flipAnnotations('vertical');
     this.fabricCanvas.requestRenderAll();
     this.refreshGhostImage();
     this.historyModule?.saveState();
+  }
+
+  /**
+   * Mirror every annotation across the base image's center axis so edits
+   * flip together with the image. Mirroring across the vertical axis
+   * (`horizontal`) reflects each annotation's X, and across the horizontal
+   * axis (`vertical`) reflects its Y. In both cases the annotation content
+   * itself is mirrored — for generic Fabric objects by negating the angle
+   * and toggling the relevant flip flag, and for custom arrow/polyline
+   * objects by reflecting their endpoint/vertex coordinates directly.
+   */
+  private flipAnnotations(direction: 'horizontal' | 'vertical'): void {
+    if (!this.fabricCanvas) return;
+
+    const geom = this.computeImageGeometry();
+    const isHorizontal = direction === 'horizontal';
+    // Reflection axis position (canvas-pixel space): vertical line x=cx for a
+    // horizontal flip, horizontal line y=cy for a vertical flip.
+    const axis = isHorizontal ? geom.cx : geom.cy;
+
+    const annotations = this.fabricCanvas
+      .getObjects()
+      .filter((o: any) => o._rpAnnotation);
+
+    for (const obj of annotations) {
+      const anyObj = obj as any;
+
+      // The callout tail is a derived bitmap regenerated from the (already
+      // mirrored) box + anchor by refreshAllTails() below — skip it here.
+      if (anyObj._rpType === 'callout-tail') continue;
+
+      // A prior rotation may have cached a cum=0 baseline on the object.
+      // Flipping moves the annotation, so that baseline is now stale;
+      // drop it so the next rotation recomputes from the flipped state.
+      if (anyObj._rpRotBaseline) delete anyObj._rpRotBaseline;
+
+      if (obj.type === 'rpArrow') {
+        if (isHorizontal) {
+          anyObj.x1 = 2 * axis - anyObj.x1;
+          anyObj.x2 = 2 * axis - anyObj.x2;
+        } else {
+          anyObj.y1 = 2 * axis - anyObj.y1;
+          anyObj.y2 = 2 * axis - anyObj.y2;
+        }
+        anyObj._updateBBox?.();
+        anyObj._lastLeft = anyObj.left;
+        anyObj._lastTop = anyObj.top;
+        anyObj.setCoords();
+        continue;
+      }
+
+      if (obj.type === 'rpPolyline' && Array.isArray(anyObj.points)) {
+        for (const point of anyObj.points) {
+          if (isHorizontal) point.x = 2 * axis - point.x;
+          else point.y = 2 * axis - point.y;
+        }
+        anyObj._updateBBox?.();
+        anyObj._lastLeft = anyObj.left;
+        anyObj._lastTop = anyObj.top;
+        anyObj.setCoords();
+        continue;
+      }
+
+      // Generic Fabric object: reflect its center across the axis, mirror
+      // its content by toggling the matching flip flag, and negate the
+      // angle so rotated annotations reflect correctly.
+      const c = obj.getCenterPoint();
+      const newX = isHorizontal ? 2 * axis - c.x : c.x;
+      const newY = isHorizontal ? c.y : 2 * axis - c.y;
+      if (isHorizontal) obj.set('flipX', !obj.flipX);
+      else obj.set('flipY', !obj.flipY);
+      obj.set('angle', -(obj.angle || 0));
+      obj.setPositionByOrigin(
+        new fabric.Point(newX, newY),
+        'center',
+        'center',
+      );
+      obj.setCoords();
+    }
+
+    // Callout tails are rebuilt from the mirrored box + anchor positions.
+    this.calloutModule?.refreshAllTails();
   }
 
   /* -----------------------------------------------------------------

@@ -175,20 +175,22 @@ Recent releases expose the following config keys:
 
 See [`packages/core/CHANGELOG.md`](packages/core/CHANGELOG.md) for the latest release notes.
 
-## Upgrading to 1.5.9
+## Upgrading to 1.5.10
 
-**Nothing in your existing code has to change.** 1.5.9 is backward-compatible with 1.4.x. If you install 1.5.9 and change nothing, your existing integration keeps working; the crop fix and earlier annotation improvements apply automatically.
+**Nothing in your existing code has to change.** 1.5.10 is backward-compatible with 1.4.x. If you install 1.5.10 and change nothing, your existing integration keeps working; crop behavior remains as fixed in 1.5.9, and image flips now mirror annotations automatically.
 
 ### 1. Bump the versions
 
 ```bash
-npm install @rageshpikalmunde/rp-image-editor@^1.5.9
-# and if you use the framework wrappers (they peer-depend on core ^1.5.9):
-npm install @rageshpikalmunde/rp-image-editor-react@^1.5.9
-npm install @rageshpikalmunde/rp-image-editor-angular@^1.5.9
+npm install @rageshpikalmunde/rp-image-editor@^1.5.10
+# and if you use the framework wrappers (they peer-depend on core ^1.5.10):
+npm install @rageshpikalmunde/rp-image-editor-react@^1.5.10
+npm install @rageshpikalmunde/rp-image-editor-angular@^1.5.10
 ```
 
-### 2. Opt into the new features (all optional)
+### 2. Existing integrations keep working unchanged
+
+There are no new required APIs or config keys in 1.5.10. If you already use the built-in flip controls, annotations now mirror with the image automatically. The broader 1.5.x additions below remain fully optional, and your existing config shape does not need to change.
 
 Add any subset of the new keys to your existing `config` object. You do **not** need to remove or restructure anything you already pass:
 
@@ -245,12 +247,12 @@ See the [core README's Disabling Features](packages/core/README.md#disabling-fea
 
 ### Rolling back
 
-1.5.9 is additive — no data, export, or storage format changed — so you can downgrade at any time with no code changes:
+1.5.10 is additive — no data, export, or storage format changed — so you can downgrade at any time with no code changes:
 
 ```bash
-npm install @rageshpikalmunde/rp-image-editor@1.5.8
-npm install @rageshpikalmunde/rp-image-editor-react@1.5.8
-npm install @rageshpikalmunde/rp-image-editor-angular@1.5.8
+npm install @rageshpikalmunde/rp-image-editor@1.5.9
+npm install @rageshpikalmunde/rp-image-editor-react@1.5.9
+npm install @rageshpikalmunde/rp-image-editor-angular@1.5.9
 ```
 
 ## License
