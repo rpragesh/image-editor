@@ -24,7 +24,14 @@ cd packages/core && npm run dev  # tsc --watch (ESM only)
 npx serve demo                   # try changes locally after build:demo
 ```
 
-There are no tests and no linter. Type-checking via `tsc` (strict) during build is the only automated check; verify behavior manually in `demo/index.html` (or `demo/test.html`).
+```bash
+npm test                                   # Playwright smoke tests (Chromium)
+npx playwright test -g "rotateRight"       # single test by title
+```
+
+Smoke tests live in `tests/smoke/`. `global-setup.js` esbuilds `packages/core/src` into `tests/smoke/.bundle/` (gitignored), and `fixture.html` exposes a `window.harness` that creates an `RpImageEditor` on an 800×600 red|blue test image and samples pixels from `getResult()` output. Export sizes are compared with ±2px tolerance (`getResult()` can round 600 → 599). A test marked `test.fail()` documents a known bug; remove the marker once it's fixed. There is no linter, so also check UI changes manually in `demo/index.html`.
+
+CI (`.github/workflows/build.yml`) runs `build:all` + `npm test` on pushes to `main` and on PRs.
 
 `build:css` in core requires `dist/cjs` to exist — it `require`s the compiled `ui/styles.js` to emit `dist/styles/rp-image-editor.css` and writes `package.json` type markers into `dist/esm` and `dist/cjs`. Always run the full `npm run build`, not individual steps out of order.
 
