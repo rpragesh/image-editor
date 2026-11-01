@@ -14,13 +14,15 @@
     "build:react": "cd packages/react && npm run build",
     "build:all": "npm run build:core && npm run build:angular && npm run build:react",
     "build:demo": "node scripts/build-demo.js",
-    "clean": "rm -rf packages/core/dist packages/angular/dist packages/react/dist"
+    "clean": "rm -rf packages/core/dist packages/angular/dist packages/react/dist",
+    "test": "playwright test"
   },
   "author": "Ragesh Pikalmunde",
   "license": "MIT",
   "devDependencies": {
     "@angular/common": "^15.2.10",
     "@angular/core": "^15.2.10",
+    "@playwright/test": "^1.48.2",
     "@types/fabric": "^5.3.11",
     "esbuild": "^0.27.4"
   },

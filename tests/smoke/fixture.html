@@ -1,0 +1,113 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>rp-image-editor smoke fixture</title>
+  <style>
+    html, body { margin: 0; height: 100%; }
+    #host { width: 1000px; height: 700px; position: relative; }
+  </style>
+</head>
+<body>
+  <div id="host"></div>
+  <script src=".bundle/rp-image-editor.bundle.js"></script>
+  <script>
+    /**
+     * Test harness exposed on window. Tests drive the public RpImageEditor
+     * API and inspect exported pixels through these helpers.
+     */
+    window.harness = {
+      editor: null,
+      events: [],
+
+      /** 800×600 test image: left half red, right half blue. */
+      makeTestImage(w = 800, h = 600) {
+        const c = document.createElement('canvas');
+        c.width = w;
+        c.height = h;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#ff0000';
+        ctx.fillRect(0, 0, w / 2, h);
+        ctx.fillStyle = '#0000ff';
+        ctx.fillRect(w / 2, 0, w / 2, h);
+        return c.toDataURL('image/png');
+      },
+
+      async create(config = {}) {
+        const editor = new RpImageEditor.RpImageEditor(
+          document.getElementById('host'),
+          { exportFormat: 'png', ...config },
+        );
+        for (const name of ['mode:changed', 'history:changed', 'image:loaded', 'image:exported', 'error']) {
+          editor.on(name, (payload) => window.harness.events.push({ name, payload }));
+        }
+        this.editor = editor;
+        await editor.loadImage(this.makeTestImage());
+        return true;
+      },
+
+      /** Export and return { width, height, format, pixels(x,y) sampler data }. */
+      async exportInfo() {
+        const r = await this.editor.getResult();
+        const img = new Image();
+        img.src = r.base64;
+        await img.decode();
+        const c = document.createElement('canvas');
+        c.width = img.naturalWidth;
+        c.height = img.naturalHeight;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        this._lastExport = ctx;
+        return {
+          width: r.width,
+          height: r.height,
+          naturalWidth: img.naturalWidth,
+          naturalHeight: img.naturalHeight,
+          format: r.format,
+          fileType: r.file.type,
+          blobSize: r.blob.size,
+        };
+      },
+
+      /** RGBA at a fractional position (0..1) of the last export. */
+      pixelAt(fx, fy) {
+        const ctx = this._lastExport;
+        const x = Math.min(ctx.canvas.width - 1, Math.floor(fx * ctx.canvas.width));
+        const y = Math.min(ctx.canvas.height - 1, Math.floor(fy * ctx.canvas.height));
+        return Array.from(ctx.getImageData(x, y, 1, 1).data);
+      },
+
+      /** Count pixels in a fractional rectangle of the last export matching a predicate name. */
+      countPixels(fx0, fy0, fx1, fy1, kind) {
+        const ctx = this._lastExport;
+        const W = ctx.canvas.width, H = ctx.canvas.height;
+        const x0 = Math.floor(fx0 * W), y0 = Math.floor(fy0 * H);
+        const x1 = Math.ceil(fx1 * W), y1 = Math.ceil(fy1 * H);
+        const d = ctx.getImageData(x0, y0, x1 - x0, y1 - y0).data;
+        let n = 0;
+        for (let i = 0; i < d.length; i += 4) {
+          const [r, g, b] = [d[i], d[i + 1], d[i + 2]];
+          if (kind === 'red' && r > 200 && g < 60 && b < 60) n++;
+          if (kind === 'blue' && b > 200 && r < 60 && g < 60) n++;
+        }
+        return n;
+      },
+
+      /** Bounding box of the base image on screen (page coordinates). */
+      imageScreenRect() {
+        const canvas = this.editor.fabricCanvas;
+        const img = this.editor.baseImage;
+        const vpt = canvas.viewportTransform;
+        const el = canvas.upperCanvasEl.getBoundingClientRect();
+        const left = el.left + vpt[4] + img.left * vpt[0];
+        const top = el.top + vpt[5] + img.top * vpt[3];
+        return {
+          left, top,
+          width: img.width * img.scaleX * vpt[0],
+          height: img.height * img.scaleY * vpt[3],
+        };
+      },
+    };
+  </script>
+</body>
+</html>

@@ -27,3 +27,9 @@ jobs:
 
       - name: Build all packages
         run: npm run build:all
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Smoke tests
+        run: npm test

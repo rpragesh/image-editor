@@ -5,3 +5,8 @@ dist/
 .idea/
 .vscode/
 *.tgz
+
+# Playwright smoke tests
+tests/smoke/.bundle/
+test-results/
+playwright-report/
