@@ -40,8 +40,8 @@ Use it to crop, rotate, zoom, draw, add text, place callouts and shapes, apply f
 | Package | Description |
 |---|---|
 | `@rageshpikalmunde/rp-image-editor` | Core engine (vanilla TS + Fabric.js) |
-| `@rageshpikalmunde/rp-image-editor-angular` | Angular wrapper (Ionic modal) |
-| `@rageshpikalmunde/rp-image-editor-react` | React wrapper (Ionic modal) |
+| `@rageshpikalmunde/rp-image-editor-angular` | Angular wrapper: module, component and modal service (Ionic optional) |
+| `@rageshpikalmunde/rp-image-editor-react` | React wrapper: inline component and `useRpImageEditor` modal hook |
 
 ## Quick Start (Angular)
 
