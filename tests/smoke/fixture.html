@@ -33,7 +33,7 @@
         return c.toDataURL('image/png');
       },
 
-      async create(config = {}) {
+      async create(config = {}, size = [800, 600]) {
         const editor = new RpImageEditor.RpImageEditor(
           document.getElementById('host'),
           { exportFormat: 'png', ...config },
@@ -42,7 +42,7 @@
           editor.on(name, (payload) => window.harness.events.push({ name, payload }));
         }
         this.editor = editor;
-        await editor.loadImage(this.makeTestImage());
+        await editor.loadImage(this.makeTestImage(size[0], size[1]));
         return true;
       },
 

@@ -27,8 +27,8 @@ const count = (page: Page, rect: [number, number, number, number], kind: 'red' |
 const call = (page: Page, method: string, ...args: unknown[]) =>
   page.evaluate(([m, a]) => (window as any).harness.editor[m as string](...(a as unknown[])), [method, args] as const);
 
-/** Export sizes can be off by a pixel from float rounding in getResult(). */
-function expectSize(info: { width: number; height: number }, w: number, h: number, tol = 2) {
+/** Full-image exports must match exactly; pass `tol` where geometry legitimately rounds (crop). */
+function expectSize(info: { width: number; height: number }, w: number, h: number, tol = 0) {
   expect(Math.abs(info.width - w), `width ${info.width} vs ${w}`).toBeLessThanOrEqual(tol);
   expect(Math.abs(info.height - h), `height ${info.height} vs ${h}`).toBeLessThanOrEqual(tol);
 }
@@ -65,6 +65,19 @@ test('loads and exports unchanged image at native resolution', async ({ page }) 
   expectColor(await pixelAt(page, 0.25, 0.5), RED);
   expectColor(await pixelAt(page, 0.75, 0.5), BLUE);
   expect(errors).toEqual([]);
+});
+
+test('odd-sized image exports at exact native size, also after rotation', async ({ page }) => {
+  await page.goto(FIXTURE);
+  await page.evaluate(() => (window as any).harness.create({}, [1234, 777]));
+  expectSize(await exportInfo(page), 1234, 777);
+  await call(page, 'rotateRight');
+  expectSize(await exportInfo(page), 777, 1234);
+});
+
+test('exportPixelRatio scales the native size', async ({ page }) => {
+  await setup(page, { exportPixelRatio: 2 });
+  expectSize(await exportInfo(page), 1600, 1200);
 });
 
 test('emits image:loaded and initial history state', async ({ page }) => {
@@ -121,7 +134,7 @@ test('default crop keeps the centre 80% of the image', async ({ page }) => {
   await page.getByRole('button', { name: 'Apply Crop' }).click();
   await expect.poll(() => page.evaluate(() => (window as any).harness.editor.getMode())).toBe('move');
   const info = await exportInfo(page);
-  expectSize(info, 640, 480);
+  expectSize(info, 640, 480, 2);
   expectColor(await pixelAt(page, 0.2, 0.5), RED);
   expectColor(await pixelAt(page, 0.8, 0.5), BLUE);
 });

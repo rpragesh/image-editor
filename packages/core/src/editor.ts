@@ -1232,15 +1232,21 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     // fit the wrapper for display purposes, but for export we want to
     // render back up at the image's intrinsic resolution so annotations
     // and crops stay sharp. nativeMultiplier = 1 / displayScale.
-    let nativeMultiplier = 1;
+    //
+    // installBaseImage / fitBaseImageToWrapper round the display width
+    // and height to whole pixels independently, so scaleX and scaleY can
+    // differ slightly (e.g. 0.6325 vs 0.63167). Invert each axis on its
+    // own — using scaleX for both exported 800×600 images as 800×599.
+    let nativeMultiplierX = 1;
+    let nativeMultiplierY = 1;
     if (this.config.exportAtNativeResolution && this.baseImage) {
       const scaleX = (this.baseImage as any).scaleX || 1;
-      // scaleX/scaleY are uniform (set together in loadImageOntoCanvas)
-      if (scaleX > 0) {
-        nativeMultiplier = 1 / scaleX;
-      }
+      const scaleY = (this.baseImage as any).scaleY || scaleX;
+      if (scaleX > 0) nativeMultiplierX = 1 / scaleX;
+      if (scaleY > 0) nativeMultiplierY = 1 / scaleY;
     }
-    const multiplier = userMultiplier * nativeMultiplier;
+    const multiplierX = userMultiplier * nativeMultiplierX;
+    const multiplierY = userMultiplier * nativeMultiplierY;
 
     // Save current viewport state so we can restore after export
     const currentVPT = this.fabricCanvas.viewportTransform?.slice();
@@ -1300,8 +1306,8 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     // Use an offscreen canvas to render ONLY the visible image region.
     // Guard against sub-pixel dimensions (e.g. extreme zoom-out or degenerate
     // state) — a 0×0 canvas would produce a 0-byte blob.
-    const offW = Math.max(1, Math.round(exportW * multiplier));
-    const offH = Math.max(1, Math.round(exportH * multiplier));
+    const offW = Math.max(1, Math.round(exportW * multiplierX));
+    const offH = Math.max(1, Math.round(exportH * multiplierY));
     const offscreen = document.createElement('canvas');
     offscreen.width = offW;
     offscreen.height = offH;
@@ -1320,7 +1326,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     // Render the Fabric canvas onto the offscreen canvas, offset so only
     // the visible image region is captured.
     offCtx.save();
-    offCtx.scale(multiplier, multiplier);
+    offCtx.scale(multiplierX, multiplierY);
     offCtx.translate(-exportLeft, -exportTop);
     (this.fabricCanvas as any).renderCanvas(
       offCtx,
@@ -2382,8 +2388,10 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       // — saves hundreds of ms on large photos).
       const rotCanvas = document.createElement('canvas');
       const radians = (newCum * Math.PI) / 180;
-      const absCos = Math.abs(Math.cos(radians));
-      const absSin = Math.abs(Math.sin(radians));
+      // Snap float noise (cos(90°) ≈ 6e-17) so Math.ceil below doesn't
+      // add a 1px transparent strip — e.g. 1234×777 rotating to 778×1234.
+      const absCos = Math.round(Math.abs(Math.cos(radians)) * 1e9) / 1e9;
+      const absSin = Math.round(Math.abs(Math.sin(radians)) * 1e9) / 1e9;
       rotCanvas.width = Math.ceil(
         sourceImg.width * absCos + sourceImg.height * absSin,
       );
