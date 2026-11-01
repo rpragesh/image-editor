@@ -212,3 +212,76 @@ test('destroy removes the editor DOM', async ({ page }) => {
   const children = await page.evaluate(() => document.getElementById('host')!.children.length);
   expect(children).toBe(0);
 });
+
+/* ── Keyboard shortcuts ─────────────────────────────────────────── */
+
+/** Mount a second editor in its own host; returns it as window.second. */
+async function mountSecondEditor(page: Page) {
+  await page.evaluate(async () => {
+    const h = (window as any).harness;
+    const host = document.createElement('div');
+    host.id = 'host2';
+    host.style.cssText = 'width:600px;height:400px;position:relative';
+    document.body.appendChild(host);
+    const second = new (window as any).RpImageEditor.RpImageEditor(host, { exportFormat: 'png' });
+    await second.loadImage(h.makeTestImage());
+    (window as any).second = second;
+  });
+}
+
+/** Export size of window.harness.editor (first) or window.second. */
+async function sizeOf(page: Page, which: 'first' | 'second') {
+  return page.evaluate(async (w) => {
+    const ed = w === 'first' ? (window as any).harness.editor : (window as any).second;
+    const r = await ed.getResult();
+    return { width: r.width, height: r.height };
+  }, which);
+}
+
+/** Press a key and wait for the async rotate to settle. */
+async function pressAndSettle(page: Page, key: string) {
+  await page.keyboard.press(key);
+  await page.waitForTimeout(150);
+}
+
+test('shortcut R rotates a single editor with focus on the page body', async ({ page }) => {
+  await setup(page);
+  await pressAndSettle(page, 'r');
+  expectSize(await exportInfo(page), 600, 800);
+});
+
+test('with two editors, only the most recently active one handles shortcuts', async ({ page }) => {
+  await setup(page);
+  await mountSecondEditor(page);
+
+  // Newest editor is active.
+  await pressAndSettle(page, 'r');
+  expectSize(await sizeOf(page, 'first'), 800, 600);
+  expectSize(await sizeOf(page, 'second'), 600, 800);
+
+  // Clicking into the first editor makes it the active one.
+  await page.locator('#host .upper-canvas').dispatchEvent('pointerdown');
+  await pressAndSettle(page, 'r');
+  expectSize(await sizeOf(page, 'first'), 600, 800);
+  expectSize(await sizeOf(page, 'second'), 600, 800);
+});
+
+test('destroying the active editor hands shortcuts to the remaining one', async ({ page }) => {
+  await setup(page);
+  await mountSecondEditor(page);
+  await page.evaluate(() => (window as any).second.destroy());
+  await pressAndSettle(page, 'r');
+  expectSize(await sizeOf(page, 'first'), 600, 800);
+});
+
+test("keyboardShortcutsScope 'editor' ignores keys from outside the editor", async ({ page }) => {
+  await setup(page, { keyboardShortcutsScope: 'editor' });
+  await pressAndSettle(page, 'r');
+  expectSize(await exportInfo(page), 800, 600);
+
+  // Focus a control inside the editor: shortcuts work again.
+  await page.locator('#host button:visible:not([disabled])').first().focus();
+  expect(await page.evaluate(() => document.getElementById('host')!.contains(document.activeElement))).toBe(true);
+  await pressAndSettle(page, 'r');
+  expectSize(await exportInfo(page), 600, 800);
+});

@@ -29,6 +29,15 @@ import { ensureShellStyles } from './ui/styles.js';
 import { getLocalePack } from './i18n/index.js';
 import type { LocalePack } from './i18n/types.js';
 
+/**
+ * Editors with keyboard shortcuts installed, and the one that most
+ * recently became active (created, clicked or focused). Shortcuts use
+ * a capture-phase listener on `window`, so without this every mounted
+ * editor would react to the same key press.
+ */
+const shortcutEditors = new Set<RpImageEditor>();
+let activeShortcutEditor: RpImageEditor | null = null;
+
 export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   private static readonly MIN_ZOOM = 0.25;
   private static readonly MAX_ZOOM = 5;
@@ -104,6 +113,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
 
   // Attached keyboard-shortcut handler, so we can remove it on destroy.
   private keydownHandler: ((e: KeyboardEvent) => void) | null = null;
+  private activateHandler: (() => void) | null = null;
 
   // Dedicated host for Fabric's hidden text input. This keeps text
   // editing inside the editor/fullscreen subtree without affecting
@@ -1384,6 +1394,16 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       window.removeEventListener('keydown', this.keydownHandler, true);
       this.keydownHandler = null;
     }
+    if (this.activateHandler) {
+      this.container.removeEventListener('pointerdown', this.activateHandler, true);
+      this.container.removeEventListener('focusin', this.activateHandler, true);
+      this.activateHandler = null;
+    }
+    shortcutEditors.delete(this);
+    if (activeShortcutEditor === this) {
+      // Hand shortcuts back to the most recently created editor still mounted.
+      activeShortcutEditor = Array.from(shortcutEditors).pop() ?? null;
+    }
     this.toolbar?.destroy();
     this.fabricCanvas?.dispose();
     this.removeAllListeners();
@@ -1912,6 +1932,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     if (this.keydownHandler) return;
     const handler = (e: KeyboardEvent) => {
       if (this.isDestroyed) return;
+      if (!this.shouldHandleShortcut(e)) return;
 
       // When Fabric IText is in editing mode, keystrokes should update text,
       // not trigger global editor shortcuts.
@@ -2005,6 +2026,33 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     };
     window.addEventListener('keydown', handler, true);
     this.keydownHandler = handler;
+
+    const activate = () => {
+      activeShortcutEditor = this;
+    };
+    this.container.addEventListener('pointerdown', activate, true);
+    this.container.addEventListener('focusin', activate, true);
+    this.activateHandler = activate;
+    shortcutEditors.add(this);
+    activeShortcutEditor = this;
+  }
+
+  /**
+   * Whether this editor should react to a key press, per
+   * `keyboardShortcutsScope`. A key press inside this editor always
+   * counts; one inside another editor never does.
+   */
+  private shouldHandleShortcut(e: KeyboardEvent): boolean {
+    const target = e.target instanceof Node ? e.target : null;
+    if (target && this.container.contains(target)) return true;
+    if (this.config.keyboardShortcutsScope === 'editor') return false;
+    if (activeShortcutEditor !== this) return false;
+    for (const other of shortcutEditors) {
+      if (other !== this && target && other.container.contains(target)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private deactivateCurrentMode(): void {

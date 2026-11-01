@@ -70,6 +70,7 @@ export const DEFAULT_CONFIG: Required<
   showToolbar: true,
   disabledFeatures: [],
   disableKeyboardShortcuts: false,
+  keyboardShortcutsScope: 'global',
   theme: {
     headerBackground: '#0B0D12',
     headerTextColor: '#ECEEF3',

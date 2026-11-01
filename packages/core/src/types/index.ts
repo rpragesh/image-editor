@@ -220,6 +220,21 @@ export interface RpEditorConfig {
   disableKeyboardShortcuts?: boolean;
 
   /**
+   * Which key presses the shortcuts react to.
+   *
+   *  - `'global'` (default): any key press on the page that isn't typed
+   *    into an input. When several editors are mounted, only the most
+   *    recently created or clicked/focused one responds, and a key press
+   *    inside one editor never reaches another.
+   *  - `'editor'`: only key presses while focus is inside this editor.
+   *    Use for inline editors so page-level keys (`c`, `+`, Escape, …)
+   *    aren't captured.
+   *
+   * Additive; default `'global'`.
+   */
+  keyboardShortcutsScope?: 'global' | 'editor';
+
+  /**
    * Optional callback wired to the shell's primary Apply button in the
    * top bar. When provided the button is rendered; when omitted it is
    * hidden. Used by `openEditorModal` to bridge the modal's promise.
