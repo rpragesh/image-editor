@@ -2,6 +2,19 @@
 
 All notable changes to `@rageshpikalmunde/rp-image-editor` will be documented in this file.
 
+## [1.5.11] — 2026-11-01
+
+Patch release fixing export dimensions and keyboard shortcuts on pages with more than one editor. No breaking changes.
+
+### Fixed
+- **Exports now come out at the image's exact native size** — the on-screen width and height are rounded to whole pixels separately, so the two display scales could differ slightly, and export only inverted the horizontal one. An 800×600 image exported as 800×599 (1600×1198 at `exportPixelRatio: 2`). Each axis is now inverted on its own.
+- **Rotated images no longer gain a 1px transparent edge** — floating-point noise in cos(90°) made the rotated canvas one pixel too large (e.g. 1234×777 rotated to 778×1234).
+- **Several editors on one page no longer all react to the same shortcut** — shortcuts listen on `window`, so every mounted editor ran R, ⌘Z, Escape and the rest. Now only the most recently created, clicked or focused editor responds, and a key press inside one editor never reaches another. A single editor behaves exactly as before.
+- **Angular wrapper no longer requires Ionic** — `@ionic/angular` is now an optional peer dependency; the wrapper never used it.
+
+### Added
+- **`keyboardShortcutsScope`** (optional, default `'global'`) — set to `'editor'` so shortcuts only react while focus is inside the editor, which keeps inline editors from capturing page-level keys.
+
 ## [1.5.10] — 2026-09-23
 
 Patch release fixing image flip behavior so annotations stay aligned with the mirrored image. No API changes.
