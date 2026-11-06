@@ -38,6 +38,32 @@ import type { LocalePack } from './i18n/types.js';
 const shortcutEditors = new Set<RpImageEditor>();
 let activeShortcutEditor: RpImageEditor | null = null;
 
+/**
+ * Editor state stored with every history entry, next to the canvas JSON
+ * (which leaves the base image out). Enough to rebuild the base image
+ * and the editor fields that rotate/crop/filters depend on.
+ */
+interface HistoryExtra {
+  /** Id in `rasters` of the image the base image is rendered from. */
+  raster: string;
+  /** Degrees `raster` is rotated by for display. */
+  rasterRotation: number;
+  /** `raster` is `processedSourceImage` (vs. a fallback copy of the displayed pixels). */
+  sourceIsRaster: boolean;
+  cumulativeRotation: number;
+  rotationBaseline: { cx: number; cy: number; scale: number } | null;
+  geometry: {
+    left: number;
+    top: number;
+    scaleX: number;
+    scaleY: number;
+    flipX: boolean;
+    flipY: boolean;
+  };
+  preset: ImageFilterPreset;
+  adjustments: ImageAdjustments;
+}
+
 export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   private static readonly MIN_ZOOM = 0.25;
   private static readonly MAX_ZOOM = 5;
@@ -143,6 +169,17 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     blur: 0,
   };
   private adjustDebounce: number | null = null;
+
+  // Undo/redo raster store. History entries reference source images by
+  // id (see captureHistoryExtra) instead of Fabric embedding the base
+  // image as a data URL in every snapshot. Ids no history entry refers
+  // to are dropped in pruneRasters().
+  private rasters = new Map<string, HTMLImageElement | HTMLCanvasElement>();
+  private rasterIds = new WeakMap<object, string>();
+  private nextRasterId = 1;
+  // Last rotated copy rendered from a source, reused when rotate or
+  // undo/redo lands on the same source + angle.
+  private rotatedRaster: { key: string; el: HTMLCanvasElement } | null = null;
 
   /** Axis-aligned bounds of the visible base image in canvas coordinates. */
   private getImageAnnotationBounds(): {
@@ -710,8 +747,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
    */
   async undo(): Promise<void> {
     await this.historyModule?.undo();
-    this.refreshBaseImageRef();
-    this.calloutModule?.rehydrateFromCanvas();
+    this.afterHistoryRestore();
   }
 
   /**
@@ -719,8 +755,17 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
    */
   async redo(): Promise<void> {
     await this.historyModule?.redo();
+    this.afterHistoryRestore();
+  }
+
+  private afterHistoryRestore(): void {
     this.refreshBaseImageRef();
     this.calloutModule?.rehydrateFromCanvas();
+    // The Filters / Adjust panels read getImageEffects() when rendered;
+    // redraw an open one so it shows the restored preset and sliders.
+    if (this.currentMode === 'filters' || this.currentMode === 'adjust') {
+      this.toolbar?.setActiveMode(this.currentMode);
+    }
   }
 
   /**
@@ -1421,6 +1466,8 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.baseImage = null;
     this.originalImageBlob = null;
     this.processedSourceImage = null;
+    this.rasters.clear();
+    this.rotatedRaster = null;
     this.rotationImageBaseline = null;
     this.cropModule = null;
     this.drawModule = null;
@@ -1618,13 +1665,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     // Re-apply the current filter + adjust stack to the new base image
     // so effects persist across crop/rotate/reload operations. Silent
     // no-op when nothing is active.
-    if (
-      this.activeFilterPreset !== 'none' ||
-      this.adjustments.brightness !== 0 ||
-      this.adjustments.contrast !== 0 ||
-      this.adjustments.saturation !== 0 ||
-      this.adjustments.blur !== 0
-    ) {
+    if (this.hasImageEffects()) {
       this.rebuildImageFilters(false);
     }
 
@@ -1645,6 +1686,147 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     }
   }
 
+  /** Whether a filter preset or any Adjust knob is active. */
+  private hasImageEffects(): boolean {
+    return (
+      this.activeFilterPreset !== 'none' ||
+      this.adjustments.brightness !== 0 ||
+      this.adjustments.contrast !== 0 ||
+      this.adjustments.saturation !== 0 ||
+      this.adjustments.blur !== 0
+    );
+  }
+
+  /* -----------------------------------------------------------------
+   * History snapshots (base image + editor state, see HistoryExtra)
+   * ----------------------------------------------------------------- */
+
+  /** Store `el` in the raster store and return its id. */
+  private registerRaster(el: HTMLImageElement | HTMLCanvasElement): string {
+    let id = this.rasterIds.get(el);
+    if (!id) {
+      id = `r${this.nextRasterId++}`;
+      this.rasterIds.set(el, id);
+    }
+    this.rasters.set(id, el);
+    return id;
+  }
+
+  /**
+   * `source` rotated by `degrees` (a multiple of 90). Returns `source`
+   * itself for 0°; otherwise renders an off-screen canvas, reusing the
+   * last one when source and angle match.
+   */
+  private getRotatedRaster(
+    source: HTMLImageElement | HTMLCanvasElement,
+    degrees: number,
+  ): HTMLImageElement | HTMLCanvasElement {
+    if (degrees === 0) return source;
+    const key = `${this.registerRaster(source)}:${degrees}`;
+    if (this.rotatedRaster?.key === key) return this.rotatedRaster.el;
+
+    const rotCanvas = document.createElement('canvas');
+    const radians = (degrees * Math.PI) / 180;
+    // Snap float noise (cos(90°) ≈ 6e-17) so Math.ceil below doesn't
+    // add a 1px transparent strip — e.g. 1234×777 rotating to 778×1234.
+    const absCos = Math.round(Math.abs(Math.cos(radians)) * 1e9) / 1e9;
+    const absSin = Math.round(Math.abs(Math.sin(radians)) * 1e9) / 1e9;
+    rotCanvas.width = Math.ceil(source.width * absCos + source.height * absSin);
+    rotCanvas.height = Math.ceil(source.width * absSin + source.height * absCos);
+
+    const ctx = rotCanvas.getContext('2d')!;
+    ctx.translate(rotCanvas.width / 2, rotCanvas.height / 2);
+    ctx.rotate(radians);
+    ctx.drawImage(source, -source.width / 2, -source.height / 2);
+
+    this.rotatedRaster = { key, el: rotCanvas };
+    return rotCanvas;
+  }
+
+  /** HistoryHooks.capture — see HistoryExtra. */
+  private captureHistoryExtra(): HistoryExtra | null {
+    const img = this.baseImage as any;
+    if (!img) return null;
+    // Normally the base image is processedSourceImage rotated by
+    // cumulativeRotation. If the source couldn't be decoded, fall back
+    // to the displayed pixels as-is.
+    const source = this.processedSourceImage;
+    const raster: HTMLImageElement | HTMLCanvasElement =
+      source ?? img._originalElement ?? img.getElement();
+    return {
+      raster: this.registerRaster(raster),
+      rasterRotation: source ? this.cumulativeRotation : 0,
+      sourceIsRaster: !!source,
+      cumulativeRotation: this.cumulativeRotation,
+      rotationBaseline: this.rotationImageBaseline
+        ? { ...this.rotationImageBaseline }
+        : null,
+      geometry: {
+        left: img.left || 0,
+        top: img.top || 0,
+        scaleX: img.scaleX || 1,
+        scaleY: img.scaleY || 1,
+        flipX: !!img.flipX,
+        flipY: !!img.flipY,
+      },
+      preset: this.activeFilterPreset,
+      adjustments: { ...this.adjustments },
+    };
+  }
+
+  /**
+   * HistoryHooks.restore — runs right after loadFromJSON, which cleared
+   * the canvas and re-added the annotations. Re-insert the base image
+   * at its saved geometry and restore the editor state; afterHistoryRestore()
+   * then re-locks it and re-fits everything to the current wrapper.
+   */
+  private restoreHistoryExtra(extra: HistoryExtra | null): void {
+    if (!extra || !this.fabricCanvas) return;
+    const raster = this.rasters.get(extra.raster);
+    if (!raster) return;
+
+    const el = this.getRotatedRaster(raster, extra.rasterRotation);
+    const img = new fabric.Image(el as any, { crossOrigin: 'anonymous' } as any);
+    img.set({
+      ...extra.geometry,
+      originX: 'left',
+      originY: 'top',
+      selectable: false,
+      evented: false,
+    } as any);
+    (img as any)._rpBaseImage = true;
+    this.fabricCanvas.insertAt(img, 0, false);
+    this.baseImage = img;
+
+    if (extra.sourceIsRaster && raster instanceof HTMLImageElement) {
+      this.processedSourceImage = raster;
+    }
+    this.cumulativeRotation = extra.cumulativeRotation;
+    this.rotationImageBaseline = extra.rotationBaseline
+      ? { ...extra.rotationBaseline }
+      : null;
+    this.activeFilterPreset = extra.preset;
+    this.adjustments = { ...extra.adjustments };
+    if (this.hasImageEffects()) this.rebuildImageFilters(false);
+  }
+
+  /** HistoryHooks.prune — drop rasters no history entry refers to. */
+  private pruneRasters(liveExtras: Array<HistoryExtra | null>): void {
+    const live = new Set<string>();
+    for (const extra of liveExtras) if (extra) live.add(extra.raster);
+    const sourceId = this.processedSourceImage
+      ? this.rasterIds.get(this.processedSourceImage)
+      : undefined;
+    if (sourceId) live.add(sourceId);
+
+    for (const id of Array.from(this.rasters.keys())) {
+      if (!live.has(id)) this.rasters.delete(id);
+    }
+    if (this.rotatedRaster && !live.has(this.rotatedRaster.key.split(':')[0])) {
+      this.rotatedRaster = null;
+    }
+  }
+
   private initializeModules(): void {
     if (!this.fabricCanvas) return;
 
@@ -1659,7 +1841,11 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       this.calloutModule?.setPlacementBoundsProvider(boundsProvider);
       this.shapeModule?.setPlacementBoundsProvider(boundsProvider);
 
-    this.historyModule = new HistoryModule(this.fabricCanvas, this.config.maxUndoSteps);
+    this.historyModule = new HistoryModule(this.fabricCanvas, this.config.maxUndoSteps, {
+      capture: () => this.captureHistoryExtra(),
+      restore: (extra) => this.restoreHistoryExtra(extra as HistoryExtra | null),
+      prune: (live) => this.pruneRasters(live as Array<HistoryExtra | null>),
+    });
 
     // Set defaults from config
 
@@ -2427,33 +2613,9 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
 
     this.fabricCanvas.backgroundColor = 'transparent';
 
-    if (newCum === 0) {
-      // Full circle — reload the cached source directly (no PNG roundtrip).
-      this.loadImageElementOntoCanvas(sourceImg);
-    } else {
-      // Render the rotated copy onto an off-screen canvas, then hand
-      // the canvas STRAIGHT to Fabric (skip toDataURL/decode roundtrip
-      // — saves hundreds of ms on large photos).
-      const rotCanvas = document.createElement('canvas');
-      const radians = (newCum * Math.PI) / 180;
-      // Snap float noise (cos(90°) ≈ 6e-17) so Math.ceil below doesn't
-      // add a 1px transparent strip — e.g. 1234×777 rotating to 778×1234.
-      const absCos = Math.round(Math.abs(Math.cos(radians)) * 1e9) / 1e9;
-      const absSin = Math.round(Math.abs(Math.sin(radians)) * 1e9) / 1e9;
-      rotCanvas.width = Math.ceil(
-        sourceImg.width * absCos + sourceImg.height * absSin,
-      );
-      rotCanvas.height = Math.ceil(
-        sourceImg.width * absSin + sourceImg.height * absCos,
-      );
-
-      const ctx = rotCanvas.getContext('2d')!;
-      ctx.translate(rotCanvas.width / 2, rotCanvas.height / 2);
-      ctx.rotate(radians);
-      ctx.drawImage(sourceImg, -sourceImg.width / 2, -sourceImg.height / 2);
-
-      this.loadImageElementOntoCanvas(rotCanvas);
-    }
+    // Full circle reloads the cached source directly; otherwise hand the
+    // rotated off-screen canvas STRAIGHT to Fabric (no PNG roundtrip).
+    this.loadImageElementOntoCanvas(this.getRotatedRaster(sourceImg, newCum));
 
     // Post-load image geometry.
     const newGeom = this.computeImageGeometry();

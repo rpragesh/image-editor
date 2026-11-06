@@ -11,11 +11,11 @@ import path from 'path';
 
 const FIXTURE = 'file://' + path.join(__dirname, 'fixture.html');
 
-async function setup(page: Page, config: Record<string, unknown> = {}) {
+async function setup(page: Page, config: Record<string, unknown> = {}, size: [number, number] = [800, 600]) {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(FIXTURE);
-  await page.evaluate((cfg) => (window as any).harness.create(cfg), config);
+  await page.evaluate(([cfg, sz]) => (window as any).harness.create(cfg, sz), [config, size] as const);
   return errors;
 }
 
@@ -191,11 +191,9 @@ test('undo of a rotation restores the previous orientation', async ({ page }) =>
   expectColor(await pixelAt(page, 0.25, 0.5), RED);
 });
 
-// Known bug in 1.5.10: undo restores the canvas but not the editor's
-// cumulativeRotation, so the second rotate goes to 180° instead of 90°.
-// Fixed by moving editor state into history snapshots; drop test.fail then.
+// Regression: up to 1.5.11 undo restored the canvas but not the editor's
+// cumulativeRotation, so the second rotate went to 180° instead of 90°.
 test('rotating again after undoing a rotation uses the right angle', async ({ page }) => {
-  test.fail();
   await setup(page);
   await call(page, 'rotateRight');
   await call(page, 'undo');
@@ -284,4 +282,111 @@ test("keyboardShortcutsScope 'editor' ignores keys from outside the editor", asy
   expect(await page.evaluate(() => document.getElementById('host')!.contains(document.activeElement))).toBe(true);
   await pressAndSettle(page, 'r');
   expectSize(await exportInfo(page), 600, 800);
+});
+
+/* ── Undo/redo of image-level edits ─────────────────────────────── */
+
+async function applyDefaultCrop(page: Page) {
+  await call(page, 'setMode', 'crop');
+  await page.getByRole('button', { name: 'Apply Crop' }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).harness.editor.getMode())).toBe('move');
+}
+
+const effects = (page: Page) => page.evaluate(() => (window as any).harness.editor.getImageEffects());
+
+test('undo of a crop restores the full image, and rotating afterwards uses it', async ({ page }) => {
+  await setup(page);
+  await applyDefaultCrop(page);
+  expectSize(await exportInfo(page), 640, 480, 2);
+
+  await call(page, 'undo');
+  expectSize(await exportInfo(page), 800, 600);
+
+  await call(page, 'rotateRight');
+  expectSize(await exportInfo(page), 600, 800);
+  expectColor(await pixelAt(page, 0.5, 0.25), RED);
+});
+
+test('redo of a crop re-applies it', async ({ page }) => {
+  await setup(page);
+  await applyDefaultCrop(page);
+  await call(page, 'undo');
+  await call(page, 'redo');
+  expectSize(await exportInfo(page), 640, 480, 2);
+});
+
+test('undo/redo of a filter restores pixels and the reported preset', async ({ page }) => {
+  await setup(page);
+  await call(page, 'applyFilterPreset', 'grayscale');
+  await call(page, 'undo');
+  expect((await effects(page)).preset).toBe('none');
+  await exportInfo(page);
+  expectColor(await pixelAt(page, 0.25, 0.5), RED);
+
+  await call(page, 'redo');
+  expect((await effects(page)).preset).toBe('grayscale');
+  await exportInfo(page);
+  const [r, g, b] = await pixelAt(page, 0.25, 0.5);
+  expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThanOrEqual(4);
+});
+
+test('undo of a flip restores the original orientation', async ({ page }) => {
+  await setup(page);
+  await call(page, 'flipHorizontal');
+  await call(page, 'undo');
+  await exportInfo(page);
+  expectColor(await pixelAt(page, 0.25, 0.5), RED);
+  expectColor(await pixelAt(page, 0.75, 0.5), BLUE);
+});
+
+test('redo of an undone rotation rotates again', async ({ page }) => {
+  await setup(page);
+  await call(page, 'rotateRight');
+  await call(page, 'undo');
+  await call(page, 'redo');
+  expectSize(await exportInfo(page), 600, 800);
+  expectColor(await pixelAt(page, 0.5, 0.25), RED);
+});
+
+test('step-by-step undo through crop, rotate and filter', async ({ page }) => {
+  await setup(page);
+  await applyDefaultCrop(page);
+  await call(page, 'rotateRight');
+  await call(page, 'applyFilterPreset', 'grayscale');
+
+  await call(page, 'undo'); // filter
+  expect((await effects(page)).preset).toBe('none');
+  expectSize(await exportInfo(page), 480, 640, 2);
+  expectColor(await pixelAt(page, 0.5, 0.2), RED);
+
+  await call(page, 'undo'); // rotate
+  expectSize(await exportInfo(page), 640, 480, 2);
+
+  await call(page, 'undo'); // crop
+  expectSize(await exportInfo(page), 800, 600);
+  expectColor(await pixelAt(page, 0.25, 0.5), RED);
+});
+
+test('drawing survives rotate + undo at its original position', async ({ page }) => {
+  await setup(page);
+  await drawStrokeOnBlueHalf(page);
+  await call(page, 'setMode', 'move');
+  await call(page, 'rotateRight');
+  await call(page, 'undo');
+  expectSize(await exportInfo(page), 800, 600);
+  expect(await count(page, STROKE_BAND, 'red')).toBeGreaterThan(50);
+});
+
+test('history snapshots do not embed the image', async ({ page }) => {
+  await setup(page, {}, [1600, 1200]);
+  await call(page, 'rotateRight');
+  await drawStrokeOnBlueHalf(page);
+  await call(page, 'setMode', 'move');
+  const sizes = await page.evaluate(() => {
+    const h = (window as any).harness.editor.historyModule;
+    return [...h.undoStack, ...h.redoStack].map((e: any) => e.canvas.length + e.extraKey.length);
+  });
+  expect(sizes.length).toBeGreaterThanOrEqual(3);
+  // A 1600×1200 PNG data URL is far larger; snapshots should be a few KB.
+  for (const s of sizes) expect(s).toBeLessThan(20_000);
 });

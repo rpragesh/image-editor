@@ -1,19 +1,63 @@
 /**
  * History Module — undo/redo with JSON state snapshots
+ *
+ * Each entry stores the canvas JSON plus an opaque `extra` record that
+ * the owner supplies through `HistoryHooks`. With hooks installed, the
+ * base image (`_rpBaseImage`) is left out of the canvas JSON: Fabric
+ * would otherwise serialize it as a full data URL (and PNG-encode it
+ * on every save once the base image is a <canvas>, e.g. after rotate).
+ * The owner records what it needs to rebuild the base image in `extra`
+ * and re-installs it in `restore()`.
  */
 import { fabric } from 'fabric';
 
+export interface HistoryHooks {
+  /** Owner state saved with every entry (must be JSON-compatible). */
+  capture(): unknown;
+  /**
+   * Re-apply `extra` after the canvas JSON has been loaded. Runs while
+   * the module is still restoring, so `saveState()` calls are ignored.
+   */
+  restore(extra: unknown): Promise<void> | void;
+  /** Called with every live entry's `extra` after the stacks change. */
+  prune?(liveExtras: unknown[]): void;
+}
+
+interface HistoryEntry {
+  canvas: string;
+  extra: unknown;
+  /** JSON of `extra`, kept for cheap duplicate detection. */
+  extraKey: string;
+}
+
+const CUSTOM_PROPS = [
+  '_rpAnnotation',
+  '_rpType',
+  '_rpBaseImage',
+  '_rpShapeType',
+  'calloutId',
+  'calloutRole',
+  '_rpFullText',
+  'x1',
+  'y1',
+  'x2',
+  'y2',
+  'arrowheadSize',
+];
+
 export class HistoryModule {
   private canvas: fabric.Canvas;
-  private undoStack: string[] = [];
-  private redoStack: string[] = [];
+  private undoStack: HistoryEntry[] = [];
+  private redoStack: HistoryEntry[] = [];
   private maxSteps: number;
+  private hooks: HistoryHooks | null;
   private isRestoring = false;
   private onChangeCallback: ((state: { canUndo: boolean; canRedo: boolean }) => void) | null = null;
 
-  constructor(canvas: fabric.Canvas, maxSteps: number = 20) {
+  constructor(canvas: fabric.Canvas, maxSteps: number = 20, hooks?: HistoryHooks) {
     this.canvas = canvas;
     this.maxSteps = maxSteps;
+    this.hooks = hooks ?? null;
   }
 
   /**
@@ -22,27 +66,15 @@ export class HistoryModule {
   saveState(): void {
     if (this.isRestoring) return;
 
-    const json = JSON.stringify(this.canvas.toJSON([
-      '_rpAnnotation',
-      '_rpType',
-      '_rpBaseImage',
-      '_rpShapeType',
-      'calloutId',
-      'calloutRole',
-      '_rpFullText',
-      'x1',
-      'y1',
-      'x2',
-      'y2',
-      'arrowheadSize',
-    ]));
+    const entry = this.captureEntry();
 
     // Don't save duplicate states
-    if (this.undoStack.length > 0 && this.undoStack[this.undoStack.length - 1] === json) {
+    const last = this.undoStack[this.undoStack.length - 1];
+    if (last && last.canvas === entry.canvas && last.extraKey === entry.extraKey) {
       return;
     }
 
-    this.undoStack.push(json);
+    this.undoStack.push(entry);
 
     // Trim stack if exceeding max
     if (this.undoStack.length > this.maxSteps) {
@@ -53,6 +85,7 @@ export class HistoryModule {
     this.redoStack = [];
 
     this.notifyChange();
+    this.prune();
   }
 
   /**
@@ -129,6 +162,7 @@ export class HistoryModule {
     this.undoStack = [];
     this.redoStack = [];
     this.notifyChange();
+    this.prune();
   }
 
   /**
@@ -138,17 +172,46 @@ export class HistoryModule {
     this.onChangeCallback = callback;
   }
 
-  private async restoreState(stateJson: string): Promise<void> {
+  private captureEntry(): HistoryEntry {
+    // With hooks, the owner rebuilds the base image from `extra`, so keep
+    // it out of the JSON. excludeFromExport is honoured by canvas.toJSON.
+    const excluded: Array<{ obj: any; prev: boolean | undefined }> = [];
+    if (this.hooks) {
+      for (const obj of this.canvas.getObjects() as any[]) {
+        if (obj._rpBaseImage) {
+          excluded.push({ obj, prev: obj.excludeFromExport });
+          obj.excludeFromExport = true;
+        }
+      }
+    }
+    let canvas: string;
+    try {
+      canvas = JSON.stringify(this.canvas.toJSON(CUSTOM_PROPS));
+    } finally {
+      for (const { obj, prev } of excluded) obj.excludeFromExport = prev;
+    }
+    const extra = this.hooks ? this.hooks.capture() : null;
+    return { canvas, extra, extraKey: JSON.stringify(extra) };
+  }
+
+  private async restoreState(entry: HistoryEntry): Promise<void> {
     this.isRestoring = true;
-    return new Promise<void>((resolve) => {
-      this.canvas.loadFromJSON(stateJson, () => {
-        // Ensure background stays transparent (never bake theme color into canvas)
-        this.canvas.backgroundColor = 'transparent';
-        this.canvas.renderAll();
-        this.isRestoring = false;
-        resolve();
+    try {
+      await new Promise<void>((resolve) => {
+        this.canvas.loadFromJSON(entry.canvas, () => resolve());
       });
-    });
+      if (this.hooks) await this.hooks.restore(entry.extra);
+    } finally {
+      // Ensure background stays transparent (never bake theme color into canvas)
+      this.canvas.backgroundColor = 'transparent';
+      this.canvas.renderAll();
+      this.isRestoring = false;
+    }
+  }
+
+  private prune(): void {
+    if (!this.hooks?.prune) return;
+    this.hooks.prune([...this.undoStack, ...this.redoStack].map((e) => e.extra));
   }
 
   private notifyChange(): void {
