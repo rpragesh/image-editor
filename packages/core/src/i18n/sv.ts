@@ -90,6 +90,7 @@ export const sv: LocalePack = {
     contrast: 'Kontrast',
     saturation: 'Mättnad',
     blur: 'Oskärpa',
+    transform: 'Rotera och spegelvänd',
     quickActions: 'Snabbåtgärder',
     hintMove:
       'Dra för att panorera · nyp eller scrolla för att zooma · välj ett verktyg för att börja.',

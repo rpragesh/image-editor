@@ -90,6 +90,7 @@ export const en: LocalePack = {
     contrast: 'Contrast',
     saturation: 'Saturation',
     blur: 'Blur',
+    transform: 'Rotate & flip',
     quickActions: 'Quick Actions',
     hintMove:
       'Drag to pan · pinch or scroll to zoom · pick a tool to start editing.',

@@ -90,6 +90,7 @@ export const pt: LocalePack = {
     contrast: 'Contraste',
     saturation: 'Saturação',
     blur: 'Desfoque',
+    transform: 'Girar e espelhar',
     quickActions: 'Ações rápidas',
     hintMove:
       'Arraste para mover · aperte ou role para dar zoom · escolha uma ferramenta para começar.',

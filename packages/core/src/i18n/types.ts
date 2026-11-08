@@ -129,6 +129,12 @@ export interface LocalePack {
     contrast: string;
     saturation: string;
     blur: string;
+    /**
+     * Heading for the rotate / flip buttons in the Crop panel. Optional so
+     * hand-built `LocalePack` objects from older versions still type-check;
+     * falls back to English.
+     */
+    transform?: string;
     quickActions: string;
     hintMove: string;
     hintEraser: string;

@@ -16,6 +16,7 @@ import {
 import { mergeConfig } from './utils/defaults.js';
 import { EventEmitter } from './utils/event-emitter.js';
 import { processImage } from './utils/image-processing.js';
+import { renderFilterPreviews } from './utils/filter-preview.js';
 import { isTouchDevice } from './utils/platform.js';
 import { CropModule } from './modules/crop.js';
 import { DrawModule } from './modules/draw.js';
@@ -541,8 +542,10 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
 
     // Header chrome
     if (theme.headerTitle === undefined) theme.headerTitle = pack.headerTitle;
-    if (theme.headerSubtitle === undefined)
-      theme.headerSubtitle = pack.headerSubtitle;
+    // The subtitle shows only when the host asks for one (theme or a
+    // `labels` override); the language packs' generic tagline is not shown.
+    if (theme.headerSubtitle === undefined && this.config.labels?.headerSubtitle)
+      theme.headerSubtitle = this.config.labels.headerSubtitle;
     if (theme.applyButtonText === undefined)
       theme.applyButtonText = pack.applyButton;
     if (theme.cancelButtonText === undefined)
@@ -1444,6 +1447,10 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
    */
   destroy(): void {
     this.isDestroyed = true;
+    if (this.nudgeCommitTimer) {
+      clearTimeout(this.nudgeCommitTimer);
+      this.nudgeCommitTimer = null;
+    }
     this.deactivateCurrentMode();
     this.hideLoader();
     this.hideGhostImage();
@@ -2098,6 +2105,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       onAdjustChange: (key, value) => this.setAdjustment(key, value),
       onResetEffects: () => this.resetImageEffects(true),
       getImageEffects: () => this.getImageEffects(),
+      getFilterPreviews: (presets) => this.getFilterPreviews(presets),
       onApply: this.config.onApply,
       onClose: this.config.onClose,
       onToggleFullscreen: () => this.toggleFullscreen(),
@@ -2134,6 +2142,24 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     if (!this.config.disableKeyboardShortcuts) {
       this.installKeyboardShortcuts();
     }
+  }
+
+  /**
+   * Thumbnails of the photo as currently cropped/rotated/flipped, one per
+   * filter preset, for the Filters panel. Cached until the image changes.
+   */
+  private filterPreviewCache: { el: unknown; key: string; urls: Record<string, string> } | null = null;
+
+  private getFilterPreviews(presets: ImageFilterPreset[]): Record<string, string> | null {
+    const img = this.baseImage as any;
+    const el = img?._originalElement || img?.getElement?.();
+    if (!el) return null;
+    const key = `${presets.join(',')}|${!!img.flipX}|${!!img.flipY}`;
+    const cache = this.filterPreviewCache;
+    if (cache && cache.el === el && cache.key === key) return cache.urls;
+    const urls = renderFilterPreviews(el, presets, { flipX: !!img.flipX, flipY: !!img.flipY });
+    if (urls) this.filterPreviewCache = { el, key, urls };
+    return urls;
   }
 
   private installKeyboardShortcuts(): void {
@@ -2180,8 +2206,49 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
         return;
       }
       if (key === 'Escape') {
+        // Back out one level at a time: cancel crop, then clear the
+        // selection, and only then close the editor.
+        if (this.currentMode === 'crop') {
+          e.preventDefault();
+          this.cropModule?.deactivate();
+          this.setMode('move');
+          return;
+        }
+        const sel = this.fabricCanvas?.getActiveObject() as any;
+        if (sel && !sel._rpBaseImage) {
+          e.preventDefault();
+          this.fabricCanvas?.discardActiveObject();
+          this.fabricCanvas?.requestRenderAll();
+          return;
+        }
         this.config.onClose?.();
         return;
+      }
+      // Delete the selected annotation
+      if (!meta && (key === 'Delete' || key === 'Backspace')) {
+        const sel = this.fabricCanvas?.getActiveObject() as any;
+        if (sel && this.currentMode !== 'crop' && this.isAnnotationSelection(sel)) {
+          e.preventDefault();
+          this.deleteSelectedAnnotation();
+          return;
+        }
+      }
+      // Arrow keys: nudge the crop box or the selected annotation
+      if (!meta && key.startsWith('Arrow')) {
+        const step = shift ? 10 : 1;
+        const dx = key === 'ArrowLeft' ? -step : key === 'ArrowRight' ? step : 0;
+        const dy = key === 'ArrowUp' ? -step : key === 'ArrowDown' ? step : 0;
+        if (this.currentMode === 'crop') {
+          e.preventDefault();
+          this.cropModule?.nudge(dx, dy);
+          return;
+        }
+        const sel = this.fabricCanvas?.getActiveObject() as any;
+        if (sel && this.isAnnotationSelection(sel)) {
+          e.preventDefault();
+          this.nudgeSelection(sel, dx, dy);
+          return;
+        }
       }
       // Zoom
       if (!meta && (key === '+' || key === '=')) {
@@ -2243,6 +2310,39 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.activateHandler = activate;
     shortcutEditors.add(this);
     activeShortcutEditor = this;
+  }
+
+  /** True when `obj` is an annotation (or a multi-selection of them). */
+  private isAnnotationSelection(obj: any): boolean {
+    if (!obj || obj._rpBaseImage || obj._rpCropRect || obj._rpOverlay) return false;
+    if (obj.type === 'activeSelection') {
+      return (obj.getObjects?.() ?? []).every((o: any) => o._rpAnnotation || o.calloutId != null);
+    }
+    return !!(obj._rpAnnotation || obj.calloutId != null);
+  }
+
+  private nudgeCommitTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * Move a selection by (dx, dy) as if it were dragged: the same
+   * 'moving' events fire so callouts/arrows keep their parts in sync and
+   * bounds clamping applies. A burst of presses is one undo step.
+   */
+  private nudgeSelection(obj: any, dx: number, dy: number): void {
+    const canvas = this.fabricCanvas;
+    if (!canvas) return;
+    obj.set({ left: (obj.left ?? 0) + dx, top: (obj.top ?? 0) + dy });
+    obj.setCoords();
+    obj.fire?.('moving', { target: obj });
+    canvas.fire('object:moving', { target: obj } as any);
+    canvas.requestRenderAll();
+    if (this.nudgeCommitTimer) clearTimeout(this.nudgeCommitTimer);
+    this.nudgeCommitTimer = setTimeout(() => {
+      this.nudgeCommitTimer = null;
+      if (this.isDestroyed || !this.fabricCanvas) return;
+      obj.fire?.('modified', { target: obj });
+      this.fabricCanvas.fire('object:modified', { target: obj } as any);
+    }, 350);
   }
 
   /**

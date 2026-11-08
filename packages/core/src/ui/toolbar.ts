@@ -1,7 +1,9 @@
 /**
- * Shell UI — modern Figma+Linear-inspired layout that wraps the Fabric
- * canvas. Renders the top bar, left tool rail, right quick rail,
- * bottom quick-actions bar, and contextual properties panel.
+ * Shell UI that wraps the Fabric canvas: a top bar (close, title, image
+ * counter, history, zoom, Apply), one tool rail, and a properties panel
+ * that only appears for tools that have settings. Every control lives in
+ * exactly one place. On phones the rail moves to a scrolling bar at the
+ * bottom and the panel becomes a compact sheet above it (CSS only).
  *
  * The class is still named `Toolbar` to keep back-compat with the
  * existing editor import — the exported callbacks contract is a
@@ -50,6 +52,8 @@ export interface ToolbarCallbacks {
   ) => void;
   onResetEffects?: () => void;
   getImageEffects?: () => { preset: ImageFilterPreset; adjustments: ImageAdjustments };
+  /** Thumbnails of the current photo per filter preset (data URLs), or null. */
+  getFilterPreviews?: (presets: ImageFilterPreset[]) => Record<string, string> | null;
   onApply?: () => void;
   onClose?: () => void;
   onToggleFullscreen?: () => void;
@@ -208,7 +212,8 @@ export class Toolbar {
   private rootEl: HTMLElement | null = null;
   private stageSlotEl: HTMLElement | null = null;
   private propsPanelEl: HTMLElement | null = null;
-  private bottomSliderEl: HTMLElement | null = null;
+  private middleEl: HTMLElement | null = null;
+  private railObserver: ResizeObserver | null = null;
   private zoomLabelEl: HTMLElement | null = null;
   private zoomMenuEl: HTMLElement | null = null;
   private fullscreenBtnEl: HTMLButtonElement | null = null;
@@ -217,7 +222,6 @@ export class Toolbar {
   private statusLiveEl: HTMLElement | null = null;
 
   private activeMode: EditorMode = 'move';
-  private quickActionFlashTimers = new WeakMap<HTMLElement, number>();
   private zoomLevel = 1;
   private canUndo = false;
   private canRedo = false;
@@ -271,10 +275,8 @@ export class Toolbar {
     middle.appendChild(this.buildLeftRail());
     middle.appendChild(this.buildPropsPanel());
     middle.appendChild(this.buildStage());
-    middle.appendChild(this.buildRightRail());
     root.appendChild(middle);
-
-    root.appendChild(this.buildBottomBar());
+    this.middleEl = middle;
 
     // Toast root (bottom-right)
     const toast = document.createElement('div');
@@ -299,6 +301,12 @@ export class Toolbar {
     this.updateZoomLabel();
     this.updateHistoryButtons();
     this.updateZoomState(this.zoomLevel);
+    this.updateRailOverflow();
+    const rail = root.querySelector<HTMLElement>('.rp-ie-rail--left');
+    if (rail && typeof ResizeObserver !== 'undefined') {
+      this.railObserver = new ResizeObserver(() => this.updateRailOverflow());
+      this.railObserver.observe(rail);
+    }
 
     // Outside-click for the zoom menu
     this.outsideClickHandler = (e: MouseEvent) => {
@@ -352,7 +360,6 @@ export class Toolbar {
     this.activeMode = mode;
     this.updateActiveTool();
     this.updatePropsPanel();
-    this.updateBottomSlider();
   }
 
   /**
@@ -404,11 +411,13 @@ export class Toolbar {
       );
       this.fullscreenChangeHandler = null;
     }
+    this.railObserver?.disconnect();
+    this.railObserver = null;
     this.rootEl?.remove();
     this.rootEl = null;
     this.stageSlotEl = null;
     this.propsPanelEl = null;
-    this.bottomSliderEl = null;
+    this.middleEl = null;
     this.zoomLabelEl = null;
     this.zoomMenuEl = null;
     this.fullscreenBtnEl = null;
@@ -429,7 +438,7 @@ export class Toolbar {
     const t = this.theme;
     // Accent: prefer new token → toolbarActiveBackground → deprecated toolbarActiveIconColor
     const accent =
-      t.accent || t.toolbarActiveBackground || t.toolbarActiveIconColor || '#083a81';
+      t.accent || t.toolbarActiveBackground || t.toolbarActiveIconColor || '#2f6feb';
     const accentContrast = t.accentContrast || t.toolbarActiveTextColor || '#FFFFFF';
     const surface0 = t.surface0 || t.editorBackground || '#0B0D12';
     const surface1 = t.surface1 || t.toolbarBackground || '#12151C';
@@ -493,13 +502,33 @@ export class Toolbar {
     bar.className = 'rp-ie-topbar';
     bar.setAttribute('role', 'toolbar');
     bar.setAttribute('aria-label', 'Editor top bar');
+    const L = this.labels;
 
-    // Left: brand + title
+    /* ── Left: close + title ───────────────────────────────────── */
+    const left = document.createElement('div');
+    left.className = 'rp-ie-topbar__group rp-ie-topbar__group--start';
+
+    if (this.callbacks.onClose) {
+      const closeLabel =
+        this.theme.cancelButtonText || L?.cancelButton || 'Close';
+      const closeBtn = this.makeIconButton({
+        icon: 'close',
+        label: closeLabel,
+        shortcut: 'Esc',
+        onClick: () => this.callbacks.onClose?.(),
+      });
+      closeBtn.classList.add('rp-ie-close');
+      closeBtn.setAttribute('data-role', 'close');
+      left.appendChild(closeBtn);
+    }
+
     const brand = document.createElement('div');
     brand.className = 'rp-ie-brand';
-
-    // Badge is optional — omit entirely when `showHeaderBadge === false`.
-    const showBadge = this.theme.showHeaderBadge !== false;
+    // The badge shows a host logo. The generic placeholder icon only
+    // appears when a host explicitly asks for it (`showHeaderBadge: true`).
+    const showBadge =
+      this.theme.showHeaderBadge !== false &&
+      (!!this.theme.headerLogo || this.theme.showHeaderBadge === true);
     if (showBadge) {
       const badge = document.createElement('div');
       badge.className = 'rp-ie-brand__badge';
@@ -522,107 +551,168 @@ export class Toolbar {
     const title = document.createElement('div');
     title.className = 'rp-ie-brand__title';
     title.textContent =
-      this.theme.headerTitle || this.labels?.headerTitle || 'Photo Editor';
+      this.theme.headerTitle || L?.headerTitle || 'Photo Editor';
     titles.appendChild(title);
-
-    // Subtitle: default text is kept for back-compat. Passing an empty
-    // string via `theme.headerSubtitle` opts out of the subtitle row.
-    const subtitleText =
-      this.theme.headerSubtitle !== undefined
-        ? this.theme.headerSubtitle
-        : this.labels?.headerSubtitle ?? 'Edit your image with ease';
-    if (subtitleText) {
+    // A subtitle only renders when the host sets one.
+    if (this.theme.headerSubtitle) {
       const subtitle = document.createElement('div');
       subtitle.className = 'rp-ie-brand__subtitle';
-      subtitle.textContent = subtitleText;
+      subtitle.textContent = this.theme.headerSubtitle;
       titles.appendChild(subtitle);
     }
     brand.appendChild(titles);
+    left.appendChild(brand);
+    bar.appendChild(left);
 
-    bar.appendChild(brand);
-
-    // Spacer
-    const spacer = document.createElement('div');
-    spacer.className = 'rp-ie-topbar__spacer';
-    bar.appendChild(spacer);
-
+    /* ── Centre: image counter ─────────────────────────────────── */
+    const center = document.createElement('div');
+    center.className = 'rp-ie-topbar__group rp-ie-topbar__group--center';
     const imageCounterText = this.getImageCounterText();
     if (imageCounterText) {
       const counter = document.createElement('div');
       counter.className = 'rp-ie-image-counter';
-      counter.textContent = imageCounterText;
-      counter.setAttribute('aria-label', `Image ${imageCounterText}`);
-      bar.appendChild(counter);
+      counter.textContent = imageCounterText.replace('/', ' / ');
+      counter.setAttribute('aria-label', `Image ${imageCounterText.replace('/', ' of ')}`);
+      center.appendChild(counter);
+    }
+    bar.appendChild(center);
+
+    /* ── Right: history · zoom · fullscreen · Apply ────────────── */
+    const actions = document.createElement('div');
+    actions.className = 'rp-ie-topbar__group rp-ie-topbar__group--end';
+
+    const history = document.createElement('div');
+    history.className = 'rp-ie-topbar__cluster';
+    if (!this.disabledSet.has('undo')) {
+      history.appendChild(
+        this.makeIconButton({
+          icon: 'undo',
+          label: L?.undo ?? 'Undo',
+          shortcut: '⌘Z',
+          onClick: () => this.callbacks.onUndo(),
+          dataAttr: { historyRole: 'undo' },
+        }),
+      );
+    }
+    if (!this.disabledSet.has('redo')) {
+      history.appendChild(
+        this.makeIconButton({
+          icon: 'redo',
+          label: L?.redo ?? 'Redo',
+          shortcut: '⌘⇧Z',
+          onClick: () => this.callbacks.onRedo(),
+          dataAttr: { historyRole: 'redo' },
+        }),
+      );
+    }
+    if (!this.disabledSet.has('reset')) {
+      const resetBtn = this.makeIconButton({
+        icon: 'reset',
+        label: L?.tool.reset ?? 'Reset',
+        onClick: () => this.callbacks.onReset(),
+        dataAttr: { quickId: 'reset' },
+      });
+      resetBtn.classList.add('rp-ie-hide-xs');
+      history.appendChild(resetBtn);
+    }
+    if (history.childElementCount) actions.appendChild(history);
+
+    // Rotate / flip live in the Crop panel. If the host disabled Crop
+    // but kept any of them, they fall back to the top bar.
+    if (this.disabledSet.has('crop')) {
+      const transform = this.buildTransformButtons('rp-ie-iconbtn');
+      if (transform.childElementCount) {
+        transform.className = 'rp-ie-topbar__cluster';
+        actions.appendChild(transform);
+      }
     }
 
-    // Right: actions
-    const actions = document.createElement('div');
-    actions.className = 'rp-ie-topbar__actions';
-
-    const undoBtn = this.makeIconButton({
-      icon: 'undo',
-      label: this.labels?.undo ?? 'Undo',
-      shortcut: '⌘Z',
-      onClick: () => this.callbacks.onUndo(),
-      dataAttr: { historyRole: 'undo' },
-    });
-    actions.appendChild(undoBtn);
-
-    const redoBtn = this.makeIconButton({
-      icon: 'redo',
-      label: this.labels?.redo ?? 'Redo',
-      shortcut: '⌘⇧Z',
-      onClick: () => this.callbacks.onRedo(),
-      dataAttr: { historyRole: 'redo' },
-    });
-    actions.appendChild(redoBtn);
-
-    // Zoom trigger + menu
-    actions.appendChild(this.buildZoomMenu());
+    const zoom = document.createElement('div');
+    zoom.className = 'rp-ie-topbar__cluster rp-ie-hide-sm';
+    if (!this.disabledSet.has('zoomOut')) {
+      zoom.appendChild(
+        this.makeIconButton({
+          icon: 'zoomOut',
+          label: L?.tool.zoomOut ?? 'Zoom Out',
+          shortcut: '−',
+          onClick: () => this.callbacks.onZoomOut(),
+          dataAttr: { quickId: 'zoomOut' },
+        }),
+      );
+    }
+    zoom.appendChild(this.buildZoomMenu());
+    if (!this.disabledSet.has('zoomIn')) {
+      zoom.appendChild(
+        this.makeIconButton({
+          icon: 'zoomIn',
+          label: L?.tool.zoomIn ?? 'Zoom In',
+          shortcut: '+',
+          onClick: () => this.callbacks.onZoomIn(),
+          dataAttr: { quickId: 'zoomIn' },
+        }),
+      );
+    }
+    actions.appendChild(zoom);
 
     // Fullscreen toggle (optional — hidden when the host disables it
-    // or omits the callback). Fit-to-screen is still available from
-    // the Zoom dropdown.
+    // or omits the callback).
     if (
       this.callbacks.onToggleFullscreen &&
       !this.disabledSet.has('fullscreen')
     ) {
       const fsBtn = this.makeIconButton({
         icon: 'fullscreen',
-        label: this.labels?.fullscreen ?? 'Fullscreen',
+        label: L?.fullscreen ?? 'Fullscreen',
         onClick: () => this.callbacks.onToggleFullscreen?.(),
       });
+      fsBtn.classList.add('rp-ie-hide-sm');
       this.fullscreenBtnEl = fsBtn as HTMLButtonElement;
       actions.appendChild(fsBtn);
     }
 
     if (this.callbacks.onApply) {
       const applyBtn = document.createElement('button');
-      applyBtn.className = 'rp-ie-btn rp-ie-btn--primary';
+      applyBtn.className = 'rp-ie-btn rp-ie-btn--primary rp-ie-apply';
       applyBtn.type = 'button';
       applyBtn.setAttribute('data-role', 'apply');
       const applyLabel =
-        this.theme.applyButtonText || this.labels?.applyButton || 'Apply';
-      applyBtn.innerHTML = `<span class="rp-ie-icon">${ICONS.apply}</span><span>${applyLabel}</span>`;
+        this.theme.applyButtonText || L?.applyButton || 'Apply';
+      applyBtn.innerHTML = `<span class="rp-ie-icon">${ICONS.apply}</span><span class="rp-ie-btn__text">${escapeHtml(applyLabel)}</span>`;
       this.attachTooltip(applyBtn, `${applyLabel} · ⌘⏎`);
       applyBtn.addEventListener('click', () => this.callbacks.onApply?.());
       actions.appendChild(applyBtn);
     }
 
-    if (this.callbacks.onClose) {
-      const closeBtn = document.createElement('button');
-      closeBtn.className = 'rp-ie-btn rp-ie-btn--ghost';
-      closeBtn.type = 'button';
-      const closeLabel =
-        this.theme.cancelButtonText || this.labels?.cancelButton || 'Close';
-      closeBtn.innerHTML = `<span class="rp-ie-icon">${ICONS.close}</span><span>${closeLabel}</span>`;
-      this.attachTooltip(closeBtn, `${closeLabel} · Esc`);
-      closeBtn.addEventListener('click', () => this.callbacks.onClose?.());
-      actions.appendChild(closeBtn);
-    }
-
     bar.appendChild(actions);
     return bar;
+  }
+
+  /**
+   * Rotate / flip buttons, honoring `disabledFeatures`. Rendered in the
+   * Crop panel, or in the top bar when Crop itself is disabled.
+   */
+  private buildTransformButtons(btnClass: string): HTMLElement {
+    const L = this.labels;
+    const wrap = document.createElement('div');
+    const items: Array<{ id: string; icon: string; label: string; shortcut: string; run: () => void }> = [
+      { id: 'rotateLeft', icon: 'rotateLeft', label: L?.tool.rotateLeft ?? 'Rotate Left', shortcut: '⇧R', run: () => this.callbacks.onRotateLeft() },
+      { id: 'rotateRight', icon: 'rotateRight', label: L?.tool.rotateRight ?? 'Rotate Right', shortcut: 'R', run: () => this.callbacks.onRotateRight() },
+      { id: 'flipH', icon: 'flipH', label: L?.tool.flipH ?? 'Flip H', shortcut: 'H', run: () => this.callbacks.onFlipHorizontal?.() },
+      { id: 'flipV', icon: 'flipV', label: L?.tool.flipV ?? 'Flip V', shortcut: '⇧H', run: () => this.callbacks.onFlipVertical?.() },
+    ];
+    for (const item of items) {
+      if (this.disabledSet.has(item.id)) continue;
+      const btn = this.makeIconButton({
+        icon: item.icon,
+        label: item.label,
+        shortcut: item.shortcut,
+        onClick: item.run,
+        dataAttr: { quickId: item.id },
+      });
+      btn.className = btnClass;
+      wrap.appendChild(btn);
+    }
+    return wrap;
   }
 
   private buildZoomMenu(): HTMLElement {
@@ -705,6 +795,7 @@ export class Toolbar {
     rail.className = 'rp-ie-rail rp-ie-rail--left';
     rail.setAttribute('role', 'toolbar');
     rail.setAttribute('aria-label', 'Tools');
+    rail.addEventListener('scroll', () => this.updateRailOverflow(), { passive: true });
 
     RAIL_TOOLS.forEach((toolDef) => {
       // Translate the label from the resolved locale pack. When no
@@ -772,110 +863,6 @@ export class Toolbar {
   }
 
   /* ================================================================ */
-  /*  Right rail (contextual)                                         */
-  /* ================================================================ */
-
-  private buildRightRail(): HTMLElement {
-    const rail = document.createElement('aside');
-    rail.className = 'rp-ie-rail rp-ie-rail--right';
-    rail.setAttribute('role', 'toolbar');
-    rail.setAttribute('aria-label', 'Quick actions');
-
-    const L = this.labels;
-    const items: Array<{
-      id: string;
-      icon: string;
-      label: string;
-      shortcut?: string;
-      onClick: () => void;
-      mode?: EditorMode;
-    }> = [
-      {
-        id: 'pen',
-        icon: 'pen',
-        label: L?.tool.pen ?? 'Pen',
-        shortcut: 'B',
-        mode: 'draw',
-        onClick: () => this.callbacks.onModeChange('draw'),
-      },
-      {
-        id: 'eraser',
-        icon: 'eraser',
-        label: L?.tool.eraser ?? 'Eraser',
-        shortcut: 'E',
-        mode: 'eraser',
-        onClick: () => this.callbacks.onModeChange('eraser'),
-      },
-      {
-        id: 'move',
-        icon: 'move',
-        label: L?.tool.move ?? 'Move',
-        shortcut: 'V',
-        mode: 'move',
-        onClick: () => this.callbacks.onModeChange('move'),
-      },
-      {
-        id: 'zoomIn',
-        icon: 'zoomIn',
-        label: L?.tool.zoomIn ?? 'Zoom In',
-        shortcut: '+',
-        onClick: () => this.callbacks.onZoomIn(),
-      },
-      {
-        id: 'zoomOut',
-        icon: 'zoomOut',
-        label: L?.tool.zoomOut ?? 'Zoom Out',
-        shortcut: '-',
-        onClick: () => this.callbacks.onZoomOut(),
-      },
-      {
-        id: 'undo',
-        icon: 'undo',
-        label: L?.undo ?? 'Undo',
-        shortcut: '⌘Z',
-        onClick: () => this.callbacks.onUndo(),
-      },
-      {
-        id: 'redo',
-        icon: 'redo',
-        label: L?.redo ?? 'Redo',
-        shortcut: '⌘⇧Z',
-        onClick: () => this.callbacks.onRedo(),
-      },
-    ];
-
-    items.forEach((item) => {
-      if (this.disabledSet.has(item.id)) return;
-      const tile = document.createElement('button');
-      tile.type = 'button';
-      tile.className = 'rp-ie-tile rp-ie-tile--compact';
-      tile.dataset.quickId = item.id;
-      if (item.mode) tile.dataset.mode = item.mode;
-      if (item.id === 'undo') tile.dataset.historyRole = 'undo';
-      if (item.id === 'redo') tile.dataset.historyRole = 'redo';
-
-      const icon = document.createElement('span');
-      icon.className = 'rp-ie-icon';
-      icon.innerHTML = ICONS[item.icon] || '';
-      tile.appendChild(icon);
-
-      const lbl = document.createElement('span');
-      lbl.className = 'rp-ie-tile__label';
-      lbl.textContent = item.label;
-      tile.appendChild(lbl);
-
-      const tipParts = [item.label];
-      if (item.shortcut) tipParts.push(item.shortcut);
-      this.attachTooltip(tile, tipParts.join(' · '), 'left');
-      tile.addEventListener('click', item.onClick);
-
-      rail.appendChild(tile);
-    });
-
-    return rail;
-  }
-
-  /* ================================================================ */
   /*  Stage + empty state                                             */
   /* ================================================================ */
 
@@ -932,6 +919,12 @@ export class Toolbar {
     const mode = this.activeMode;
     const isShape = mode.startsWith('shape-');
     const T = this.labels?.props.title;
+
+    // Select/move has no settings: hide the panel so the photo gets the room.
+    const hasPanel = mode !== 'move';
+    panel.hidden = !hasPanel;
+    this.middleEl?.classList.toggle('rp-ie-middle--no-props', !hasPanel);
+    if (!hasPanel) return;
     let title = T?.draw ?? 'Draw';
     let body: HTMLElement;
 
@@ -960,15 +953,14 @@ export class Toolbar {
       title = T?.adjust ?? 'Adjust';
       body = this.renderAdjustProps();
     } else {
-      title = T?.move ?? 'Move';
-      body = this.renderMoveProps();
+      return;
     }
 
     // Static header title. The panel is not collapsible, so do not render
     // an affordance that suggests hidden behavior.
-    const header = document.createElement('header');
+    const header = document.createElement('h2');
     header.className = 'rp-ie-props__header';
-    header.innerHTML = `<span>${title}</span>`;
+    header.textContent = title;
     panel.appendChild(header);
 
     panel.appendChild(body);
@@ -1040,17 +1032,32 @@ export class Toolbar {
       chip.type = 'button';
       chip.className = 'rp-ie-chip';
       chip.textContent = r.label;
+      chip.setAttribute('aria-pressed', idx === 0 ? 'true' : 'false');
       if (idx === 0) chip.classList.add('rp-ie-chip--active');
       chip.addEventListener('click', () => {
-        chips
-          .querySelectorAll('.rp-ie-chip')
-          .forEach((c) => c.classList.remove('rp-ie-chip--active'));
+        chips.querySelectorAll('.rp-ie-chip').forEach((c) => {
+          c.classList.remove('rp-ie-chip--active');
+          c.setAttribute('aria-pressed', 'false');
+        });
         chip.classList.add('rp-ie-chip--active');
+        chip.setAttribute('aria-pressed', 'true');
         this.callbacks.onCropRatioChange(r.value);
       });
       chips.appendChild(chip);
     });
     wrap.appendChild(chips);
+
+    const transform = this.buildTransformButtons('rp-ie-iconbtn rp-ie-iconbtn--outline');
+    if (transform.childElementCount) {
+      const tLabel = document.createElement('div');
+      tLabel.className = 'rp-ie-props__label';
+      tLabel.textContent = P?.transform ?? 'Rotate & flip';
+      wrap.appendChild(tLabel);
+      transform.className = 'rp-ie-transform-grid';
+      transform.setAttribute('role', 'group');
+      transform.setAttribute('aria-label', tLabel.textContent);
+      wrap.appendChild(transform);
+    }
 
     const actions = document.createElement('div');
     actions.className = 'rp-ie-props__actions';
@@ -1094,6 +1101,7 @@ export class Toolbar {
       btn.className = 'rp-ie-shape-tile';
       btn.dataset.mode = s.mode;
       btn.innerHTML = `<span class="rp-ie-icon">${ICONS[s.icon]}</span><span class="rp-ie-shape-tile__label">${s.label}</span>`;
+      btn.setAttribute('aria-pressed', s.mode === this.activeMode ? 'true' : 'false');
       if (s.mode === this.activeMode) btn.classList.add('rp-ie-shape-tile--active');
       btn.addEventListener('click', () => this.callbacks.onModeChange(s.mode));
       grid.appendChild(btn);
@@ -1131,18 +1139,6 @@ export class Toolbar {
       del.addEventListener('click', () => this.callbacks.onDeleteAnnotation?.());
       wrap.appendChild(del);
     }
-    return wrap;
-  }
-
-  private renderMoveProps(): HTMLElement {
-    const wrap = document.createElement('div');
-    wrap.className = 'rp-ie-props__body';
-    const p = document.createElement('p');
-    p.className = 'rp-ie-hint';
-    p.textContent =
-      this.labels?.props.hintMove ??
-      'Drag to pan · pinch or scroll to zoom · pick a tool to start editing.';
-    wrap.appendChild(p);
     return wrap;
   }
 
@@ -1187,6 +1183,13 @@ export class Toolbar {
     }
 
     const current = this.callbacks.getImageEffects?.().preset || 'none';
+    // Live previews of the photo; gradient swatches if unavailable.
+    let previews: Record<string, string> | null = null;
+    try {
+      previews = this.callbacks.getFilterPreviews?.(presets.map((p) => p.id)) ?? null;
+    } catch {
+      previews = null;
+    }
 
     const grid = document.createElement('div');
     grid.className = 'rp-ie-filter-grid';
@@ -1195,11 +1198,22 @@ export class Toolbar {
       btn.type = 'button';
       btn.className = 'rp-ie-filter-tile';
       btn.dataset.preset = p.id;
+      btn.setAttribute('aria-pressed', p.id === current ? 'true' : 'false');
       if (p.id === current) btn.classList.add('rp-ie-filter-tile--active');
 
-      const swatch = document.createElement('span');
-      swatch.className = `rp-ie-filter-swatch rp-ie-filter-swatch--${p.id}`;
-      btn.appendChild(swatch);
+      const src = previews?.[p.id];
+      if (src) {
+        const img = document.createElement('img');
+        img.className = 'rp-ie-filter-preview';
+        img.src = src;
+        img.alt = '';
+        img.decoding = 'async';
+        btn.appendChild(img);
+      } else {
+        const swatch = document.createElement('span');
+        swatch.className = `rp-ie-filter-swatch rp-ie-filter-swatch--${p.id}`;
+        btn.appendChild(swatch);
+      }
 
       const name = document.createElement('span');
       name.className = 'rp-ie-filter-tile__label';
@@ -1207,10 +1221,12 @@ export class Toolbar {
       btn.appendChild(name);
 
       btn.addEventListener('click', () => {
-        grid
-          .querySelectorAll('.rp-ie-filter-tile')
-          .forEach((el) => el.classList.remove('rp-ie-filter-tile--active'));
+        grid.querySelectorAll('.rp-ie-filter-tile').forEach((el) => {
+          el.classList.remove('rp-ie-filter-tile--active');
+          el.setAttribute('aria-pressed', 'false');
+        });
         btn.classList.add('rp-ie-filter-tile--active');
+        btn.setAttribute('aria-pressed', 'true');
         this.callbacks.onFilterPreset?.(p.id);
       });
       grid.appendChild(btn);
@@ -1305,6 +1321,7 @@ export class Toolbar {
     input.value = String(initial);
     input.step = '1';
     input.className = 'rp-ie-range rp-ie-range--bipolar';
+    input.setAttribute('aria-label', label);
     input.addEventListener('input', () => {
       const n = parseInt(input.value, 10);
       v.textContent = `${n > 0 ? '+' : ''}${n}`;
@@ -1344,6 +1361,7 @@ export class Toolbar {
       sw.style.setProperty('--swatch-color', color);
       sw.dataset.color = this.normalizeColorKey(color);
       sw.setAttribute('aria-label', `Color ${color}`);
+      sw.setAttribute('aria-pressed', sw.dataset.color === this.activeColor ? 'true' : 'false');
       if (sw.dataset.color === this.activeColor) {
         sw.classList.add('rp-ie-swatch--active');
       }
@@ -1467,6 +1485,7 @@ export class Toolbar {
         const sw = node as HTMLElement;
         const swColor = this.normalizeColorKey(sw.dataset.color || '');
         sw.classList.toggle('rp-ie-swatch--active', swColor === this.activeColor);
+        sw.setAttribute('aria-pressed', swColor === this.activeColor ? 'true' : 'false');
       });
 
     const colorInput = this.propsPanelEl.querySelector(
@@ -1506,6 +1525,7 @@ export class Toolbar {
     input.max = String(max);
     input.value = String(initial);
     input.className = 'rp-ie-range';
+    input.setAttribute('aria-label', label);
     input.addEventListener('input', () => {
       const n = parseInt(input.value, 10);
       v.textContent = `${n}${unit}`;
@@ -1513,201 +1533,6 @@ export class Toolbar {
     });
     wrap.appendChild(input);
     return wrap;
-  }
-
-  /* ================================================================ */
-  /*  Bottom bar                                                      */
-  /* ================================================================ */
-
-  private buildBottomBar(): HTMLElement {
-    const bar = document.createElement('footer');
-    bar.className = 'rp-ie-bottombar';
-    bar.setAttribute('role', 'toolbar');
-    bar.setAttribute('aria-label', 'Quick actions');
-
-    const section = document.createElement('div');
-    section.className = 'rp-ie-bottombar__section';
-
-    const label = document.createElement('div');
-    label.className = 'rp-ie-bottombar__label';
-    label.textContent = this.labels?.props.quickActions ?? 'Quick Actions';
-    section.appendChild(label);
-
-    const actions = document.createElement('div');
-    actions.className = 'rp-ie-quickactions';
-
-    const L = this.labels;
-    const items: Array<{
-      id: string;
-      icon: string;
-      label: string;
-      shortcut?: string;
-      mode?: EditorMode;
-      onClick: () => void;
-    }> = [
-      {
-        id: 'select',
-        icon: 'select',
-        label: L?.tool.select ?? 'Select',
-        shortcut: 'V',
-        mode: 'move',
-        onClick: () => this.callbacks.onModeChange('move'),
-      },
-      {
-        id: 'crop',
-        icon: 'crop',
-        label: L?.tool.crop ?? 'Crop',
-        shortcut: 'C',
-        mode: 'crop',
-        onClick: () => this.callbacks.onModeChange('crop'),
-      },
-      {
-        id: 'zoomIn',
-        icon: 'zoom',
-        label: L?.tool.zoom ?? 'Zoom',
-        shortcut: '+',
-        onClick: () => this.callbacks.onZoomIn(),
-      },
-      {
-        id: 'rotateLeft',
-        icon: 'rotateLeft',
-        label: L?.tool.rotateLeft ?? 'Rotate Left',
-        shortcut: '⇧R',
-        onClick: () => this.callbacks.onRotateLeft(),
-      },
-      {
-        id: 'rotateRight',
-        icon: 'rotateRight',
-        label: L?.tool.rotateRight ?? 'Rotate Right',
-        shortcut: 'R',
-        onClick: () => this.callbacks.onRotateRight(),
-      },
-      {
-        id: 'flipH',
-        icon: 'flipH',
-        label: L?.tool.flipH ?? 'Flip H',
-        shortcut: 'H',
-        onClick: () => this.callbacks.onFlipHorizontal?.(),
-      },
-      {
-        id: 'flipV',
-        icon: 'flipV',
-        label: L?.tool.flipV ?? 'Flip V',
-        shortcut: '⇧H',
-        onClick: () => this.callbacks.onFlipVertical?.(),
-      },
-      {
-        id: 'reset',
-        icon: 'reset',
-        label: L?.tool.reset ?? 'Reset',
-        onClick: () => this.callbacks.onReset(),
-      },
-    ];
-
-    items.forEach((item) => {
-      if (this.disabledSet.has(item.id)) return;
-      const tile = document.createElement('button');
-      tile.type = 'button';
-      tile.className = 'rp-ie-quickaction';
-      tile.dataset.quickId = item.id;
-      if (item.mode) tile.dataset.mode = item.mode;
-
-      const icon = document.createElement('span');
-      icon.className = 'rp-ie-icon';
-      icon.innerHTML = ICONS[item.icon] || '';
-      tile.appendChild(icon);
-      const lbl = document.createElement('span');
-      lbl.className = 'rp-ie-quickaction__label';
-      lbl.textContent = item.label;
-      tile.appendChild(lbl);
-
-      const tip = item.shortcut ? `${item.label} · ${item.shortcut}` : item.label;
-      this.attachTooltip(tile, tip);
-      tile.addEventListener('click', () => {
-        item.onClick();
-        if (!item.mode) this.flashQuickAction(tile);
-      });
-      actions.appendChild(tile);
-    });
-
-    section.appendChild(actions);
-    bar.appendChild(section);
-
-    // Contextual slider (right side)
-    const sliderWrap = document.createElement('div');
-    sliderWrap.className = 'rp-ie-bottombar__slider';
-    sliderWrap.style.display = 'none';
-    this.bottomSliderEl = sliderWrap;
-    bar.appendChild(sliderWrap);
-
-    return bar;
-  }
-
-  private updateBottomSlider(): void {
-    if (!this.bottomSliderEl) return;
-    this.bottomSliderEl.innerHTML = '';
-    const mode = this.activeMode;
-    const P = this.labels?.props;
-    let label = '';
-    let onChange: ((n: number) => void) | null = null;
-    let initial = 10;
-    let min = 1;
-    let max = 40;
-
-    if (mode === 'draw' || mode.startsWith('shape-')) {
-      label = P?.brushSize ?? 'Brush Size';
-      onChange = (n) => this.callbacks.onBrushWidthChange(n);
-    } else if (mode === 'eraser') {
-      label = P?.eraserSize ?? 'Eraser Size';
-      onChange = (n) => this.callbacks.onEraserSize?.(n);
-      initial = 20;
-      max = 60;
-    } else if (mode === 'text') {
-      label = P?.fontSize ?? 'Font Size';
-      onChange = (n) => this.callbacks.onTextSize?.(n);
-      initial = 24;
-      min = 8;
-      max = 96;
-    }
-
-    if (!onChange) {
-      this.bottomSliderEl.style.display = 'none';
-      return;
-    }
-
-    this.bottomSliderEl.style.display = 'flex';
-    const l = document.createElement('span');
-    l.className = 'rp-ie-slider__label';
-    l.textContent = label;
-    const range = document.createElement('input');
-    range.type = 'range';
-    range.min = String(min);
-    range.max = String(max);
-    range.value = String(initial);
-    range.className = 'rp-ie-range';
-    const v = document.createElement('span');
-    v.className = 'rp-ie-slider__value';
-    v.textContent = `${initial}px`;
-    range.addEventListener('input', () => {
-      const n = parseInt(range.value, 10);
-      v.textContent = `${n}px`;
-      onChange!(n);
-    });
-    this.bottomSliderEl.appendChild(l);
-    this.bottomSliderEl.appendChild(range);
-    this.bottomSliderEl.appendChild(v);
-  }
-
-  private flashQuickAction(tile: HTMLElement): void {
-    const prev = this.quickActionFlashTimers.get(tile);
-    if (prev) window.clearTimeout(prev);
-
-    tile.classList.add('rp-ie-quickaction--flash');
-    const timer = window.setTimeout(() => {
-      tile.classList.remove('rp-ie-quickaction--flash');
-      this.quickActionFlashTimers.delete(tile);
-    }, 420);
-    this.quickActionFlashTimers.set(tile, timer);
   }
 
   /* ================================================================ */
@@ -1729,13 +1554,18 @@ export class Toolbar {
       t.classList.toggle('rp-ie-tile--active', !!isActive);
       t.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     });
-    this.rootEl.querySelectorAll<HTMLElement>('.rp-ie-quickaction').forEach((t) => {
-      const mode = t.dataset.mode as EditorMode | undefined;
-      const isActive =
-        mode === activeMode ||
-        (t.dataset.quickId === 'select' && activeMode === 'move');
-      t.classList.toggle('rp-ie-quickaction--active', !!isActive);
-    });
+  }
+
+  /**
+   * On phones the rail scrolls sideways; fade whichever edge has more
+   * tools beyond it so users can tell the bar scrolls.
+   */
+  private updateRailOverflow(): void {
+    const rail = this.rootEl?.querySelector<HTMLElement>('.rp-ie-rail--left');
+    if (!rail) return;
+    const max = rail.scrollWidth - rail.clientWidth;
+    rail.classList.toggle('rp-ie-rail--more-start', max > 2 && rail.scrollLeft > 2);
+    rail.classList.toggle('rp-ie-rail--more-end', max > 2 && rail.scrollLeft < max - 2);
   }
 
   private updateHistoryButtons(): void {

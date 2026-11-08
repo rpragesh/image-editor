@@ -90,6 +90,7 @@ export const da: LocalePack = {
     contrast: 'Kontrast',
     saturation: 'Mætning',
     blur: 'Sløring',
+    transform: 'Rotér og spejlvend',
     quickActions: 'Hurtige handlinger',
     hintMove:
       'Træk for at panorere · knib eller rul for at zoome · vælg et værktøj for at begynde.',

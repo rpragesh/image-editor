@@ -23,6 +23,7 @@
   "devDependencies": {
     "@angular/common": "^15.2.10",
     "@angular/core": "^15.2.10",
+    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.48.2",
     "@types/fabric": "^5.3.11",
     "@types/node": "^20.19.43",

@@ -90,6 +90,7 @@ export const vi: LocalePack = {
     contrast: 'Độ tương phản',
     saturation: 'Độ bão hòa',
     blur: 'Làm mờ',
+    transform: 'Xoay và lật',
     quickActions: 'Thao tác nhanh',
     hintMove:
       'Kéo để di chuyển · véo hoặc cuộn để thu phóng · chọn công cụ để bắt đầu.',

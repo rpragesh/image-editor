@@ -90,6 +90,7 @@ export const nl: LocalePack = {
     contrast: 'Contrast',
     saturation: 'Verzadiging',
     blur: 'Vervaging',
+    transform: 'Draaien en spiegelen',
     quickActions: 'Snelle acties',
     hintMove:
       'Sleep om te pannen · knijp of scroll om te zoomen · kies een tool om te beginnen.',

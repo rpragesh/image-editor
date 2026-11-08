@@ -90,6 +90,7 @@ export const zh: LocalePack = {
     contrast: '对比度',
     saturation: '饱和度',
     blur: '模糊',
+    transform: '旋转和翻转',
     quickActions: '快速操作',
     hintMove: '拖动以平移 · 捏合或滚动以缩放 · 选择工具开始编辑。',
     hintEraser: '在批注上点按或拖动以移除。',

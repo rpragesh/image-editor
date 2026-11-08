@@ -5,7 +5,7 @@
 [![license](https://img.shields.io/npm/l/%40rageshpikalmunde%2Frp-image-editor.svg)](https://github.com/rpragesh/image-editor/blob/main/LICENSE)
 [![bundle size](https://img.shields.io/bundlephobia/minzip/%40rageshpikalmunde%2Frp-image-editor)](https://bundlephobia.com/package/@rageshpikalmunde/rp-image-editor)
 
-> An open-source, framework-agnostic **JavaScript image editor, image annotation, and screenshot markup plugin** built on [Fabric.js](http://fabricjs.com/). Crop, zoom, rotate, draw, add text, **shapes (circle / ellipse / square / arrow)**, callout annotations, erase, undo/redo — all in a modal UI with a grouped toolbar. **Always-on drag with a translucent ghost preview** keeps the image visible while panning and zooming. **Annotations are preserved across both crop and rotate** (no drift past 360°), exports run at the image's native resolution by default, multi-image flows can show a built-in `current/total` header counter, and themes auto-contrast so customized backgrounds always get a readable foreground. Works with **Angular**, **React**, **Vue**, **Ionic**, **Capacitor**, and plain JavaScript.
+> An open-source, framework-agnostic **JavaScript image editor, image annotation, and screenshot markup plugin** built on [Fabric.js](http://fabricjs.com/). Crop, zoom, rotate, draw, add text, **shapes (circle / ellipse / square / arrow)**, callout annotations, erase, undo/redo — all in a clean, accessible modal UI that works on desktop, tablet and phone. **Always-on drag with a translucent ghost preview** keeps the image visible while panning and zooming. **Annotations are preserved across both crop and rotate** (no drift past 360°), exports run at the image's native resolution by default, multi-image flows can show a built-in `current/total` header counter, and themes auto-contrast so customized backgrounds always get a readable foreground. Works with **Angular**, **React**, **Vue**, **Ionic**, **Capacitor**, and plain JavaScript.
 > Use it for photo editing, image markup, screenshot annotation, mobile upload flows, and in-browser image review tools without sending images to a backend editor.
 
 ### 🚀 **[▶ Try the Live Demo →](https://rpragesh.github.io/image-editor/)**
@@ -33,7 +33,8 @@
 | ↩️ **Undo/Redo** | Configurable stack depth (default: 20) |
 | 🔁 **Reset** | Reset to original image |
 | 🎯 **Native-resolution export** | Output preserves the source image's intrinsic resolution; annotations stay sharp |
-| 🎛️ **Grouped Toolbar** | Compact toolbar with flyout menus (Zoom, Transform, Annotate, Shapes) |
+| 🎛️ **Clean layout** | One tool rail and a settings panel that only appears when a tool has settings; on phones the tools move to a scrolling bottom bar |
+| ♿ **Accessible** | Tested against WCAG 2.2 AA with axe-core: labelled controls, visible focus, focus kept inside the modal, keyboard shortcuts for crop, nudge and delete |
 | 🖼️ **Multi-image flows** | Pass `currentImageIndex` + `totalImages` to show a compact `2/5`-style counter in the header while users step through a batch of images. |
 | 🚫 **Disable Features** | Hide individual tools or groups via `disabledFeatures` config |
 | 📱 **HEIC Support** | Auto-converts iPhone HEIC photos to JPEG |
@@ -358,19 +359,31 @@ disabledFeatures: ['annotate']
 
 ## Toolbar Layout
 
-The toolbar is organized into compact items with flyout menus:
+Every control lives in exactly one place:
 
-| Button | Type | Contains |
-|---|---|---|
-| **Move** | Standalone | Pan / drag mode |
-| **Crop** | Standalone | Free & aspect-ratio crop |
-| **Zoom ▾** | Flyout | Zoom In, Zoom Out |
-| **Transform ▾** | Flyout | Rotate Left, Rotate Right |
-| **Annotate ▾** | Flyout | Draw, Text, Callout, Eraser |
-| **Shapes ▾** | Flyout | Circle, Ellipse, Square, Arrow |
-| **Undo** | Standalone | Undo last action |
-| **Redo** | Standalone | Redo last undone action |
-| **Reset** | Standalone | Reset to original image |
+| Area | Contains |
+|---|---|
+| **Top bar** | Close (✕) · title · image counter (`2 / 5`) · Undo · Redo · Reset · Zoom out / level / in · Fullscreen · **Apply** |
+| **Tool rail** | Select · Crop · Draw · Eraser · Text · Shapes · Callout · Filters · Adjust |
+| **Settings panel** | Appears next to the rail for tools that have settings and hides for Select, so the photo gets the full width. Crop includes **Rotate & flip**; Filters shows live previews of the photo |
+
+On phones (≤ 640 px) the rail becomes a scrolling bar at the bottom of the screen, the settings panel becomes a compact sheet above it, and header buttons are 44 px touch targets. Zoom and fullscreen are left to pinch gestures there.
+
+If Crop is disabled via `disabledFeatures`, any enabled rotate / flip buttons move to the top bar.
+
+### Keyboard shortcuts
+
+| Key | Action |
+|---|---|
+| `V` `C` `B` `E` `T` `S` | Select, Crop, Draw, Eraser, Text, Shapes |
+| `R` / `Shift+R` | Rotate right / left |
+| `H` / `Shift+H` | Flip horizontally / vertically |
+| `+` `−` `0` | Zoom in, out, reset |
+| Arrow keys (`Shift` = 10 px) | Move the crop box in Crop mode, or the selected annotation |
+| `Delete` / `Backspace` | Delete the selected annotation |
+| `⌘/Ctrl+Z`, `⌘/Ctrl+Shift+Z` | Undo, redo |
+| `⌘/Ctrl+Enter` | Apply |
+| `Esc` | Cancel crop → clear selection → close |
 
 ## Theming
 

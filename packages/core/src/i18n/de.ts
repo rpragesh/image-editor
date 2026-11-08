@@ -90,6 +90,7 @@ export const de: LocalePack = {
     contrast: 'Kontrast',
     saturation: 'Sättigung',
     blur: 'Weichzeichnen',
+    transform: 'Drehen & spiegeln',
     quickActions: 'Schnellaktionen',
     hintMove:
       'Ziehen zum Verschieben · Pinch oder Scrollen zum Zoomen · wähle ein Werkzeug, um zu starten.',

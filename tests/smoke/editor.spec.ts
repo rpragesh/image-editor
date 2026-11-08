@@ -41,9 +41,25 @@ function expectColor(actual: number[], expected: number[], tol = 8) {
 }
 
 /** Freehand stroke across the blue half of the image, in draw mode. */
+/** Image rect once layout has settled (opening a tool panel resizes the canvas). */
+async function settledImageRect(page: Page) {
+  let prev = '';
+  let rect: any;
+  await expect
+    .poll(async () => {
+      rect = await page.evaluate(() => (window as any).harness.imageScreenRect());
+      const key = JSON.stringify(rect);
+      const stable = key === prev;
+      prev = key;
+      return stable;
+    })
+    .toBe(true);
+  return rect;
+}
+
 async function drawStrokeOnBlueHalf(page: Page) {
   await call(page, 'setMode', 'draw');
-  const r = await page.evaluate(() => (window as any).harness.imageScreenRect());
+  const r = await settledImageRect(page);
   const y = r.top + r.height * 0.5;
   await page.mouse.move(r.left + r.width * 0.6, y);
   await page.mouse.down();

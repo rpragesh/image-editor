@@ -90,6 +90,7 @@ export const pl: LocalePack = {
     contrast: 'Kontrast',
     saturation: 'Nasycenie',
     blur: 'Rozmycie',
+    transform: 'Obróć i odbij',
     quickActions: 'Szybkie akcje',
     hintMove:
       'Przeciągnij, aby przesunąć · szczypnij lub przewiń, aby powiększyć · wybierz narzędzie, aby zacząć.',

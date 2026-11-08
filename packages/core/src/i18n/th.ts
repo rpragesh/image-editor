@@ -90,6 +90,7 @@ export const th: LocalePack = {
     contrast: 'ความคมชัด',
     saturation: 'ความอิ่มตัว',
     blur: 'เบลอ',
+    transform: 'หมุนและพลิก',
     quickActions: 'การกระทำด่วน',
     hintMove:
       'ลากเพื่อเลื่อน · หนีบหรือเลื่อนเพื่อซูม · เลือกเครื่องมือเพื่อเริ่ม',

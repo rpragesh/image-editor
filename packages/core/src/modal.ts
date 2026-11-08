@@ -11,6 +11,7 @@
 import { RpEditorConfig, RpEditorResult } from './types/index.js';
 import { mergeConfig } from './utils/defaults.js';
 import { RpImageEditor } from './editor.js';
+import { getLocalePack } from './i18n/index.js';
 
 export interface ModalOptions {
   image: File | Blob | string;
@@ -44,11 +45,51 @@ export function openEditorModal(
       modal.style.setProperty('--rp-ie-modal-height', theme.modalHeight);
     }
 
+    // Dialog semantics so assistive tech treats the editor as a modal.
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute(
+      'aria-label',
+      theme.headerTitle ||
+        options.config?.labels?.headerTitle ||
+        getLocalePack(options.config?.language).headerTitle,
+    );
+    modal.tabIndex = -1;
+
     backdrop.appendChild(modal);
     document.body.appendChild(backdrop);
 
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+
+    // Return focus to whatever opened the editor once it closes.
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+    // Keep Tab / Shift+Tab inside the editor while it is open.
+    const focusTrap = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const focusables = Array.from(
+        modal.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), select, textarea, a[href], [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((el) => el.offsetParent !== null || el === document.activeElement);
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (!modal.contains(active)) {
+        e.preventDefault();
+        first.focus();
+      } else if (e.shiftKey && active === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', focusTrap, true);
 
     let editor: RpImageEditor | null = null;
     let isClosing = false;
@@ -59,8 +100,12 @@ export function openEditorModal(
       isClosing = true;
       editor?.destroy();
       editor = null;
+      document.removeEventListener('keydown', focusTrap, true);
       document.body.style.overflow = originalOverflow;
       backdrop.remove();
+      if (previouslyFocused && previouslyFocused.isConnected) {
+        try { previouslyFocused.focus({ preventScroll: true }); } catch { /* ignore */ }
+      }
     };
 
     const doClose = () => {
@@ -92,6 +137,9 @@ export function openEditorModal(
       onApply: doApply,
       onClose: doClose,
     });
+
+    // Start keyboard users inside the editor.
+    modal.focus({ preventScroll: true });
 
     editor
       .loadImage(options.image)

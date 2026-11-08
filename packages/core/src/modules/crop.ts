@@ -8,6 +8,7 @@ export class CropModule {
   private canvas: fabric.Canvas;
   private cropRect: fabric.Rect | null = null;
   private overlay: fabric.Rect | null = null;
+  private overlayHole: fabric.Rect | null = null;
   private aspectRatio: number | null = null;
   private isActive = false;
   private imageObject: fabric.Image | null = null;
@@ -35,12 +36,22 @@ export class CropModule {
       top: 0,
       width: this.canvas.getWidth(),
       height: this.canvas.getHeight(),
-      fill: 'rgba(0, 0, 0, 0.5)',
+      fill: 'rgba(0, 0, 0, 0.55)',
       selectable: false,
       evented: false,
       excludeFromExport: true,
     });
     (this.overlay as any)._rpOverlay = true;
+    // Cut a hole where the crop rect is, so the kept area stays bright.
+    this.overlayHole = new fabric.Rect({
+      left: 0,
+      top: 0,
+      width: 1,
+      height: 1,
+      absolutePositioned: true,
+      inverted: true,
+    } as any);
+    this.overlay.clipPath = this.overlayHole;
 
     // Default crop rect: 80% of image area, centered
     let cropW = imgBounds.width * 0.8;
@@ -64,12 +75,14 @@ export class CropModule {
       width: cropW,
       height: cropH,
       fill: 'transparent',
-      stroke: '#4a90d9',
-      strokeWidth: 2,
-      strokeDashArray: [5, 5],
-      cornerColor: '#4a90d9',
+      stroke: '#ffffff',
+      strokeWidth: 1.5,
+      strokeUniform: true,
+      hasBorders: false,
+      cornerColor: '#ffffff',
+      cornerStrokeColor: 'rgba(0, 0, 0, 0.35)',
       cornerStyle: 'circle',
-      cornerSize: 12,
+      cornerSize: 14,
       transparentCorners: false,
       hasRotatingPoint: false,
       lockRotation: true,
@@ -83,6 +96,7 @@ export class CropModule {
     // Add rule-of-thirds lines inside the crop rect
     this.addGridLines();
 
+    this.syncOverlayHole();
     this.canvas.add(this.overlay);
     this.canvas.add(this.cropRect);
     this.canvas.setActiveObject(this.cropRect);
@@ -105,6 +119,7 @@ export class CropModule {
     toRemove.forEach((obj: fabric.Object) => this.canvas.remove(obj));
     this.cropRect = null;
     this.overlay = null;
+    this.overlayHole = null;
     this.imageObject = null;
     this.canvas.renderAll();
   }
@@ -301,6 +316,31 @@ export class CropModule {
 
     rect.set({ left, top });
     rect.setCoords();
+    this.syncOverlayHole();
+  }
+
+  /** Move the crop rect by (dx, dy) canvas pixels, e.g. from arrow keys. */
+  nudge(dx: number, dy: number): void {
+    const rect = this.cropRect;
+    if (!rect) return;
+    rect.set({ left: (rect.left ?? 0) + dx, top: (rect.top ?? 0) + dy });
+    this.constrainCropRect();
+    this.canvas.requestRenderAll();
+  }
+
+  /** Keep the overlay's hole on top of the crop rect. */
+  private syncOverlayHole(): void {
+    const rect = this.cropRect;
+    const hole = this.overlayHole;
+    if (!rect || !hole || !this.overlay) return;
+    hole.set({
+      left: rect.left,
+      top: rect.top,
+      width: rect.width! * (rect.scaleX || 1),
+      height: rect.height! * (rect.scaleY || 1),
+    });
+    hole.setCoords();
+    this.overlay.set('dirty', true);
   }
 
   private constrainCropScale(): void {
@@ -337,10 +377,33 @@ export class CropModule {
     this.constrainCropRect();
   }
 
+  /** Draw rule-of-thirds guides inside the crop rect as part of its own render. */
   private addGridLines(): void {
-    if (!this.cropRect) return;
-    // Grid lines will be drawn during render — for now we use the crop rect's visual
-    // A more advanced version could use fabric.Line objects that follow the crop rect
+    const rect = this.cropRect as any;
+    if (!rect) return;
+    const baseRender = rect._render;
+    rect._render = function (this: any, ctx: CanvasRenderingContext2D) {
+      baseRender.call(this, ctx);
+      const w = this.width;
+      const h = this.height;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.beginPath();
+      ctx.lineWidth = 1 / (this.scaleX || 1);
+      for (const fx of [1 / 3, 2 / 3]) {
+        ctx.moveTo(-w / 2 + w * fx, -h / 2);
+        ctx.lineTo(-w / 2 + w * fx, h / 2);
+      }
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.lineWidth = 1 / (this.scaleY || 1);
+      for (const fy of [1 / 3, 2 / 3]) {
+        ctx.moveTo(-w / 2, -h / 2 + h * fy);
+        ctx.lineTo(w / 2, -h / 2 + h * fy);
+      }
+      ctx.stroke();
+      ctx.restore();
+    };
   }
 
   private applyCropInteractionMode(): void {

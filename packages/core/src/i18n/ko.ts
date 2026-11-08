@@ -90,6 +90,7 @@ export const ko: LocalePack = {
     contrast: '대비',
     saturation: '채도',
     blur: '흐림',
+    transform: '회전 및 뒤집기',
     quickActions: '빠른 작업',
     hintMove:
       '드래그하여 이동 · 핀치 또는 스크롤로 확대/축소 · 도구를 선택하여 편집을 시작하세요.',

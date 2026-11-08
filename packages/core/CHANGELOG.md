@@ -2,6 +2,21 @@
 
 All notable changes to `@rageshpikalmunde/rp-image-editor` will be documented in this file.
 
+## [Unreleased] — 1.6.0
+
+### Changed
+- **Redesigned editor UI.** Every control now lives in one place: the right-hand rail and the bottom "Quick Actions" bar are gone. Undo, redo, reset and zoom moved to the top bar, Close moved to the top-left, and rotate / flip moved into the Crop panel. The settings panel only appears for tools that have settings, so Select mode gives the photo the full width. The canvas no longer has a double frame.
+- **Proper phone layout** (≤ 640 px): the tools are a scrolling bar at the bottom with edge fades, settings are a compact sheet above it, the Close button is always visible, and header buttons are 44 px touch targets. Before, Close was pushed off-screen and four tools were hidden.
+- **Default accent is now a brighter blue** (`#2f6feb`, was navy `#083a81`) so Apply and the active tool stand out. Themes that set `accent`, `toolbarActiveBackground` or `applyButtonBackground` are unaffected.
+- **Header subtitle only shows when you set one** (`theme.headerSubtitle` or `labels.headerSubtitle`); the generic "Edit your image with ease" tagline is no longer shown by default. The placeholder logo badge only shows when `headerLogo` is set or `showHeaderBadge: true`.
+- Crop box restyled: white frame and handles, rule-of-thirds guides (previously not drawn), and the area being kept stays bright while the rest dims.
+
+### Added
+- **Filter tiles show previews of your photo** (with its current crop, rotation and flip), computed with the same math as the filters.
+- **Accessibility (WCAG 2.2 AA, checked by axe-core in CI):** the modal is a labelled dialog, Tab stays inside it, focus returns to the opener on close, every control has a visible focus ring and an accessible name, sliders are labelled, and toggles expose `aria-pressed`. Honors `prefers-reduced-motion`.
+- **Keyboard:** arrow keys move the crop box or the selected annotation (Shift = 10 px; one undo step per burst), Delete/Backspace removes the selected annotation, and Escape backs out one level (cancel crop → clear selection → close).
+- `props.transform` locale string ("Rotate & flip") in all 15 languages. Optional in `LocalePack`, so hand-built packs still type-check.
+
 ## [1.5.13] — 2026-11-08
 
 Patch release that fixes the Angular and React wrappers and adds a `<script>`-tag build, API reference and live examples. No changes to the editor itself.

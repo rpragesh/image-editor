@@ -90,6 +90,7 @@ export const tr: LocalePack = {
     contrast: 'Kontrast',
     saturation: 'Doygunluk',
     blur: 'Bulanıklık',
+    transform: 'Döndür ve çevir',
     quickActions: 'Hızlı işlemler',
     hintMove:
       'Kaydırmak için sürükleyin · yakınlaştırmak için sıkın veya kaydırın · başlamak için bir araç seçin.',
