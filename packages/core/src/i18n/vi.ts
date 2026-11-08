@@ -96,4 +96,18 @@ export const vi: LocalePack = {
       'Kéo để di chuyển · véo hoặc cuộn để thu phóng · chọn công cụ để bắt đầu.',
     hintEraser: 'Chạm hoặc kéo lên chú thích để xóa.',
   },
+  multi: {
+    images: 'Hình ảnh',
+    image: 'Ảnh {index}/{total}',
+    edited: 'đã chỉnh sửa',
+    previous: 'Ảnh trước',
+    next: 'Ảnh tiếp theo',
+    discardTitleOne: 'Hủy thay đổi của 1 ảnh?',
+    discardTitleOther: 'Hủy thay đổi của {count} ảnh?',
+    discardBody: 'Các chỉnh sửa sẽ bị mất và không thể hoàn tác.',
+    discard: 'Hủy thay đổi',
+    keepEditing: 'Tiếp tục chỉnh sửa',
+    saving: 'Đang lưu ảnh {index}/{total}…',
+    loadFailed: 'Không thể mở ảnh này.',
+  },
 };

@@ -139,6 +139,26 @@ export interface LocalePack {
     hintMove: string;
     hintEraser: string;
   };
+
+  /**
+   * Strings for `openMultiEditorModal` (thumbnail strip, discard prompt).
+   * Optional so hand-built packs from older versions still type-check;
+   * falls back to English. `{index}`, `{total}` and `{count}` are replaced.
+   */
+  multi?: {
+    images: string;
+    image: string;
+    edited: string;
+    previous: string;
+    next: string;
+    discardTitleOne: string;
+    discardTitleOther: string;
+    discardBody: string;
+    discard: string;
+    keepEditing: string;
+    saving: string;
+    loadFailed: string;
+  };
 }
 
 /**

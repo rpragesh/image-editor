@@ -96,4 +96,18 @@ export const tr: LocalePack = {
       'Kaydırmak için sürükleyin · yakınlaştırmak için sıkın veya kaydırın · başlamak için bir araç seçin.',
     hintEraser: 'Kaldırmak için bir açıklamaya dokunun veya sürükleyin.',
   },
+  multi: {
+    images: 'Görseller',
+    image: 'Görsel {index} / {total}',
+    edited: 'düzenlendi',
+    previous: 'Önceki görsel',
+    next: 'Sonraki görsel',
+    discardTitleOne: '1 görseldeki değişiklikler silinsin mi?',
+    discardTitleOther: '{count} görseldeki değişiklikler silinsin mi?',
+    discardBody: 'Düzenlemeleriniz kaybolacak. Bu işlem geri alınamaz.',
+    discard: 'Sil',
+    keepEditing: 'Düzenlemeye devam et',
+    saving: 'Görsel {index} / {total} kaydediliyor…',
+    loadFailed: 'Bu görsel açılamadı.',
+  },
 };

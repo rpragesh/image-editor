@@ -10,8 +10,14 @@ All notable changes to `@rageshpikalmunde/rp-image-editor` will be documented in
 - **Default accent is now a brighter blue** (`#2f6feb`, was navy `#083a81`) so Apply and the active tool stand out. Themes that set `accent`, `toolbarActiveBackground` or `applyButtonBackground` are unaffected.
 - **Header subtitle only shows when you set one** (`theme.headerSubtitle` or `labels.headerSubtitle`); the generic "Edit your image with ease" tagline is no longer shown by default. The placeholder logo badge only shows when `headerLogo` is set or `showHeaderBadge: true`.
 - Crop box restyled: white frame and handles, rule-of-thirds guides (previously not drawn), and the area being kept stays bright while the rest dims.
+- **Zoom can't go below 100%** (the image fitted to the stage). The zoom menu offers 100% (Fit), 150%, 200%, 300% and 400%; `setZoom()` clamps to the same range.
+- Rotating or flipping keeps you in the current tool (it used to drop back to Select), and Crop remembers the chosen aspect ratio.
+
+### Fixed
+- The dimmed area around the crop box could drift away from it after flipping or resizing the editor while cropping, leaving a second, offset bright area.
 
 ### Added
+- **`openMultiEditorModal({ images, config, startIndex })`** edits several images in one editor. A thumbnail strip under the photo (with previous/next buttons) switches between them. Each image keeps its own edits and undo history and is loaded the first time it's opened. Apply resolves with `{ index, edited, result }` for every image (unedited ones are exported too, with `edited: false`). Close resolves with `null` and first asks "Discard changes to N images?" if anything was edited. New `multi` strings in all 15 languages (optional in `LocalePack`).
 - **Filter tiles show previews of your photo** (with its current crop, rotation and flip), computed with the same math as the filters.
 - **Accessibility (WCAG 2.2 AA, checked by axe-core in CI):** the modal is a labelled dialog, Tab stays inside it, focus returns to the opener on close, every control has a visible focus ring and an accessible name, sliders are labelled, and toggles expose `aria-pressed`. Honors `prefers-reduced-motion`.
 - **Keyboard:** arrow keys move the crop box or the selected annotation (Shift = 10 px; one undo step per burst), Delete/Backspace removes the selected annotation, and Escape backs out one level (cancel crop → clear selection → close).

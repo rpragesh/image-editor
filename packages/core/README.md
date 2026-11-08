@@ -19,7 +19,7 @@
 | Feature | Description |
 |---|---|
 | ✂️ **Crop** | Free crop and aspect-ratio locked crop. Initial ratio chip matches the actual rectangle; switching ratios (e.g. 4:3 ↔ 16:9) refits into the same 80% image-bounds envelope so sizes stay consistent. Annotations are preserved across crops. |
-| 🔍 **Zoom** | Zoom in/out with pinch-to-zoom gesture support |
+| 🔍 **Zoom** | Zoom in (100%–500%) with buttons, wheel or pinch; 100% fits the image to the stage |
 | 🖐️ **Pan/Drag** | Always-on drag — no need to enable a tool. |
 | 🔄 **Rotate** | Rotate left/right by 90° steps. Annotations are preserved across rotations and stay locked to the underlying pixels (no drift past 360°). Fast path skips PNG re-encoding so large 10–15 MB+ images rotate quickly; a loader overlay is shown during heavy renders. |
 | ✏️ **Freehand Draw** | Configurable brush color & width |
@@ -35,7 +35,7 @@
 | 🎯 **Native-resolution export** | Output preserves the source image's intrinsic resolution; annotations stay sharp |
 | 🎛️ **Clean layout** | One tool rail and a settings panel that only appears when a tool has settings; on phones the tools move to a scrolling bottom bar |
 | ♿ **Accessible** | Tested against WCAG 2.2 AA with axe-core: labelled controls, visible focus, focus kept inside the modal, keyboard shortcuts for crop, nudge and delete |
-| 🖼️ **Multi-image flows** | Pass `currentImageIndex` + `totalImages` to show a compact `2/5`-style counter in the header while users step through a batch of images. |
+| 🖼️ **Multi-image editing** | `openMultiEditorModal` edits a batch with a thumbnail strip, per-image undo, and a discard prompt on Close. |
 | 🚫 **Disable Features** | Hide individual tools or groups via `disabledFeatures` config |
 | 📱 **HEIC Support** | Auto-converts iPhone HEIC photos to JPEG |
 | 📐 **EXIF Orientation** | Auto-corrects rotated photos |
@@ -128,21 +128,32 @@ async onFileSelected(file: File) {
 }
 ```
 
-### Multi-image header counter
+### Editing several images
 
-If your app walks the user through several images in sequence, pass both `currentImageIndex` and `totalImages` to show a compact progress counter in the top bar:
+`openMultiEditorModal` opens a batch in one editor, with a thumbnail strip under the photo:
 
 ```typescript
-await openEditorModal({
-  image: file,
-  config: {
-    currentImageIndex: 2,
-    totalImages: 5,
-  },
+import { openMultiEditorModal } from '@rageshpikalmunde/rp-image-editor';
+
+const results = await openMultiEditorModal({
+  images: Array.from(input.files),     // File | Blob | URL string
+  config: { exportFormat: 'jpeg' },     // shared by every image
+  startIndex: 0,                        // optional
 });
+
+if (results) {
+  for (const { index, edited, result } of results) {
+    if (edited) upload(result.file);    // or upload them all
+  }
+}
 ```
 
-This renders `2/5` in the header. The values are clamped internally, so out-of-range inputs never produce invalid counters.
+- Each image keeps its own edits and undo history while the user switches between them. Images load the first time they're opened.
+- A dot marks edited images. Undoing every change clears it.
+- **Apply** resolves with one entry per image, in order. Images the user didn't change are exported too, with `edited: false`. Images that fail to load are left out.
+- **Close** resolves with `null`. If anything was edited, the user is asked "Discard changes to N images?" first.
+
+The header shows a `2/5` counter. If you run your own sequence of single-image modals instead, you can show the same counter by passing `currentImageIndex` and `totalImages` to `openEditorModal`. The values are clamped, so out-of-range inputs never produce an invalid counter.
 
 ### React
 

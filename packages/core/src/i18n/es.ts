@@ -96,4 +96,18 @@ export const es: LocalePack = {
       'Arrastra para mover · pellizca o desliza para hacer zoom · elige una herramienta para empezar.',
     hintEraser: 'Toca o arrastra sobre una anotación para eliminarla.',
   },
+  multi: {
+    images: 'Imágenes',
+    image: 'Imagen {index} de {total}',
+    edited: 'editada',
+    previous: 'Imagen anterior',
+    next: 'Imagen siguiente',
+    discardTitleOne: '¿Descartar los cambios en 1 imagen?',
+    discardTitleOther: '¿Descartar los cambios en {count} imágenes?',
+    discardBody: 'Se perderán tus ediciones. No se puede deshacer.',
+    discard: 'Descartar',
+    keepEditing: 'Seguir editando',
+    saving: 'Guardando imagen {index} de {total}…',
+    loadFailed: 'No se pudo abrir esta imagen.',
+  },
 };

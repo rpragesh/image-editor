@@ -246,7 +246,7 @@ test('rotating keeps the crop box at the chosen ratio (inline editor)', async ({
   expect(ratio).toBeCloseTo(1, 2);
 });
 
-test('crop overlay hole lines up with the crop box after flipping while cropping', async ({ page }) => {
+test('crop overlay hole lines up with the crop box after flipping and resizing while cropping', async ({ page }) => {
   await page.goto(FIXTURE);
   await page.evaluate(() => (window as any).harness.create({}, [800, 600]));
   await page.evaluate(async () => {
@@ -255,8 +255,9 @@ test('crop overlay hole lines up with the crop box after flipping while cropping
     // leave the bright "hole" offset from the box.
     await ed.rotateRight();
     ed.setMode('crop');
-    ed.zoomOut();
     ed.flipHorizontal();
+    // A resize rescales every object, the overlay included.
+    document.getElementById('host')!.style.width = '760px';
   });
   await page.waitForTimeout(400);
   // Points just inside / outside the crop box, in lower-canvas CSS pixels.

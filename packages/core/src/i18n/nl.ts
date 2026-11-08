@@ -96,4 +96,18 @@ export const nl: LocalePack = {
       'Sleep om te pannen · knijp of scroll om te zoomen · kies een tool om te beginnen.',
     hintEraser: 'Tik of sleep over een annotatie om deze te verwijderen.',
   },
+  multi: {
+    images: 'Afbeeldingen',
+    image: 'Afbeelding {index} van {total}',
+    edited: 'bewerkt',
+    previous: 'Vorige afbeelding',
+    next: 'Volgende afbeelding',
+    discardTitleOne: 'Wijzigingen in 1 afbeelding verwerpen?',
+    discardTitleOther: 'Wijzigingen in {count} afbeeldingen verwerpen?',
+    discardBody: 'Je bewerkingen gaan verloren. Dit kan niet ongedaan worden gemaakt.',
+    discard: 'Verwerpen',
+    keepEditing: 'Verder bewerken',
+    saving: 'Afbeelding {index} van {total} opslaan…',
+    loadFailed: 'Deze afbeelding kon niet worden geopend.',
+  },
 };

@@ -96,4 +96,18 @@ export const sv: LocalePack = {
       'Dra för att panorera · nyp eller scrolla för att zooma · välj ett verktyg för att börja.',
     hintEraser: 'Tryck eller dra över en anteckning för att ta bort den.',
   },
+  multi: {
+    images: 'Bilder',
+    image: 'Bild {index} av {total}',
+    edited: 'redigerad',
+    previous: 'Föregående bild',
+    next: 'Nästa bild',
+    discardTitleOne: 'Ignorera ändringar i 1 bild?',
+    discardTitleOther: 'Ignorera ändringar i {count} bilder?',
+    discardBody: 'Dina ändringar går förlorade. Det går inte att ångra.',
+    discard: 'Ignorera',
+    keepEditing: 'Fortsätt redigera',
+    saving: 'Sparar bild {index} av {total}…',
+    loadFailed: 'Det gick inte att öppna bilden.',
+  },
 };

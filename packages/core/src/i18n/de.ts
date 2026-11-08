@@ -96,4 +96,18 @@ export const de: LocalePack = {
       'Ziehen zum Verschieben · Pinch oder Scrollen zum Zoomen · wähle ein Werkzeug, um zu starten.',
     hintEraser: 'Tippe oder ziehe über eine Annotation, um sie zu entfernen.',
   },
+  multi: {
+    images: 'Bilder',
+    image: 'Bild {index} von {total}',
+    edited: 'bearbeitet',
+    previous: 'Vorheriges Bild',
+    next: 'Nächstes Bild',
+    discardTitleOne: 'Änderungen an 1 Bild verwerfen?',
+    discardTitleOther: 'Änderungen an {count} Bildern verwerfen?',
+    discardBody: 'Deine Änderungen gehen verloren. Das kann nicht rückgängig gemacht werden.',
+    discard: 'Verwerfen',
+    keepEditing: 'Weiter bearbeiten',
+    saving: 'Bild {index} von {total} wird gespeichert…',
+    loadFailed: 'Dieses Bild konnte nicht geöffnet werden.',
+  },
 };

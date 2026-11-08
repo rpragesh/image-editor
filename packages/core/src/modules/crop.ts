@@ -47,18 +47,22 @@ export class CropModule {
     overlay.objectCaching = false;
     overlay._render = (ctx: CanvasRenderingContext2D) => {
       const r = this.cropRect;
-      const cx = (overlay.left ?? 0) + (overlay.width ?? 0) / 2;
-      const cy = (overlay.top ?? 0) + (overlay.height ?? 0) / 2;
+      // Undo the overlay's own transform (it may be moved or rescaled when
+      // the canvas resizes) and draw in canvas coordinates, like the rect.
+      const inv = fabric.util.invertTransform(overlay.calcTransformMatrix());
+      ctx.save();
+      ctx.transform(inv[0], inv[1], inv[2], inv[3], inv[4], inv[5]);
       const far = 1e5; // cover whatever part of the plane is visible
       ctx.beginPath();
       ctx.rect(-far, -far, far * 2, far * 2);
       if (r) {
         const w = (r.width ?? 0) * (r.scaleX || 1);
         const h = (r.height ?? 0) * (r.scaleY || 1);
-        ctx.rect((r.left ?? 0) - cx, (r.top ?? 0) - cy, w, h);
+        ctx.rect(r.left ?? 0, r.top ?? 0, w, h);
       }
       ctx.fillStyle = overlay.fill;
       ctx.fill('evenodd');
+      ctx.restore();
     };
 
     // Default crop rect: 80% of image area, centered

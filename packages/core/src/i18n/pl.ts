@@ -96,4 +96,18 @@ export const pl: LocalePack = {
       'Przeciągnij, aby przesunąć · szczypnij lub przewiń, aby powiększyć · wybierz narzędzie, aby zacząć.',
     hintEraser: 'Dotknij lub przeciągnij nad adnotacją, aby ją usunąć.',
   },
+  multi: {
+    images: 'Obrazy',
+    image: 'Obraz {index} z {total}',
+    edited: 'edytowany',
+    previous: 'Poprzedni obraz',
+    next: 'Następny obraz',
+    discardTitleOne: 'Odrzucić zmiany w 1 obrazie?',
+    discardTitleOther: 'Odrzucić zmiany w {count} obrazach?',
+    discardBody: 'Twoje zmiany zostaną utracone. Tej operacji nie można cofnąć.',
+    discard: 'Odrzuć',
+    keepEditing: 'Edytuj dalej',
+    saving: 'Zapisywanie obrazu {index} z {total}…',
+    loadFailed: 'Nie udało się otworzyć tego obrazu.',
+  },
 };

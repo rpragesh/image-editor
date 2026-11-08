@@ -96,4 +96,18 @@ export const pt: LocalePack = {
       'Arraste para mover · aperte ou role para dar zoom · escolha uma ferramenta para começar.',
     hintEraser: 'Toque ou arraste sobre uma anotação para removê-la.',
   },
+  multi: {
+    images: 'Imagens',
+    image: 'Imagem {index} de {total}',
+    edited: 'editada',
+    previous: 'Imagem anterior',
+    next: 'Próxima imagem',
+    discardTitleOne: 'Descartar alterações em 1 imagem?',
+    discardTitleOther: 'Descartar alterações em {count} imagens?',
+    discardBody: 'Suas edições serão perdidas. Isso não pode ser desfeito.',
+    discard: 'Descartar',
+    keepEditing: 'Continuar editando',
+    saving: 'Salvando imagem {index} de {total}…',
+    loadFailed: 'Não foi possível abrir esta imagem.',
+  },
 };

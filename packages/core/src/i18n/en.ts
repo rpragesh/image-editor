@@ -96,4 +96,18 @@ export const en: LocalePack = {
       'Drag to pan · pinch or scroll to zoom · pick a tool to start editing.',
     hintEraser: 'Tap or drag on an annotation to remove it.',
   },
+  multi: {
+    images: 'Images',
+    image: 'Image {index} of {total}',
+    edited: 'edited',
+    previous: 'Previous image',
+    next: 'Next image',
+    discardTitleOne: 'Discard changes to 1 image?',
+    discardTitleOther: 'Discard changes to {count} images?',
+    discardBody: "Your edits will be lost. This can't be undone.",
+    discard: 'Discard',
+    keepEditing: 'Keep editing',
+    saving: 'Saving image {index} of {total}…',
+    loadFailed: "This image couldn't be opened.",
+  },
 };

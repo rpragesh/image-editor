@@ -96,4 +96,18 @@ export const fr: LocalePack = {
       'Faites glisser pour déplacer · pincez ou faites défiler pour zoomer · choisissez un outil pour commencer.',
     hintEraser: 'Appuyez ou faites glisser sur une annotation pour la supprimer.',
   },
+  multi: {
+    images: 'Images',
+    image: 'Image {index} sur {total}',
+    edited: 'modifiée',
+    previous: 'Image précédente',
+    next: 'Image suivante',
+    discardTitleOne: 'Annuler les modifications de 1 image ?',
+    discardTitleOther: 'Annuler les modifications de {count} images ?',
+    discardBody: 'Vos modifications seront perdues. Cette action est irréversible.',
+    discard: 'Annuler les modifications',
+    keepEditing: 'Continuer',
+    saving: 'Enregistrement de l’image {index} sur {total}…',
+    loadFailed: 'Impossible d’ouvrir cette image.',
+  },
 };

@@ -7,8 +7,13 @@
 export { RpImageEditor } from './editor.js';
 
 // Modal helper
-export { openEditorModal } from './modal.js';
-export type { ModalOptions } from './modal.js';
+export { openEditorModal, openMultiEditorModal } from './modal.js';
+export type {
+  ModalOptions,
+  MultiModalOptions,
+  RpMultiEditorItemResult,
+  RpImageSource,
+} from './modal.js';
 
 // Types
 export type {

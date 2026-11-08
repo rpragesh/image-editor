@@ -96,4 +96,18 @@ export const it: LocalePack = {
       "Trascina per spostare · pizzica o scorri per zoomare · scegli uno strumento per iniziare.",
     hintEraser: "Tocca o trascina su un'annotazione per rimuoverla.",
   },
+  multi: {
+    images: 'Immagini',
+    image: 'Immagine {index} di {total}',
+    edited: 'modificata',
+    previous: 'Immagine precedente',
+    next: 'Immagine successiva',
+    discardTitleOne: 'Scartare le modifiche a 1 immagine?',
+    discardTitleOther: 'Scartare le modifiche a {count} immagini?',
+    discardBody: 'Le modifiche andranno perse. Questa azione non può essere annullata.',
+    discard: 'Scarta',
+    keepEditing: 'Continua a modificare',
+    saving: 'Salvataggio immagine {index} di {total}…',
+    loadFailed: 'Impossibile aprire questa immagine.',
+  },
 };

@@ -96,4 +96,18 @@ export const da: LocalePack = {
       'Træk for at panorere · knib eller rul for at zoome · vælg et værktøj for at begynde.',
     hintEraser: 'Tryk eller træk på en annotation for at fjerne den.',
   },
+  multi: {
+    images: 'Billeder',
+    image: 'Billede {index} af {total}',
+    edited: 'redigeret',
+    previous: 'Forrige billede',
+    next: 'Næste billede',
+    discardTitleOne: 'Kassér ændringer i 1 billede?',
+    discardTitleOther: 'Kassér ændringer i {count} billeder?',
+    discardBody: 'Dine ændringer går tabt. Det kan ikke fortrydes.',
+    discard: 'Kassér',
+    keepEditing: 'Fortsæt redigering',
+    saving: 'Gemmer billede {index} af {total}…',
+    loadFailed: 'Billedet kunne ikke åbnes.',
+  },
 };

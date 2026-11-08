@@ -149,8 +149,8 @@ const SHAPES: Array<{
   },
 ];
 
-const ZOOM_PRESETS: number[] = [0.25, 0.5, 0.75, 1, 1.5, 2];
-const MIN_ZOOM = 0.25;
+const ZOOM_PRESETS: number[] = [1, 1.5, 2, 3, 4];
+const MIN_ZOOM = 1;
 const MAX_ZOOM = 5;
 
 /**
@@ -210,6 +210,7 @@ export class Toolbar {
   private options: ToolbarOptions;
 
   private rootEl: HTMLElement | null = null;
+  private stageEl: HTMLElement | null = null;
   private stageSlotEl: HTMLElement | null = null;
   private propsPanelEl: HTMLElement | null = null;
   private middleEl: HTMLElement | null = null;
@@ -343,6 +344,29 @@ export class Toolbar {
     const empty = this.stageSlotEl.querySelector('.rp-ie-empty');
     if (empty) empty.remove();
     this.stageSlotEl.appendChild(wrapper);
+  }
+
+  /**
+   * Put `el` under the photo, inside the stage (used for the multi-image
+   * thumbnail strip). Pass null to clear it. The element is moved, not
+   * cloned, so one strip can travel between editors.
+   */
+  setStageFooter(el: HTMLElement | null): void {
+    const stage = this.stageEl;
+    if (!stage) return;
+    stage.querySelectorAll(':scope > .rp-ie-stage__footer').forEach((f) => {
+      if (f !== el) f.remove();
+    });
+    if (el) {
+      el.classList.add('rp-ie-stage__footer');
+      stage.appendChild(el);
+    }
+    stage.classList.toggle('rp-ie-stage--has-footer', !!el);
+  }
+
+  /** The shell's root element (for overlays that must inherit the theme). */
+  getRootElement(): HTMLElement | null {
+    return this.rootEl;
   }
 
   updateZoomState(zoomLevel: number): void {
@@ -746,22 +770,14 @@ export class Toolbar {
       const item = document.createElement('button');
       item.type = 'button';
       item.className = 'rp-ie-menu__item';
-      item.textContent = `${Math.round(p * 100)}%`;
+      // 100% is the image fitted to the stage, the smallest zoom allowed.
+      item.textContent = p === 1 ? `100% · ${this.labels?.fit ?? 'Fit'}` : `${Math.round(p * 100)}%`;
       item.addEventListener('click', () => {
         menu.style.display = 'none';
         this.callbacks.onZoomTo?.(p);
       });
       menu.appendChild(item);
     });
-    const fitItem = document.createElement('button');
-    fitItem.type = 'button';
-    fitItem.className = 'rp-ie-menu__item';
-    fitItem.textContent = this.labels?.fit ?? 'Fit';
-    fitItem.addEventListener('click', () => {
-      menu.style.display = 'none';
-      this.handleFit();
-    });
-    menu.appendChild(fitItem);
 
     trigger.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -898,6 +914,7 @@ export class Toolbar {
 
     stage.appendChild(slot);
     this.stageSlotEl = slot;
+    this.stageEl = stage;
     return stage;
   }
 
@@ -1602,11 +1619,6 @@ export class Toolbar {
     const pct = `${Math.round(this.zoomLevel * 100)}%`;
     if (this.zoomLabelEl) this.zoomLabelEl.textContent = pct;
     if (this.statusLiveEl) this.statusLiveEl.textContent = `Zoom ${pct}`;
-  }
-
-  private handleFit(): void {
-    if (this.callbacks.onFitZoom) this.callbacks.onFitZoom();
-    else this.callbacks.onZoomTo?.(1);
   }
 
   private makeIconButton(opts: {

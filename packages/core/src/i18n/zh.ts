@@ -95,4 +95,18 @@ export const zh: LocalePack = {
     hintMove: '拖动以平移 · 捏合或滚动以缩放 · 选择工具开始编辑。',
     hintEraser: '在批注上点按或拖动以移除。',
   },
+  multi: {
+    images: '图片',
+    image: '第 {index} 张，共 {total} 张',
+    edited: '已编辑',
+    previous: '上一张',
+    next: '下一张',
+    discardTitleOne: '放弃对 1 张图片的更改？',
+    discardTitleOther: '放弃对 {count} 张图片的更改？',
+    discardBody: '你的编辑将会丢失，且无法撤销。',
+    discard: '放弃',
+    keepEditing: '继续编辑',
+    saving: '正在保存第 {index} 张，共 {total} 张…',
+    loadFailed: '无法打开此图片。',
+  },
 };

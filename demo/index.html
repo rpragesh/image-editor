@@ -3114,7 +3114,7 @@ async function onFileSelected(file: File) {
 
   <script src="rp-image-editor.bundle.js"></script>
   <script>
-    const { openEditorModal } = RpImageEditor;
+    const { openEditorModal, openMultiEditorModal } = RpImageEditor;
 
     const themes = {
       light: {
@@ -3257,17 +3257,21 @@ async function onFileSelected(file: File) {
       setStatus('Opening ' + total + ' image' + (total > 1 ? 's' : '') + '...');
 
       try {
-        for (let i = 0; i < total; i += 1) {
-          const file = files[i];
-          setStatus('Editing image ' + (i + 1) + ' of ' + total + ': ' + file.name);
-          const result = await openEditorModal({
-            image: file,
-            config: getEditorConfig(i + 1, total)
-          });
-
+        if (total === 1) {
+          setStatus('Editing ' + files[0].name);
+          const result = await openEditorModal({ image: files[0], config: getEditorConfig(1, 1) });
           if (result) {
-            editedCount += 1;
+            editedCount = 1;
             lastResult = result;
+          }
+        } else {
+          // Several files: one editor with a thumbnail strip.
+          setStatus('Editing ' + total + ' images');
+          const results = await openMultiEditorModal({ images: files, config: getEditorConfig(1, total) });
+          if (results && results.length) {
+            editedCount = results.filter((r) => r.edited).length;
+            const shown = results.find((r) => r.edited) || results[0];
+            lastResult = shown.result;
           }
         }
 

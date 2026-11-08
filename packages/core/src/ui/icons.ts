@@ -82,6 +82,9 @@ export const ICONS: Record<string, string> = {
   close: S('<path d="M5 5l10 10M15 5L5 15"/>'),
   chevronDown: S('<path d="M5 8l5 5 5-5"/>'),
   chevronUp: S('<path d="M5 12l5-5 5 5"/>'),
+  chevronLeft: S('<path d="M12 5l-5 5 5 5"/>'),
+  chevronRight: S('<path d="M8 5l5 5-5 5"/>'),
+  alert: S('<path d="M10 3l8 14H2z"/><path d="M10 8v4"/><circle cx="10" cy="14.5" r="0.5" fill="currentColor" stroke="none"/>'),
 
   // Transforms
   rotateLeft: S(

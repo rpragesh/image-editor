@@ -96,4 +96,18 @@ export const ko: LocalePack = {
       '드래그하여 이동 · 핀치 또는 스크롤로 확대/축소 · 도구를 선택하여 편집을 시작하세요.',
     hintEraser: '주석 위를 탭하거나 드래그하여 제거하세요.',
   },
+  multi: {
+    images: '이미지',
+    image: '이미지 {index}/{total}',
+    edited: '편집됨',
+    previous: '이전 이미지',
+    next: '다음 이미지',
+    discardTitleOne: '이미지 1개의 변경 사항을 삭제할까요?',
+    discardTitleOther: '이미지 {count}개의 변경 사항을 삭제할까요?',
+    discardBody: '편집 내용이 사라지며 되돌릴 수 없습니다.',
+    discard: '삭제',
+    keepEditing: '계속 편집',
+    saving: '이미지 {index}/{total} 저장 중…',
+    loadFailed: '이 이미지를 열 수 없습니다.',
+  },
 };

@@ -71,7 +71,8 @@ interface HistoryExtra {
 }
 
 export class RpImageEditor extends EventEmitter<RpEditorEvents> {
-  private static readonly MIN_ZOOM = 0.25;
+  // 1 = the image fitted to the stage; never let it shrink below that.
+  private static readonly MIN_ZOOM = 1;
   private static readonly MAX_ZOOM = 5;
 
   private config: ReturnType<typeof mergeConfig>;
@@ -701,6 +702,32 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
 
     this.toolbar?.setActiveMode(mode);
     this.emit('mode:changed', mode);
+  }
+
+  /**
+   * Place an element under the photo, inside the stage. Used by
+   * `openMultiEditorModal` for its thumbnail strip; pass null to clear.
+   * @internal
+   */
+  setStageFooter(el: HTMLElement | null): void {
+    this.toolbar?.setStageFooter(el);
+  }
+
+  /**
+   * Route global keyboard shortcuts to this editor (when several are
+   * mounted, the most recently used one normally gets them).
+   * @internal
+   */
+  claimKeyboardShortcuts(): void {
+    if (!this.isDestroyed && this.keydownHandler) activeShortcutEditor = this;
+  }
+
+  /**
+   * The editor shell's root element, or null before it renders.
+   * @internal
+   */
+  getShellElement(): HTMLElement | null {
+    return this.toolbar?.getRootElement() ?? null;
   }
 
   /**
