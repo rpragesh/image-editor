@@ -219,3 +219,29 @@ test('header controls never overlap or overflow, 320–1440px', async ({ page })
     expect(problems, `at ${width}px`).toEqual([]);
   }
 });
+
+test('rotating in Crop stays in Crop and keeps the chosen ratio', async ({ page }) => {
+  await openModal(page);
+  await tool(page, 'Crop').click();
+  await page.locator('.rp-ie-chip', { hasText: /^16:9$/ }).click();
+  for (const name of ['Rotate Right', 'Rotate Left']) {
+    await page.getByRole('group', { name: 'Rotate & flip' }).getByRole('button', { name }).click();
+    await expect(page.locator('.rp-ie-tile--active')).toHaveAttribute('aria-label', 'Crop');
+    await expect(page.locator('.rp-ie-props')).toBeVisible();
+    await expect(page.locator('.rp-ie-chip--active')).toHaveText('16:9');
+  }
+});
+
+test('rotating keeps the crop box at the chosen ratio (inline editor)', async ({ page }) => {
+  await page.goto(FIXTURE);
+  await page.evaluate(() => (window as any).harness.create({}, [800, 600]));
+  await page.evaluate(() => (window as any).harness.editor.setMode('crop'));
+  await page.locator('#host .rp-ie-chip', { hasText: /^1:1$/ }).click();
+  await page.evaluate(() => (window as any).harness.editor.rotateRight());
+  await expect.poll(() => page.evaluate(() => (window as any).harness.editor.getMode())).toBe('crop');
+  const ratio = await page.evaluate(() => {
+    const r = (window as any).harness.editor.fabricCanvas.getObjects().find((o: any) => o._rpCropRect);
+    return (r.width * r.scaleX) / (r.height * r.scaleY);
+  });
+  expect(ratio).toBeCloseTo(1, 2);
+});

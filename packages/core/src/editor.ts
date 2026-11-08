@@ -2086,6 +2086,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       onColorChange: (color) => this.setColor(color),
       onBrushWidthChange: (width) => this.setBrushWidth(width),
       onCropRatioChange: (ratio) => {
+        this.cropRatio = ratio;
         this.cropModule?.setAspectRatio(ratio);
       },
       onApplyCrop: () => this.applyCrop(),
@@ -2454,6 +2455,9 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     pathObj.hoverCursor = 'default';
   }
 
+  /** Last aspect ratio picked in the Crop panel; undefined = first configured. */
+  private cropRatio: number | null | undefined = undefined;
+
   private activateCropMode(): void {
     if (!this.baseImage) return;
     // Crop has its own dimmed backdrop covering everything outside the
@@ -2463,7 +2467,12 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     // (see showCropRatioSelector) — apply that ratio here so the crop
     // rect actually matches the highlighted label instead of opening
     // as a Free crop that happens to look like the image's own ratio.
-    const initialRatio = this.config.cropAspectRatios?.[0]?.value ?? null;
+    // Reopen with the ratio the user last picked (the toolbar keeps the
+    // matching chip highlighted); the first configured ratio otherwise.
+    const initialRatio =
+      this.cropRatio !== undefined
+        ? this.cropRatio
+        : this.config.cropAspectRatios?.[0]?.value ?? null;
     this.cropModule?.activate(this.baseImage, initialRatio);
   }
 
@@ -2687,6 +2696,8 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     const prevCum = this.cumulativeRotation;
     const newCum = (((prevCum + degrees) % 360) + 360) % 360;
 
+    // Return to the tool the user was in (e.g. keep cropping after a turn).
+    const modeBeforeRotate = this.currentMode;
     this.deactivateCurrentMode();
 
     // Snapshot existing annotations BEFORE the canvas swap. We DO NOT
@@ -2780,7 +2791,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.fabricCanvas.requestRenderAll();
 
     this.historyModule?.saveState();
-    this.setMode('move');
+    this.setMode(modeBeforeRotate);
   }
 
   /**

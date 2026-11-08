@@ -222,6 +222,8 @@ export class Toolbar {
   private statusLiveEl: HTMLElement | null = null;
 
   private activeMode: EditorMode = 'move';
+  /** Index of the selected crop-ratio chip; kept across panel re-renders. */
+  private cropRatioIndex = 0;
   private zoomLevel = 1;
   private canUndo = false;
   private canRedo = false;
@@ -1032,8 +1034,9 @@ export class Toolbar {
       chip.type = 'button';
       chip.className = 'rp-ie-chip';
       chip.textContent = r.label;
-      chip.setAttribute('aria-pressed', idx === 0 ? 'true' : 'false');
-      if (idx === 0) chip.classList.add('rp-ie-chip--active');
+      const selected = idx === this.cropRatioIndex;
+      chip.setAttribute('aria-pressed', selected ? 'true' : 'false');
+      if (selected) chip.classList.add('rp-ie-chip--active');
       chip.addEventListener('click', () => {
         chips.querySelectorAll('.rp-ie-chip').forEach((c) => {
           c.classList.remove('rp-ie-chip--active');
@@ -1041,6 +1044,7 @@ export class Toolbar {
         });
         chip.classList.add('rp-ie-chip--active');
         chip.setAttribute('aria-pressed', 'true');
+        this.cropRatioIndex = idx;
         this.callbacks.onCropRatioChange(r.value);
       });
       chips.appendChild(chip);
