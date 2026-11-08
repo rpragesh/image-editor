@@ -2,6 +2,17 @@
 
 All notable changes to `@rageshpikalmunde/rp-image-editor` will be documented in this file.
 
+## [1.5.12] — 2026-11-08
+
+Patch release making undo/redo exact for image edits, and fixing flip and filter handling in rotate and crop. No API changes.
+
+### Fixed
+- **Undo/redo now restores image edits exactly** — undo only rolled back the canvas, not the editor's rotation, crop source or filter state. Rotating after undoing a rotation turned the image to 180°, rotating after undoing a crop brought the cropped image back, and undoing a filter left the Filters panel showing it as active. Every history step now records the full image state.
+- **Undo history is far lighter** — each step used to embed the whole image as a data URL (and re-encode it as PNG on every pen stroke after a rotation). Steps now store only the annotations plus a small image-state record: on a 3000×2000 photo, about 150 KB → under 1 KB per step, and saving a step dropped from ~18 ms to ~0 ms.
+- **A flipped image stays flipped when rotated** — rotation rebuilt the image without its flip, so the picture un-mirrored while annotations stayed mirrored and no longer lined up.
+- **A flipped image stays flipped when cropped**, and the crop takes the region you selected rather than its mirror image.
+- **Cropping with a filter or adjustment active no longer applies it twice** — the crop copied the already-filtered pixels and the filter was then applied again on top.
+
 ## [1.5.11] — 2026-11-01
 
 Patch release fixing export dimensions and keyboard shortcuts on pages with more than one editor. No breaking changes.

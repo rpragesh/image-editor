@@ -175,22 +175,22 @@ Recent releases expose the following config keys:
 
 See [`packages/core/CHANGELOG.md`](packages/core/CHANGELOG.md) for the latest release notes.
 
-## Upgrading to 1.5.11
+## Upgrading to 1.5.12
 
-**Nothing in your existing code has to change.** 1.5.11 is a backward-compatible patch release. If you install it and change nothing, your existing integration keeps working. Exports now come out at the image's exact native size (previously they could be a pixel short, e.g. 800×599, and rotated images could pick up a 1px transparent edge), and pages with more than one editor no longer run every keyboard shortcut in all of them.
+**Nothing in your existing code has to change.** 1.5.12 is a backward-compatible patch release. If you install it and change nothing, your existing integration keeps working. Undo/redo is now exact for crop, rotate, flip and filters, and much lighter on memory; a flipped image stays flipped when you rotate or crop it; and cropping with a filter active no longer applies the filter twice.
 
 ### 1. Bump the versions
 
 ```bash
-npm install @rageshpikalmunde/rp-image-editor@^1.5.11
-# and if you use the framework wrappers (they peer-depend on core ^1.5.11):
-npm install @rageshpikalmunde/rp-image-editor-react@^1.5.11
-npm install @rageshpikalmunde/rp-image-editor-angular@^1.5.11
+npm install @rageshpikalmunde/rp-image-editor@^1.5.12
+# and if you use the framework wrappers (they peer-depend on core ^1.5.12):
+npm install @rageshpikalmunde/rp-image-editor-react@^1.5.12
+npm install @rageshpikalmunde/rp-image-editor-angular@^1.5.12
 ```
 
 ### 2. Existing integrations keep working unchanged
 
-There are no new required APIs or config keys in 1.5.11. One optional key was added: `keyboardShortcutsScope: 'editor'` makes shortcuts react only while focus is inside the editor, which is useful for inline editors; the default `'global'` keeps the current behavior. The Angular wrapper no longer requires `@ionic/angular` to be installed. The broader 1.5.x additions below remain fully optional, and your existing config shape does not need to change.
+There are no new APIs or config keys in 1.5.12. From 1.5.11 you also have the optional `keyboardShortcutsScope: 'editor'`, which makes shortcuts react only while focus is inside the editor (the default `'global'` keeps the current behavior), and the Angular wrapper no longer requires `@ionic/angular` to be installed. The broader 1.5.x additions below remain fully optional, and your existing config shape does not need to change.
 
 Add any subset of the new keys to your existing `config` object. You do **not** need to remove or restructure anything you already pass:
 
@@ -247,12 +247,12 @@ See the [core README's Disabling Features](packages/core/README.md#disabling-fea
 
 ### Rolling back
 
-1.5.11 is additive — no data or storage format changed, and the only export difference is the corrected pixel size — so you can downgrade at any time with no code changes:
+1.5.12 is additive — no public data or storage format changed (undo history lives only in memory) — so you can downgrade at any time with no code changes:
 
 ```bash
-npm install @rageshpikalmunde/rp-image-editor@1.5.10
-npm install @rageshpikalmunde/rp-image-editor-react@1.5.10
-npm install @rageshpikalmunde/rp-image-editor-angular@1.5.10
+npm install @rageshpikalmunde/rp-image-editor@1.5.11
+npm install @rageshpikalmunde/rp-image-editor-react@1.5.11
+npm install @rageshpikalmunde/rp-image-editor-angular@1.5.11
 ```
 
 ## License
