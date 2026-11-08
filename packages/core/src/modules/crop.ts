@@ -148,10 +148,14 @@ export class CropModule {
     };
 
     // Calculate crop coordinates in original image space
-    const cropX = ((rect.left! - imgBounds.left) / scaleX);
-    const cropY = ((rect.top! - imgBounds.top) / scaleY);
     const cropW = (rect.width! * (rect.scaleX || 1)) / scaleX;
     const cropH = (rect.height! * (rect.scaleY || 1)) / scaleY;
+    let cropX = ((rect.left! - imgBounds.left) / scaleX);
+    let cropY = ((rect.top! - imgBounds.top) / scaleY);
+    // The rect is in displayed (possibly mirrored) space; the element
+    // is unmirrored, so mirror the rect into element space.
+    if ((img as any).flipX) cropX = (img.width || 0) - cropX - cropW;
+    if ((img as any).flipY) cropY = (img.height || 0) - cropY - cropH;
 
     // Create a temporary canvas to extract cropped area
     const tempCanvas = document.createElement('canvas');
@@ -163,7 +167,10 @@ export class CropModule {
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
 
-    const imgElement = img.getElement() as HTMLImageElement;
+    // Crop the unfiltered pixels: getElement() is the filtered render
+    // when a filter is active, and the editor re-applies filters to the
+    // new base image, which would apply them twice.
+    const imgElement = ((img as any)._originalElement ?? img.getElement()) as HTMLImageElement;
     ctx.drawImage(
       imgElement,
       Math.round(cropX), Math.round(cropY), w, h,

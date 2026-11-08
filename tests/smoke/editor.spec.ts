@@ -236,7 +236,12 @@ async function sizeOf(page: Page, which: 'first' | 'second') {
   }, which);
 }
 
-/** Press a key and wait for the async rotate to settle. */
+/** Poll until an editor's export reaches the expected size (rotation is async). */
+async function expectSizeSoon(page: Page, which: 'first' | 'second', w: number, h: number) {
+  await expect.poll(() => sizeOf(page, which)).toEqual({ width: w, height: h });
+}
+
+/** Press a key and give an async rotate time to settle. */
 async function pressAndSettle(page: Page, key: string) {
   await page.keyboard.press(key);
   await page.waitForTimeout(150);
@@ -244,8 +249,8 @@ async function pressAndSettle(page: Page, key: string) {
 
 test('shortcut R rotates a single editor with focus on the page body', async ({ page }) => {
   await setup(page);
-  await pressAndSettle(page, 'r');
-  expectSize(await exportInfo(page), 600, 800);
+  await page.keyboard.press('r');
+  await expectSizeSoon(page, 'first', 600, 800);
 });
 
 test('with two editors, only the most recently active one handles shortcuts', async ({ page }) => {
@@ -253,14 +258,14 @@ test('with two editors, only the most recently active one handles shortcuts', as
   await mountSecondEditor(page);
 
   // Newest editor is active.
-  await pressAndSettle(page, 'r');
+  await page.keyboard.press('r');
+  await expectSizeSoon(page, 'second', 600, 800);
   expectSize(await sizeOf(page, 'first'), 800, 600);
-  expectSize(await sizeOf(page, 'second'), 600, 800);
 
   // Clicking into the first editor makes it the active one.
   await page.locator('#host .upper-canvas').dispatchEvent('pointerdown');
-  await pressAndSettle(page, 'r');
-  expectSize(await sizeOf(page, 'first'), 600, 800);
+  await page.keyboard.press('r');
+  await expectSizeSoon(page, 'first', 600, 800);
   expectSize(await sizeOf(page, 'second'), 600, 800);
 });
 
@@ -268,8 +273,8 @@ test('destroying the active editor hands shortcuts to the remaining one', async 
   await setup(page);
   await mountSecondEditor(page);
   await page.evaluate(() => (window as any).second.destroy());
-  await pressAndSettle(page, 'r');
-  expectSize(await sizeOf(page, 'first'), 600, 800);
+  await page.keyboard.press('r');
+  await expectSizeSoon(page, 'first', 600, 800);
 });
 
 test("keyboardShortcutsScope 'editor' ignores keys from outside the editor", async ({ page }) => {
@@ -280,8 +285,8 @@ test("keyboardShortcutsScope 'editor' ignores keys from outside the editor", asy
   // Focus a control inside the editor: shortcuts work again.
   await page.locator('#host button:visible:not([disabled])').first().focus();
   expect(await page.evaluate(() => document.getElementById('host')!.contains(document.activeElement))).toBe(true);
-  await pressAndSettle(page, 'r');
-  expectSize(await exportInfo(page), 600, 800);
+  await page.keyboard.press('r');
+  await expectSizeSoon(page, 'first', 600, 800);
 });
 
 /* ── Undo/redo of image-level edits ─────────────────────────────── */
@@ -389,4 +394,61 @@ test('history snapshots do not embed the image', async ({ page }) => {
   expect(sizes.length).toBeGreaterThanOrEqual(3);
   // A 1600×1200 PNG data URL is far larger; snapshots should be a few KB.
   for (const s of sizes) expect(s).toBeLessThan(20_000);
+});
+
+/* ── Flip and filters combined with rotate/crop ─────────────────── */
+
+// Regression: up to 1.5.11 rotating rebuilt the image without its flip.
+test('rotating a flipped image keeps it flipped, with annotations aligned', async ({ page }) => {
+  await setup(page);
+  await drawStrokeOnBlueHalf(page);
+  await call(page, 'setMode', 'move');
+  await call(page, 'flipHorizontal');
+  await call(page, 'rotateRight');
+  expectSize(await exportInfo(page), 600, 800);
+  // Flipped: blue on the left, which a clockwise turn puts on top.
+  expectColor(await pixelAt(page, 0.2, 0.1), BLUE);
+  expectColor(await pixelAt(page, 0.5, 0.9), RED);
+  // The stroke was on the blue half, so it is now vertical in the top half.
+  expect(await count(page, [0.45, 0.12, 0.55, 0.38], 'red')).toBeGreaterThan(50);
+
+  // Sample above the stroke (y = 0.3), which now runs across the left half.
+  await call(page, 'rotateRight');
+  expectSize(await exportInfo(page), 800, 600);
+  expectColor(await pixelAt(page, 0.25, 0.3), RED);
+
+  await call(page, 'undo');
+  await call(page, 'undo');
+  await exportInfo(page);
+  expectColor(await pixelAt(page, 0.25, 0.3), BLUE);
+  expect(await count(page, [0.12, 0.45, 0.38, 0.55], 'red')).toBeGreaterThan(50);
+});
+
+test('cropping a flipped image keeps it flipped', async ({ page }) => {
+  await setup(page);
+  await call(page, 'flipHorizontal');
+  await applyDefaultCrop(page);
+  expectSize(await exportInfo(page), 640, 480, 2);
+  expectColor(await pixelAt(page, 0.2, 0.5), BLUE);
+  expectColor(await pixelAt(page, 0.8, 0.5), RED);
+
+  await call(page, 'rotateRight');
+  expectSize(await exportInfo(page), 480, 640, 2);
+  expectColor(await pixelAt(page, 0.5, 0.2), BLUE);
+});
+
+// Regression: up to 1.5.11 crop baked the filter in and then re-applied it.
+test('cropping with a filter active applies the filter only once', async ({ page }) => {
+  await setup(page);
+  await call(page, 'applyFilterPreset', 'sepia');
+  await exportInfo(page);
+  const before = await pixelAt(page, 0.25, 0.5);
+  await applyDefaultCrop(page);
+  await exportInfo(page);
+  expectColor(await pixelAt(page, 0.2, 0.5), before, 3);
+
+  // Removing the filter afterwards gives back the untouched pixels.
+  await call(page, 'applyFilterPreset', 'none');
+  await exportInfo(page);
+  expectColor(await pixelAt(page, 0.2, 0.5), RED);
 });

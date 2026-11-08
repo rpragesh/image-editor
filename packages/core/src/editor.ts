@@ -43,6 +43,11 @@ let activeShortcutEditor: RpImageEditor | null = null;
  * (which leaves the base image out). Enough to rebuild the base image
  * and the editor fields that rotate/crop/filters depend on.
  */
+interface BaseImageFlip {
+  flipX: boolean;
+  flipY: boolean;
+}
+
 interface HistoryExtra {
   /** Id in `rasters` of the image the base image is rendered from. */
   raster: string;
@@ -114,6 +119,11 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
 
   // Cumulative rotation angle (always rotate from original to avoid progressive shrinking)
   private cumulativeRotation = 0;
+
+  // Angle processedSourceImage is rendered at for the base image. Equal
+  // to cumulativeRotation until the image is mirrored: a turn of a
+  // mirrored image is the opposite turn of its unmirrored source.
+  private sourceRotation = 0;
 
   // Base-image geometry captured at cumulativeRotation === 0. Annotation
   // positions are always rotated from this fixed baseline by the FULL
@@ -601,6 +611,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
 
       // Fresh image — establish the rotation baseline at cum=0
       this.cumulativeRotation = 0;
+      this.sourceRotation = 0;
       this.rotationImageBaseline = null;
 
       // Cache the decoded source image for fast rotations.
@@ -804,6 +815,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     );
     this.zoomLevel = 1;
     this.cumulativeRotation = 0;
+    this.sourceRotation = 0;
     this.rotationImageBaseline = null;
     this.fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
     // Clear any Filter/Adjust state so "Reset" truly returns the
@@ -1568,7 +1580,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.setupResizeObserver();
   }
 
-  private async loadImageOntoCanvas(dataUrl: string): Promise<void> {
+  private async loadImageOntoCanvas(dataUrl: string, flip?: BaseImageFlip): Promise<void> {
     return new Promise((resolve, reject) => {
       fabric.Image.fromURL(dataUrl, (img: fabric.Image) => {
         if (!img) {
@@ -1576,6 +1588,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
           return;
         }
         try {
+          if (flip) img.set(flip);
           this.installBaseImage(img);
           resolve();
         } catch (err) {
@@ -1593,8 +1606,10 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
    */
   private loadImageElementOntoCanvas(
     element: HTMLImageElement | HTMLCanvasElement,
+    flip?: BaseImageFlip,
   ): void {
     const img = new fabric.Image(element as any, { crossOrigin: 'anonymous' });
+    if (flip) img.set(flip);
     this.installBaseImage(img);
   }
 
@@ -1686,6 +1701,12 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     }
   }
 
+  /** Current mirror state of the base image. */
+  private getBaseImageFlip(): BaseImageFlip {
+    const img = this.baseImage as any;
+    return { flipX: !!img?.flipX, flipY: !!img?.flipY };
+  }
+
   /** Whether a filter preset or any Adjust knob is active. */
   private hasImageEffects(): boolean {
     return (
@@ -1755,7 +1776,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       source ?? img._originalElement ?? img.getElement();
     return {
       raster: this.registerRaster(raster),
-      rasterRotation: source ? this.cumulativeRotation : 0,
+      rasterRotation: source ? this.sourceRotation : 0,
       sourceIsRaster: !!source,
       cumulativeRotation: this.cumulativeRotation,
       rotationBaseline: this.rotationImageBaseline
@@ -1802,6 +1823,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       this.processedSourceImage = raster;
     }
     this.cumulativeRotation = extra.cumulativeRotation;
+    this.sourceRotation = extra.sourceIsRaster ? extra.rasterRotation : 0;
     this.rotationImageBaseline = extra.rotationBaseline
       ? { ...extra.rotationBaseline }
       : null;
@@ -2421,8 +2443,9 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
 
     // Reload base image — loadImageOntoCanvas() removes the prior base
     // image and resizes the fabric canvas to fit the new image.
+    // The crop pixels come from the unmirrored source, so keep the flip.
     this.fabricCanvas.backgroundColor = 'transparent';
-    await this.loadImageOntoCanvas(result.dataUrl);
+    await this.loadImageOntoCanvas(result.dataUrl, this.getBaseImageFlip());
 
     // Compute new display scale from the freshly loaded base image,
     // then derive the single factor that translates + rescales every
@@ -2455,6 +2478,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     // unrotated state. Reset rotation tracking so the next rotate()
     // captures a fresh baseline against the cropped image.
     this.cumulativeRotation = 0;
+    this.sourceRotation = 0;
     this.rotationImageBaseline = null;
     for (const obj of keptAnnotations) {
       delete (obj as any)._rpRotBaseline;
@@ -2595,8 +2619,12 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       );
     }
 
-    // Commit the new cumulative angle.
+    // Commit the new cumulative angle. While the image is mirrored on
+    // exactly one axis, turning it means turning its source the other way.
     this.cumulativeRotation = newCum;
+    const flip = this.getBaseImageFlip();
+    const step = flip.flipX !== flip.flipY ? -degrees : degrees;
+    this.sourceRotation = (((this.sourceRotation + step) % 360) + 360) % 360;
 
     // Resolve the source image to rotate from. We cache the decoded
     // copy across rotations so we don't re-run processImage (HEIC, EXIF
@@ -2615,7 +2643,10 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
 
     // Full circle reloads the cached source directly; otherwise hand the
     // rotated off-screen canvas STRAIGHT to Fabric (no PNG roundtrip).
-    this.loadImageElementOntoCanvas(this.getRotatedRaster(sourceImg, newCum));
+    this.loadImageElementOntoCanvas(
+      this.getRotatedRaster(sourceImg, this.sourceRotation),
+      flip,
+    );
 
     // Post-load image geometry.
     const newGeom = this.computeImageGeometry();
