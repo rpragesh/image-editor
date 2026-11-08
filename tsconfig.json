@@ -1,0 +1,9 @@
+{
+  "//": "Type-checking for the root-level test files only (playwright.config.ts, tests/). Packages use their own tsconfigs.",
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["playwright.config.ts", "tests/**/*.ts"]
+}
