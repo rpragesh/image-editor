@@ -1,26 +1,11 @@
 {
   "name": "@rageshpikalmunde/rp-image-editor-angular",
-  "version": "1.5.12",
+  "version": "1.5.13",
   "description": "Angular wrapper for rp-image-editor with crop, annotation, filters, and native-resolution export support",
-  "main": "dist/cjs/index.js",
-  "module": "dist/esm/index.js",
-  "types": "dist/types/index.d.ts",
-  "exports": {
-    ".": {
-      "import": "./dist/esm/index.js",
-      "require": "./dist/cjs/index.js",
-      "types": "./dist/types/index.d.ts"
-    }
-  },
-  "files": [
-    "dist"
-  ],
   "scripts": {
-    "build": "npm run build:esm && npm run build:cjs && npm run build:types",
-    "build:esm": "tsc -p tsconfig.esm.json",
-    "build:cjs": "tsc -p tsconfig.cjs.json",
-    "build:types": "tsc -p tsconfig.types.json",
-    "clean": "rm -rf dist"
+    "build": "node scripts/build.js",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "node -e \"console.error(\\\"Publish the built package instead: npm run build && npm publish ./dist\\\"); process.exit(1)\""
   },
   "keywords": [
     "image-editor",
@@ -44,11 +29,11 @@
     "access": "public"
   },
   "dependencies": {
-    "@rageshpikalmunde/rp-image-editor": "^1.5.12"
+    "@rageshpikalmunde/rp-image-editor": "^1.5.13"
   },
   "peerDependencies": {
-    "@angular/core": ">=14.0.0",
-    "@angular/common": ">=14.0.0",
+    "@angular/core": ">=15.0.0",
+    "@angular/common": ">=15.0.0",
     "@ionic/angular": ">=6.0.0"
   },
   "peerDependenciesMeta": {
@@ -56,7 +41,5 @@
       "optional": true
     }
   },
-  "devDependencies": {
-    "typescript": "~5.3.0"
-  }
+  "sideEffects": false
 }

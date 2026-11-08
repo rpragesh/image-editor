@@ -12,6 +12,8 @@ npm-workspaces monorepo for `@rageshpikalmunde/rp-image-editor`, a browser image
 
 The wrappers depend on core by its published npm name/version; they only construct `RpImageEditor` or call `openEditorModal`.
 
+The Angular wrapper is built with **ng-packagr** (Angular Package Format, Ivy partial compilation; supports Angular 15+), not `tsc`, because tsc-compiled decorators fail in AOT apps with "JIT compiler unavailable". Its toolchain (Angular 15 compiler + TypeScript 4.9) lives in `packages/angular/tools/` with its own lockfile, **outside the workspace**, because the repo uses TypeScript 5.x. `packages/angular/scripts/build.js` runs `npm ci` there on first build. ng-packagr writes `packages/angular/dist/package.json`, so the Angular package is **published from `dist`** (`npm publish packages/angular/dist`). Core and React are published from their package folders.
+
 ## Commands
 
 ```bash
@@ -19,6 +21,7 @@ npm install --legacy-peer-deps   # what CI uses (Angular/Ionic peer deps)
 npm run build:core               # tsc → dist/esm, dist/cjs, dist/types, then build-css
 npm run build:all                # core, then angular, then react
 npm run build:demo               # esbuild IIFE bundle (global RpImageEditor) → docs/ and mirrored to demo/
+npm run docs:api                 # TypeDoc → docs/api/ (gitignored; generated in deploy-demo.yml)
 npm run clean
 cd packages/core && npm run dev  # tsc --watch (ESM only)
 npx serve demo                   # try changes locally after build:demo
@@ -32,6 +35,10 @@ npx playwright test -g "rotateRight"       # single test by title
 Smoke tests live in `tests/smoke/`. `global-setup.js` esbuilds `packages/core/src` into `tests/smoke/.bundle/` (gitignored), and `fixture.html` exposes a `window.harness` that creates an `RpImageEditor` on an 800×600 red|blue test image and samples pixels from `getResult()` output. Full-image exports must match the source size exactly (`expectSize`); only crop results get ±2px. `create(config, [w, h])` / `setup(page, config, [w, h])` take a custom image size. Mark a test `test.fail()` to document a known bug, and remove the marker once it's fixed. There is no linter, so also check UI changes manually in `demo/index.html`.
 
 CI (`.github/workflows/build.yml`) runs `build:all` + `npm test` on pushes to `main` and on PRs.
+
+Core's `build` also emits `dist/browser/rp-image-editor.min.js` (`scripts/build-browser.js`): the CDN/`<script>` IIFE published via the `unpkg`/`jsdelivr` fields. heic2any is not bundled there; a shim reads a page-level `window.heic2any`. `tests/smoke/browser-bundle.spec.ts` tests this file, so run `build:core` before `npm test`.
+
+`examples/` (react, angular, vanilla-cdn) are standalone StackBlitz projects that install the **published** packages; they are not workspaces. Bump their dependency versions with each release.
 
 `build:css` in core requires `dist/cjs` to exist — it `require`s the compiled `ui/styles.js` to emit `dist/styles/rp-image-editor.css` and writes `package.json` type markers into `dist/esm` and `dist/cjs`. Always run the full `npm run build`, not individual steps out of order.
 
@@ -60,4 +67,4 @@ Annotations must stay locked to image pixels across crop, rotate, flip, zoom and
 ## Conventions
 
 - Source uses ESM with explicit `.js` extensions in relative imports (`'./utils/defaults.js'`) — keep this for tsc ESM output.
-- Releases: versions are kept in lockstep across the root `dependencies`, the three package `package.json`s, and the wrappers' core dependency. Each release adds an entry to `packages/core/CHANGELOG.md` and updates the "Upgrading to x.y.z" section in the root `README.md`. Changes are intended to be backward-compatible (new config keys optional).
+- Releases: versions are kept in lockstep across the root `dependencies`, the three package `package.json`s, the wrappers' core dependency, and `examples/*/package.json`. Each release adds an entry to `packages/core/CHANGELOG.md` and updates the "Upgrading to x.y.z" section in the root `README.md`. Changes are intended to be backward-compatible (new config keys optional).

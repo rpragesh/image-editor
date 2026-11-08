@@ -10,6 +10,8 @@
 
 ### 🚀 **[▶ Try the Live Demo →](https://rpragesh.github.io/image-editor/)**
 
+📚 [API reference](https://rpragesh.github.io/image-editor/api/) · ⚡ Live examples on StackBlitz: [React](https://stackblitz.com/github/rpragesh/image-editor/tree/main/examples/react) · [Angular](https://stackblitz.com/github/rpragesh/image-editor/tree/main/examples/angular) · [Plain HTML (CDN)](https://stackblitz.com/github/rpragesh/image-editor/tree/main/examples/vanilla-cdn)
+
 > One click opens a live browser demo with a sample image already loaded. No signup, no upload. Draw, crop, rotate, add callouts, apply filters, and test export quality right in your browser.
 
 ## Features
@@ -52,6 +54,25 @@
 ```bash
 npm install @rageshpikalmunde/rp-image-editor
 ```
+
+### Without a bundler (CDN / `<script>` tag)
+
+A self-contained build (Fabric.js included, styles injected at runtime) exposes the global `RpImageEditor`:
+
+```html
+<!-- Optional: only needed to open HEIC/HEIF photos (~1.3 MB) -->
+<script src="https://unpkg.com/heic2any@0.0.4/dist/heic2any.js"></script>
+
+<script src="https://unpkg.com/@rageshpikalmunde/rp-image-editor@1/dist/browser/rp-image-editor.min.js"></script>
+<script>
+  document.querySelector('#file').addEventListener('change', async (e) => {
+    const result = await RpImageEditor.openEditorModal({ image: e.target.files[0] });
+    if (result) console.log(result.file); // upload via FormData
+  });
+</script>
+```
+
+The bundle is ~500 KB minified (~145 KB gzipped). It is also on jsDelivr (`https://cdn.jsdelivr.net/npm/@rageshpikalmunde/rp-image-editor@1/dist/browser/rp-image-editor.min.js`). Pin an exact version (e.g. `@1.5.13`) in production. Everything the npm package exports is available on the global, e.g. `new RpImageEditor.RpImageEditor(container, config)`.
 
 ## Quick Start
 
@@ -145,6 +166,36 @@ function ImageUploader() {
   return <input type="file" accept="image/*" onChange={handleFile} />;
 }
 ```
+
+## Live examples
+
+Runnable projects in [`examples/`](https://github.com/rpragesh/image-editor/tree/main/examples). Each one shows the modal and the inline editor:
+
+| Example | Open in StackBlitz |
+|---|---|
+| React + Vite (`useRpImageEditor`, `RpImageEditorComponent`) | [Open](https://stackblitz.com/github/rpragesh/image-editor/tree/main/examples/react) |
+| Angular 17 standalone (`RpImageEditorService`, `<rp-image-editor>`) | [Open](https://stackblitz.com/github/rpragesh/image-editor/tree/main/examples/angular) |
+| Plain HTML, no build step (CDN bundle) | [Open](https://stackblitz.com/github/rpragesh/image-editor/tree/main/examples/vanilla-cdn) |
+
+## Server-side rendering (SSR)
+
+The editor needs a browser: it draws on a `<canvas>` and builds its UI in the DOM. **Importing the package on the server is safe**; only creating an editor is not. So create it, or open the modal, only in the browser:
+
+- **React / Next.js**: `RpImageEditorComponent` creates the editor in `useEffect`, so it is safe to render on the server. Call `openEditor()` / `openEditorModal()` from event handlers, never during render. With the App Router, use the editor from a `'use client'` component. To keep Fabric.js out of the server bundle entirely, load it lazily: `const { openEditorModal } = await import('@rageshpikalmunde/rp-image-editor')` inside the handler, or `next/dynamic` with `{ ssr: false }` for the inline component.
+- **Angular SSR** (`@angular/ssr` / Universal): `<rp-image-editor>` does nothing on the server and creates the editor once the page hydrates in the browser. Call `RpImageEditorService.openEditor()` from user actions such as clicks. If you construct `RpImageEditor` yourself, guard it with `isPlatformBrowser(platformId)` or `afterNextRender()`.
+- **Nuxt / Vue SSR**: wrap the host element in `<ClientOnly>` and create the editor in `onMounted`.
+- **SvelteKit / Astro**: create the editor in `onMount` / a `client:only` island.
+
+## Bundler notes
+
+- **Angular 17+ (`application` builder / esbuild)**: Fabric.js 5 contains a Node-only code path that the esbuild-based builder tries to resolve, which fails with *Could not resolve "fs" / "url" … in jsdom*. Mark those modules external in `angular.json` → `architect.build.options` (this is safe; that code never runs in the browser):
+
+  ```json
+  "externalDependencies": ["jsdom", "canvas"]
+  ```
+
+  The older webpack `browser` builder, Vite, webpack and esbuild do not need this.
+- **Angular wrapper**: requires Angular 15 or newer.
 
 ## Programmatic API (Advanced)
 
@@ -382,22 +433,28 @@ const result = await openEditorModal({
 
 Contributions are welcome! Please open an issue or submit a pull request on [GitHub](https://github.com/rpragesh/image-editor).
 
-## Upgrading to 1.5.12
+## Upgrading to 1.5.13
 
-**Nothing in your existing code has to change.** 1.5.12 is a backward-compatible patch release. If you install it and change nothing, your existing integration keeps working. Undo/redo is now exact for crop, rotate, flip and filters, and much lighter on memory; a flipped image stays flipped when you rotate or crop it; and cropping with a filter active no longer applies the filter twice.
+**Nothing in your existing code has to change.** 1.5.13 is a backward-compatible patch release, and the editor itself is unchanged. It fixes the framework wrappers. The Angular wrapper now works in production (AOT) builds without loading `@angular/compiler`, and `<rp-image-editor>` works in AOT templates. The React `RpImageEditorComponent` now calls `onImageEdited` when Apply is clicked. The release also adds a `<script>`-tag/CDN build, an [API reference](https://rpragesh.github.io/image-editor/api/) and [live examples](https://github.com/rpragesh/image-editor/tree/main/examples). From 1.5.12 you also have exact undo/redo for crop, rotate, flip and filters.
+
+**Angular users, check two things:**
+- The wrapper now needs **Angular 15 or newer**.
+- On **Angular 17+ with the esbuild `application` builder**, add `"externalDependencies": ["jsdom", "canvas"]` to `angular.json` (see [Bundler notes](https://github.com/rpragesh/image-editor/blob/main/packages/core/README.md#bundler-notes)).
+
+If you added `import '@angular/compiler'` only to make the wrapper run, you can remove it now.
 
 ### 1. Bump the version
 
 ```bash
-npm install @rageshpikalmunde/rp-image-editor@^1.5.12
-# and if you use the framework wrappers (they peer-depend on core ^1.5.12):
-npm install @rageshpikalmunde/rp-image-editor-react@^1.5.12
-npm install @rageshpikalmunde/rp-image-editor-angular@^1.5.12
+npm install @rageshpikalmunde/rp-image-editor@^1.5.13
+# and if you use the framework wrappers (they depend on core ^1.5.13):
+npm install @rageshpikalmunde/rp-image-editor-react@^1.5.13
+npm install @rageshpikalmunde/rp-image-editor-angular@^1.5.13
 ```
 
 ### 2. Existing integrations keep working unchanged
 
-There are no new APIs or config keys in 1.5.12. From 1.5.11 you also have the optional `keyboardShortcutsScope: 'editor'`, which makes shortcuts react only while focus is inside the editor (the default `'global'` keeps the current behavior), and the Angular wrapper no longer requires `@ionic/angular` to be installed. The broader 1.5.x additions below remain fully optional, and your existing config shape does not need to change.
+There are no new editor APIs or config keys in 1.5.13. React's `onImageEdited` now shows the editor's Apply button, as it was documented to; if you don't want that button, don't pass the prop. From 1.5.11 you also have the optional `keyboardShortcutsScope: 'editor'`, which makes shortcuts react only while focus is inside the editor (the default `'global'` keeps the current behavior), and the Angular wrapper no longer requires `@ionic/angular` to be installed. The broader 1.5.x additions below remain fully optional, and your existing config shape does not need to change.
 
 Add any subset of the new keys to your existing `config` object. You do **not** need to remove or restructure anything you already pass:
 
@@ -452,12 +509,12 @@ await openEditorModal({
 
 ### Rolling back
 
-1.5.12 is additive — no public data or storage format changed (undo history lives only in memory) — so you can downgrade at any time with no code changes:
+1.5.13 is additive. No public data or storage format changed, so you can downgrade at any time with no code changes (Angular apps on 1.5.12 need `import '@angular/compiler'` in `main.ts` again):
 
 ```bash
-npm install @rageshpikalmunde/rp-image-editor@1.5.11
-npm install @rageshpikalmunde/rp-image-editor-react@1.5.11
-npm install @rageshpikalmunde/rp-image-editor-angular@1.5.11
+npm install @rageshpikalmunde/rp-image-editor@1.5.12
+npm install @rageshpikalmunde/rp-image-editor-react@1.5.12
+npm install @rageshpikalmunde/rp-image-editor-angular@1.5.12
 ```
 
 ## License

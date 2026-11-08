@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>rp-image-editor · CDN example</title>
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; background: #f5f6f8; color: #1d2330; }
+    main { max-width: 860px; margin: 40px auto; padding: 0 16px; }
+    .actions { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
+    .btn { padding: 10px 16px; border-radius: 8px; border: 0; background: #4a90d9; color: #fff; font: inherit; cursor: pointer; }
+    .btn.secondary { background: #e3e7ee; color: #1d2330; }
+    img { max-width: 100%; border-radius: 8px; box-shadow: 0 2px 12px rgb(0 0 0 / 0.12); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>rp-image-editor · plain HTML (CDN)</h1>
+    <p>No bundler, no framework: one &lt;script&gt; tag.</p>
+    <div class="actions">
+      <label class="btn">
+        Choose image
+        <input id="file" type="file" accept="image/*,.heic,.heif" hidden />
+      </label>
+      <button id="sample" class="btn secondary">Edit the sample</button>
+    </div>
+    <section id="result" hidden>
+      <h2 id="result-title"></h2>
+      <img id="result-img" alt="Edited image" />
+    </section>
+  </main>
+
+  <!-- Optional: only needed to open HEIC/HEIF photos (~1.3 MB). -->
+  <script src="https://unpkg.com/heic2any@0.0.4/dist/heic2any.js"></script>
+
+  <!-- The editor. Exposes the global `RpImageEditor`. -->
+  <script src="https://unpkg.com/@rageshpikalmunde/rp-image-editor@1/dist/browser/rp-image-editor.min.js"></script>
+
+  <script>
+    const SAMPLE = 'https://rpragesh.github.io/image-editor/sample.png';
+
+    async function edit(image) {
+      const result = await RpImageEditor.openEditorModal({
+        image,
+        config: {
+          exportFormat: 'jpeg',
+          exportQuality: 0.92,
+          theme: { headerTitle: 'Edit photo' },
+        },
+      });
+      if (!result) return; // closed without applying
+
+      // result.file is a File you can upload with FormData.
+      document.getElementById('result-title').textContent = `Result · ${result.width} × ${result.height}`;
+      document.getElementById('result-img').src = result.base64;
+      document.getElementById('result').hidden = false;
+    }
+
+    document.getElementById('file').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) edit(file);
+    });
+    document.getElementById('sample').addEventListener('click', () => edit(SAMPLE));
+  </script>
+</body>
+</html>

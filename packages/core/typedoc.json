@@ -1,0 +1,19 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "rp-image-editor API",
+  "entryPoints": ["src/index.ts"],
+  "tsconfig": "tsconfig.types.json",
+  "out": "../../docs/api",
+  "readme": "README.md",
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "excludeInternal": true,
+  "includeVersion": true,
+  "githubPages": true,
+  "sourceLinkTemplate": "https://github.com/rpragesh/image-editor/blob/main/packages/core/{path}#L{line}",
+  "navigationLinks": {
+    "Live demo": "https://rpragesh.github.io/image-editor/",
+    "GitHub": "https://github.com/rpragesh/image-editor",
+    "npm": "https://www.npmjs.com/package/@rageshpikalmunde/rp-image-editor"
+  }
+}

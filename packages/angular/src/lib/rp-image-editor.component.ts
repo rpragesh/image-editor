@@ -1,4 +1,5 @@
-import { Component, ElementRef, EventEmitter, Input, OnDestroy, Output, ViewChild, AfterViewInit } from '@angular/core';
+import { Component, ElementRef, EventEmitter, Inject, Input, OnDestroy, Output, PLATFORM_ID, ViewChild, AfterViewInit } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
 import { RpImageEditor, RpEditorConfig, RpEditorResult } from '@rageshpikalmunde/rp-image-editor';
 
 @Component({
@@ -25,6 +26,13 @@ export class RpImageEditorComponent implements AfterViewInit, OnDestroy {
   @Output() editorError = new EventEmitter<Error>();
 
   private editor: RpImageEditor | null = null;
+
+  /** False during server-side rendering, where there is no DOM/canvas. */
+  private readonly isBrowser: boolean;
+
+  constructor(@Inject(PLATFORM_ID) platformId: object) {
+    this.isBrowser = isPlatformBrowser(platformId);
+  }
 
   ngAfterViewInit(): void {
     if (this.image) {
@@ -84,7 +92,7 @@ export class RpImageEditorComponent implements AfterViewInit, OnDestroy {
   private async initEditor(): Promise<void> {
     this.destroyEditor();
 
-    if (!this.image || !this.containerRef?.nativeElement) return;
+    if (!this.isBrowser || !this.image || !this.containerRef?.nativeElement) return;
 
     this.editor = new RpImageEditor(this.containerRef.nativeElement, this.config);
 

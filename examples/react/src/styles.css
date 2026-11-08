@@ -1,0 +1,7 @@
+body { margin: 0; font-family: system-ui, sans-serif; background: #f5f6f8; color: #1d2330; }
+main { max-width: 860px; margin: 40px auto; padding: 0 16px; }
+.actions { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
+.btn { padding: 10px 16px; border-radius: 8px; border: 0; background: #4a90d9; color: #fff; font: inherit; cursor: pointer; }
+.btn.secondary { background: #e3e7ee; color: #1d2330; }
+.inline-host { height: 520px; border-radius: 8px; overflow: hidden; }
+img { max-width: 100%; border-radius: 8px; box-shadow: 0 2px 12px rgb(0 0 0 / 0.12); }

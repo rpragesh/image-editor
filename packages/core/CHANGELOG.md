@@ -2,6 +2,22 @@
 
 All notable changes to `@rageshpikalmunde/rp-image-editor` will be documented in this file.
 
+## [1.5.13] — 2026-11-08
+
+Patch release that fixes the Angular and React wrappers and adds a `<script>`-tag build, API reference and live examples. No changes to the editor itself.
+
+### Fixed
+- **Angular wrapper now works in production (AOT) builds** — it was compiled with plain `tsc` instead of Angular's compiler, so apps failed at startup with *JIT compiler unavailable* unless they also loaded `@angular/compiler`, and `<rp-image-editor>` could not be used in AOT templates. It is now built with ng-packagr in Angular Package Format, and tested with Angular 15 and 17. Your code does not change. It now needs **Angular 15 or newer** (the peer range said 14), and the package no longer has a CommonJS (`require`) entry; Angular apps never use one.
+- **React `RpImageEditorComponent` now calls `onImageEdited`** — the prop was documented but never called. Passing it now shows the editor's Apply button, which returns the edited image. `config.onApply` still runs as well.
+- **Angular `<rp-image-editor>` is safe under SSR** — it no longer tries to create the editor during server rendering; it starts in the browser.
+
+### Added
+- **CDN / `<script>`-tag build** at `dist/browser/rp-image-editor.min.js` (global `RpImageEditor`; ~500 KB minified, ~145 KB gzipped, Fabric.js included). It is served by `https://unpkg.com/@rageshpikalmunde/rp-image-editor@1.5.13` and jsDelivr, and can also be imported as `@rageshpikalmunde/rp-image-editor/browser`. HEIC support uses a page-level `heic2any` script if one is loaded.
+- **API reference** generated with TypeDoc at https://rpragesh.github.io/image-editor/api/.
+- **Live examples** for React, Angular and plain HTML in `examples/`, each with a StackBlitz link.
+- **Docs**: notes on server-side rendering (Next.js, Angular SSR, Nuxt, SvelteKit), and the `externalDependencies: ["jsdom", "canvas"]` setting needed by Angular 17+'s esbuild builder.
+- `ImageFilterPreset` and `ImageAdjustments` are now exported as types (they were already used by public APIs).
+
 ## [1.5.12] — 2026-11-08
 
 Patch release making undo/redo exact for image edits, and fixing flip and filter handling in rotate and crop. No API changes.

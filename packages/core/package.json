@@ -1,10 +1,12 @@
 {
   "name": "@rageshpikalmunde/rp-image-editor",
-  "version": "1.5.12",
+  "version": "1.5.13",
   "description": "Lightweight JavaScript image editor with crop, zoom, rotate, draw, text, shapes (circle / ellipse / square / arrow), callout annotations, eraser, undo/redo. Always-on drag with translucent ghost preview so panning and zooming never hide the underlying image. Live color updates on selected callouts. Consistent aspect-ratio sizing on crop. Annotations are preserved across crop and rotate. Grouped toolbar with flyout menus. Native-resolution export. Framework-agnostic — Angular, React, Vue, Ionic, Capacitor. Built on Fabric.js. HEIC, touch gestures, mobile-friendly.",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
   "types": "dist/types/index.d.ts",
+  "unpkg": "dist/browser/rp-image-editor.min.js",
+  "jsdelivr": "dist/browser/rp-image-editor.min.js",
   "exports": {
     ".": {
       "types": "./dist/types/index.d.ts",
@@ -12,7 +14,9 @@
       "require": "./dist/cjs/index.js",
       "default": "./dist/cjs/index.js"
     },
-    "./styles": "./dist/styles/rp-image-editor.css"
+    "./styles": "./dist/styles/rp-image-editor.css",
+    "./browser": "./dist/browser/rp-image-editor.min.js",
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",
@@ -20,14 +24,16 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "npm run build:esm && npm run build:cjs && npm run build:types && npm run build:css",
+    "build": "npm run build:esm && npm run build:cjs && npm run build:types && npm run build:css && npm run build:browser",
     "build:esm": "tsc -p tsconfig.esm.json",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:types": "tsc -p tsconfig.types.json",
     "build:css": "node scripts/build-css.js",
+    "build:browser": "node scripts/build-browser.js",
     "dev": "tsc -p tsconfig.esm.json --watch",
     "clean": "rm -rf dist",
-    "prepublishOnly": "npm run clean && npm run build"
+    "prepublishOnly": "npm run clean && npm run build",
+    "docs:api": "typedoc"
   },
   "keywords": [
     "image-editor",
@@ -127,6 +133,8 @@
     "heic2any": "^0.0.4"
   },
   "devDependencies": {
+    "esbuild": "^0.27.7",
+    "typedoc": "^0.25.13",
     "typescript": "~5.3.0"
   },
   "sideEffects": false

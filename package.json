@@ -15,7 +15,8 @@
     "build:all": "npm run build:core && npm run build:angular && npm run build:react",
     "build:demo": "node scripts/build-demo.js",
     "clean": "rm -rf packages/core/dist packages/angular/dist packages/react/dist",
-    "test": "playwright test"
+    "test": "playwright test",
+    "docs:api": "cd packages/core && npm run docs:api"
   },
   "author": "Ragesh Pikalmunde",
   "license": "MIT",
@@ -28,6 +29,6 @@
     "esbuild": "^0.27.4"
   },
   "dependencies": {
-    "@rageshpikalmunde/rp-image-editor": "^1.5.12"
+    "@rageshpikalmunde/rp-image-editor": "^1.5.13"
   }
 }

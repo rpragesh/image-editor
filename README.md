@@ -8,7 +8,9 @@ Use it to crop, rotate, zoom, draw, add text, place callouts and shapes, apply f
 
 > One click opens a live browser demo with a sample image already loaded. No signup, no upload. Test crop, annotation, text, shapes, filters, and export in seconds.
 
-[npm](https://www.npmjs.com/package/@rageshpikalmunde/rp-image-editor) · [GitHub](https://github.com/rpragesh/image-editor) · [Changelog](packages/core/CHANGELOG.md)
+[npm](https://www.npmjs.com/package/@rageshpikalmunde/rp-image-editor) · [GitHub](https://github.com/rpragesh/image-editor) · [API reference](https://rpragesh.github.io/image-editor/api/) · [Changelog](packages/core/CHANGELOG.md)
+
+⚡ **Live examples on StackBlitz:** [React](https://stackblitz.com/github/rpragesh/image-editor/tree/main/examples/react) · [Angular](https://stackblitz.com/github/rpragesh/image-editor/tree/main/examples/angular) · [Plain HTML (CDN)](https://stackblitz.com/github/rpragesh/image-editor/tree/main/examples/vanilla-cdn). Sources are in [`examples/`](examples/).
 
 ## Features
 
@@ -45,9 +47,13 @@ Use it to crop, rotate, zoom, draw, add text, place callouts and shapes, apply f
 
 ## Quick Start (Angular)
 
+Requires Angular 15 or newer.
+
 ```bash
 npm install @rageshpikalmunde/rp-image-editor @rageshpikalmunde/rp-image-editor-angular
 ```
+
+> **Angular 17+ with the default `application` builder:** add `"externalDependencies": ["jsdom", "canvas"]` to `architect.build.options` in `angular.json`. Without it the build fails with *Could not resolve "fs" / "url"* from Fabric.js's Node-only code path. See [Bundler notes](packages/core/README.md#bundler-notes).
 
 ```typescript
 // app.module.ts
@@ -78,6 +84,14 @@ async editImage(file: File) {
   }
 }
 ```
+
+For an inline editor, use the component (import `RpImageEditorModule` into a standalone component's `imports`, or into your `NgModule`):
+
+```html
+<rp-image-editor [image]="file" [config]="config" (imageEdited)="onEdited($event)"></rp-image-editor>
+```
+
+Get the result by calling `apply()` on the component, e.g. through `@ViewChild(RpImageEditorComponent)`. That emits `imageEdited`.
 
 ## Quick Start (React)
 
@@ -114,6 +128,32 @@ function ImageUploader() {
   return <input type="file" accept="image/*" onChange={handleFile} />;
 }
 ```
+
+For an inline editor, use `RpImageEditorComponent` from `@rageshpikalmunde/rp-image-editor-react`. Passing `onImageEdited` shows the editor's Apply button and gives you the result:
+
+```tsx
+<RpImageEditorComponent image={file} config={config} onImageEdited={(result) => upload(result.file)} />
+```
+
+## Quick Start (plain HTML / CDN)
+
+No bundler needed. One script tag exposes the global `RpImageEditor`:
+
+```html
+<script src="https://unpkg.com/@rageshpikalmunde/rp-image-editor@1/dist/browser/rp-image-editor.min.js"></script>
+<script>
+  async function edit(file) {
+    const result = await RpImageEditor.openEditorModal({ image: file });
+    if (result) console.log(result.file); // upload via FormData
+  }
+</script>
+```
+
+For HEIC/HEIF photos, also load `https://unpkg.com/heic2any@0.0.4/dist/heic2any.js` before it. More in [the core README](packages/core/README.md#without-a-bundler-cdn--script-tag).
+
+## Server-side rendering (SSR)
+
+You can import the packages on the server, but the editor itself only runs in the browser. Open it from user actions such as clicks, or from `useEffect` / `ngAfterViewInit`. Both wrapper components are SSR-safe: they create the editor only in the browser. For Next.js, Angular SSR, Nuxt and SvelteKit specifics, see [Server-side rendering](packages/core/README.md#server-side-rendering-ssr).
 
 ## Internationalization
 
@@ -175,22 +215,28 @@ Recent releases expose the following config keys:
 
 See [`packages/core/CHANGELOG.md`](packages/core/CHANGELOG.md) for the latest release notes.
 
-## Upgrading to 1.5.12
+## Upgrading to 1.5.13
 
-**Nothing in your existing code has to change.** 1.5.12 is a backward-compatible patch release. If you install it and change nothing, your existing integration keeps working. Undo/redo is now exact for crop, rotate, flip and filters, and much lighter on memory; a flipped image stays flipped when you rotate or crop it; and cropping with a filter active no longer applies the filter twice.
+**Nothing in your existing code has to change.** 1.5.13 is a backward-compatible patch release, and the editor itself is unchanged. It fixes the framework wrappers. The Angular wrapper now works in production (AOT) builds without loading `@angular/compiler`, and `<rp-image-editor>` works in AOT templates. The React `RpImageEditorComponent` now calls `onImageEdited` when Apply is clicked. The release also adds a `<script>`-tag/CDN build, an [API reference](https://rpragesh.github.io/image-editor/api/) and [live examples](https://github.com/rpragesh/image-editor/tree/main/examples). From 1.5.12 you also have exact undo/redo for crop, rotate, flip and filters.
+
+**Angular users, check two things:**
+- The wrapper now needs **Angular 15 or newer**.
+- On **Angular 17+ with the esbuild `application` builder**, add `"externalDependencies": ["jsdom", "canvas"]` to `angular.json` (see [Bundler notes](https://github.com/rpragesh/image-editor/blob/main/packages/core/README.md#bundler-notes)).
+
+If you added `import '@angular/compiler'` only to make the wrapper run, you can remove it now.
 
 ### 1. Bump the versions
 
 ```bash
-npm install @rageshpikalmunde/rp-image-editor@^1.5.12
-# and if you use the framework wrappers (they peer-depend on core ^1.5.12):
-npm install @rageshpikalmunde/rp-image-editor-react@^1.5.12
-npm install @rageshpikalmunde/rp-image-editor-angular@^1.5.12
+npm install @rageshpikalmunde/rp-image-editor@^1.5.13
+# and if you use the framework wrappers (they depend on core ^1.5.13):
+npm install @rageshpikalmunde/rp-image-editor-react@^1.5.13
+npm install @rageshpikalmunde/rp-image-editor-angular@^1.5.13
 ```
 
 ### 2. Existing integrations keep working unchanged
 
-There are no new APIs or config keys in 1.5.12. From 1.5.11 you also have the optional `keyboardShortcutsScope: 'editor'`, which makes shortcuts react only while focus is inside the editor (the default `'global'` keeps the current behavior), and the Angular wrapper no longer requires `@ionic/angular` to be installed. The broader 1.5.x additions below remain fully optional, and your existing config shape does not need to change.
+There are no new editor APIs or config keys in 1.5.13. React's `onImageEdited` now shows the editor's Apply button, as it was documented to; if you don't want that button, don't pass the prop. From 1.5.11 you also have the optional `keyboardShortcutsScope: 'editor'`, which makes shortcuts react only while focus is inside the editor (the default `'global'` keeps the current behavior), and the Angular wrapper no longer requires `@ionic/angular` to be installed. The broader 1.5.x additions below remain fully optional, and your existing config shape does not need to change.
 
 Add any subset of the new keys to your existing `config` object. You do **not** need to remove or restructure anything you already pass:
 
@@ -247,12 +293,12 @@ See the [core README's Disabling Features](packages/core/README.md#disabling-fea
 
 ### Rolling back
 
-1.5.12 is additive — no public data or storage format changed (undo history lives only in memory) — so you can downgrade at any time with no code changes:
+1.5.13 is additive. No public data or storage format changed, so you can downgrade at any time with no code changes (Angular apps on 1.5.12 need `import '@angular/compiler'` in `main.ts` again):
 
 ```bash
-npm install @rageshpikalmunde/rp-image-editor@1.5.11
-npm install @rageshpikalmunde/rp-image-editor-react@1.5.11
-npm install @rageshpikalmunde/rp-image-editor-angular@1.5.11
+npm install @rageshpikalmunde/rp-image-editor@1.5.12
+npm install @rageshpikalmunde/rp-image-editor-react@1.5.12
+npm install @rageshpikalmunde/rp-image-editor-angular@1.5.12
 ```
 
 ## License

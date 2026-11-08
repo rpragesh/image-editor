@@ -8,7 +8,10 @@ export interface RpImageEditorProps {
   /** Editor configuration */
   config?: Partial<RpEditorConfig>;
 
-  /** Called when user clicks Apply */
+  /**
+   * Called with the edited image when the user clicks Apply. Providing it
+   * shows the editor's Apply button (any `config.onApply` still runs too).
+   */
   onImageEdited?: (result: RpEditorResult) => void;
 
   /** Called when editor encounters an error */
@@ -36,6 +39,12 @@ export const RpImageEditorComponent: React.FC<RpImageEditorProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<RpImageEditor | null>(null);
 
+  // Latest callbacks, so the editor (created once per image) never calls stale ones.
+  const onImageEditedRef = useRef(onImageEdited);
+  const onErrorRef = useRef(onError);
+  onImageEditedRef.current = onImageEdited;
+  onErrorRef.current = onError;
+
   useEffect(() => {
     if (!image || !containerRef.current) return;
 
@@ -44,12 +53,25 @@ export const RpImageEditorComponent: React.FC<RpImageEditorProps> = ({
       editorRef.current.destroy();
     }
 
-    const editor = new RpImageEditor(containerRef.current, config);
+    const userOnApply = config?.onApply;
+    const editor = new RpImageEditor(containerRef.current, {
+      ...config,
+      onApply: onImageEditedRef.current || userOnApply
+        ? () => {
+            userOnApply?.();
+            if (!onImageEditedRef.current) return;
+            editor
+              .getResult()
+              .then((result) => onImageEditedRef.current?.(result))
+              .catch((err) => onErrorRef.current?.(err));
+          }
+        : undefined,
+    });
     editorRef.current = editor;
 
-    editor.on('error', (err) => onError?.(err));
+    editor.on('error', (err) => onErrorRef.current?.(err));
 
-    editor.loadImage(image).catch((err) => onError?.(err));
+    editor.loadImage(image).catch((err) => onErrorRef.current?.(err));
 
     return () => {
       editor.destroy();

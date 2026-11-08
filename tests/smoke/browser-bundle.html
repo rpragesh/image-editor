@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>rp-image-editor CDN bundle fixture</title>
+  <style>
+    html, body { margin: 0; height: 100%; }
+    #host { width: 1000px; height: 700px; position: relative; }
+  </style>
+</head>
+<body>
+  <div id="host"></div>
+  <!-- The published <script>-tag build (npm run build:core), not the test bundle. -->
+  <script src="../../packages/core/dist/browser/rp-image-editor.min.js"></script>
+  <script>
+    function makeTestImage(w, h) {
+      const c = document.createElement('canvas');
+      c.width = w;
+      c.height = h;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#ff0000';
+      ctx.fillRect(0, 0, w / 2, h);
+      ctx.fillStyle = '#0000ff';
+      ctx.fillRect(w / 2, 0, w / 2, h);
+      return c;
+    }
+    window.makeTestImage = makeTestImage;
+  </script>
+</body>
+</html>

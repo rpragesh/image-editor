@@ -20,6 +20,8 @@ export type {
   ShapeType,
   RpEditorEvents,
   LoadedImageInfo,
+  ImageFilterPreset,
+  ImageAdjustments,
 } from './types/index.js';
 
 // i18n (locale packs)

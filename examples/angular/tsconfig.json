@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "skipLibCheck": true,
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "node",
+    "lib": ["ES2022", "dom"],
+    "useDefineForClassFields": false,
+    "experimentalDecorators": true
+  },
+  "files": ["src/main.ts"],
+  "angularCompilerOptions": { "strictTemplates": true }
+}
