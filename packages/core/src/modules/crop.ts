@@ -8,7 +8,6 @@ export class CropModule {
   private canvas: fabric.Canvas;
   private cropRect: fabric.Rect | null = null;
   private overlay: fabric.Rect | null = null;
-  private overlayHole: fabric.Rect | null = null;
   private aspectRatio: number | null = null;
   private isActive = false;
   private imageObject: fabric.Image | null = null;
@@ -42,16 +41,25 @@ export class CropModule {
       excludeFromExport: true,
     });
     (this.overlay as any)._rpOverlay = true;
-    // Cut a hole where the crop rect is, so the kept area stays bright.
-    this.overlayHole = new fabric.Rect({
-      left: 0,
-      top: 0,
-      width: 1,
-      height: 1,
-      absolutePositioned: true,
-      inverted: true,
-    } as any);
-    this.overlay.clipPath = this.overlayHole;
+    // Paint the dark area around the crop rect (even-odd hole), in the same
+    // coordinate space as the crop rect, so it can't drift when zoomed/panned.
+    const overlay = this.overlay as any;
+    overlay.objectCaching = false;
+    overlay._render = (ctx: CanvasRenderingContext2D) => {
+      const r = this.cropRect;
+      const cx = (overlay.left ?? 0) + (overlay.width ?? 0) / 2;
+      const cy = (overlay.top ?? 0) + (overlay.height ?? 0) / 2;
+      const far = 1e5; // cover whatever part of the plane is visible
+      ctx.beginPath();
+      ctx.rect(-far, -far, far * 2, far * 2);
+      if (r) {
+        const w = (r.width ?? 0) * (r.scaleX || 1);
+        const h = (r.height ?? 0) * (r.scaleY || 1);
+        ctx.rect((r.left ?? 0) - cx, (r.top ?? 0) - cy, w, h);
+      }
+      ctx.fillStyle = overlay.fill;
+      ctx.fill('evenodd');
+    };
 
     // Default crop rect: 80% of image area, centered
     let cropW = imgBounds.width * 0.8;
@@ -119,7 +127,6 @@ export class CropModule {
     toRemove.forEach((obj: fabric.Object) => this.canvas.remove(obj));
     this.cropRect = null;
     this.overlay = null;
-    this.overlayHole = null;
     this.imageObject = null;
     this.canvas.renderAll();
   }
@@ -328,19 +335,9 @@ export class CropModule {
     this.canvas.requestRenderAll();
   }
 
-  /** Keep the overlay's hole on top of the crop rect. */
+  /** The overlay's hole follows the crop rect; just repaint. */
   private syncOverlayHole(): void {
-    const rect = this.cropRect;
-    const hole = this.overlayHole;
-    if (!rect || !hole || !this.overlay) return;
-    hole.set({
-      left: rect.left,
-      top: rect.top,
-      width: rect.width! * (rect.scaleX || 1),
-      height: rect.height! * (rect.scaleY || 1),
-    });
-    hole.setCoords();
-    this.overlay.set('dirty', true);
+    this.overlay?.set('dirty', true);
   }
 
   private constrainCropScale(): void {

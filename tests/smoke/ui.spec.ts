@@ -245,3 +245,69 @@ test('rotating keeps the crop box at the chosen ratio (inline editor)', async ({
   });
   expect(ratio).toBeCloseTo(1, 2);
 });
+
+test('crop overlay hole lines up with the crop box after flipping while cropping', async ({ page }) => {
+  await page.goto(FIXTURE);
+  await page.evaluate(() => (window as any).harness.create({}, [800, 600]));
+  await page.evaluate(async () => {
+    const ed = (window as any).harness.editor;
+    // Rotating rebuilds the crop box, so flip last: that's what used to
+    // leave the bright "hole" offset from the box.
+    await ed.rotateRight();
+    ed.setMode('crop');
+    ed.zoomOut();
+    ed.flipHorizontal();
+  });
+  await page.waitForTimeout(400);
+  // Points just inside / outside the crop box, in lower-canvas CSS pixels.
+  const pts = await page.evaluate(() => {
+    const c = (window as any).harness.editor.fabricCanvas;
+    const r = c.getObjects().find((o: any) => o._rpCropRect);
+    c.getObjects().filter((o: any) => o._rpCropGrid || o._rpCropRect).forEach((o: any) => (o.visible = false));
+    c.discardActiveObject();
+    c.renderAll();
+    const vt = c.viewportTransform;
+    const w = r.width * r.scaleX;
+    const h = r.height * r.scaleY;
+    const toScreen = ([x, y]: number[]) => [x * vt[0] + vt[4], y * vt[3] + vt[5]];
+    return {
+      insideLeft: toScreen([r.left + 6, r.top + h / 2]),
+      insideRight: toScreen([r.left + w - 6, r.top + h / 2]),
+      insideTop: toScreen([r.left + w / 2, r.top + 6]),
+      outsideLeft: toScreen([r.left - 6, r.top + h / 2]),
+      outsideTop: toScreen([r.left + w / 2, r.top - 6]),
+    } as Record<string, number[]>;
+  });
+  const lower = page.locator('#host canvas.lower-canvas');
+  const sample = async () => {
+    const png = (await lower.screenshot()).toString('base64');
+    return page.evaluate(async ({ png, pts }) => {
+      const bmp = await createImageBitmap(await (await fetch('data:image/png;base64,' + png)).blob());
+      const cv = document.createElement('canvas');
+      cv.width = bmp.width;
+      cv.height = bmp.height;
+      const ctx = cv.getContext('2d')!;
+      ctx.drawImage(bmp, 0, 0);
+      const out: Record<string, number> = {};
+      for (const [k, [x, y]] of Object.entries(pts)) {
+        const d = ctx.getImageData(Math.round(x), Math.round(y), 1, 1).data;
+        out[k] = d[0] + d[1] + d[2];
+      }
+      return out;
+    }, { png, pts });
+  };
+  const shown = await sample();
+  await page.evaluate(() => {
+    const c = (window as any).harness.editor.fabricCanvas;
+    c.getObjects().find((o: any) => o._rpOverlay).visible = false;
+    c.renderAll();
+  });
+  const hidden = await sample();
+  for (const k of ['insideLeft', 'insideRight', 'insideTop']) {
+    expect(shown[k], k).toBe(hidden[k]);
+  }
+  for (const k of ['outsideLeft', 'outsideTop']) {
+    expect(hidden[k], k).toBeGreaterThan(100);
+    expect(shown[k], k).toBeLessThan(hidden[k] * 0.6);
+  }
+});
