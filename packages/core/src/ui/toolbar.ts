@@ -46,6 +46,8 @@ export interface ToolbarCallbacks {
   onTextSize?: (size: number) => void;
   onEraserSize?: (size: number) => void;
   onFilterPreset?: (preset: ImageFilterPreset) => void;
+  /** A slider was released: record the adjustment as one undo step. */
+  onAdjustCommit?: () => void;
   onAdjustChange?: <K extends keyof ImageAdjustments>(
     key: K,
     value: ImageAdjustments[K],
@@ -1295,6 +1297,10 @@ export class Toolbar {
       this.buildSlider(P?.blur ?? 'Blur', 0, 100, Math.round(current.blur * 100), '%', (v) => {
         this.callbacks.onAdjustChange?.('blur', (v / 100) as any);
       }),
+    );
+    // One undo step per slider drag (or keyboard change), not per pixel.
+    wrap.querySelectorAll<HTMLInputElement>('input[type="range"]').forEach((input) =>
+      input.addEventListener('change', () => this.callbacks.onAdjustCommit?.()),
     );
 
     const actions = document.createElement('div');

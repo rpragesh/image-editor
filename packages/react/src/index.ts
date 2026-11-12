@@ -15,6 +15,7 @@ export type {
   RpEditorConfig,
   RpEditorTheme,
   RpEditorResult,
+  RpMultiEditorItemResult,
   CropAspectRatio,
   EditorMode,
 } from '@rageshpikalmunde/rp-image-editor';

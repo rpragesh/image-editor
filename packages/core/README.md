@@ -153,6 +153,8 @@ if (results) {
 - **Apply** resolves with one entry per image, in order. Images the user didn't change are exported too, with `edited: false`. Images that fail to load are left out.
 - **Close** resolves with `null`. If anything was edited, the user is asked "Discard changes to N images?" first.
 
+In Angular use `RpImageEditorService.openMultiEditor(images, config)`; in React, `useRpImageEditor().openMultiEditor(images, config)`.
+
 The header shows a `2/5` counter. If you run your own sequence of single-image modals instead, you can show the same counter by passing `currentImageIndex` and `totalImages` to `openEditorModal`. The values are clamped, so out-of-range inputs never produce an invalid counter.
 
 ### React

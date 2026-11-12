@@ -2,11 +2,14 @@ import { useCallback } from 'react';
 import {
   RpEditorConfig,
   RpEditorResult,
+  RpMultiEditorItemResult,
   openEditorModal,
+  openMultiEditorModal,
 } from '@rageshpikalmunde/rp-image-editor';
 
 /**
- * React hook to open the image editor as a modal overlay.
+ * React hook to open the image editor as a modal overlay
+ * (`openEditor` for one image, `openMultiEditor` for several).
  *
  * Usage:
  * ```tsx
@@ -35,5 +38,16 @@ export function useRpImageEditor() {
     []
   );
 
-  return { openEditor };
+  const openMultiEditor = useCallback(
+    async (
+      images: Array<File | Blob | string>,
+      config?: Partial<RpEditorConfig>,
+      startIndex?: number
+    ): Promise<RpMultiEditorItemResult[] | null> => {
+      return openMultiEditorModal({ images, config, startIndex });
+    },
+    []
+  );
+
+  return { openEditor, openMultiEditor };
 }

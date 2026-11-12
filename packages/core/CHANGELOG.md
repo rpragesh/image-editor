@@ -15,8 +15,15 @@ All notable changes to `@rageshpikalmunde/rp-image-editor` will be documented in
 
 ### Fixed
 - The dimmed area around the crop box could drift away from it after flipping or resizing the editor while cropping, leaving a second, offset bright area.
+- **Adjust sliders (brightness, contrast, saturation, blur) are now undoable.** They were never recorded in undo history, so Undo skipped them, and in multi-image an adjust-only edit didn't count as an edit. Each slider release is now one undo step, and an export taken right after moving a slider includes the change.
+- **Text: one Undo removes a text edit.** Text that grew past the image edge was pulled back inside as a separate undo step, so the first Undo seemed to do nothing.
+- **Text: typing replaces the "Text" placeholder** instead of being inserted in front of it, and a text box left empty is removed.
+- **Opening a panel or resizing no longer leaves "empty" undo steps.** History stored on-screen coordinates, so after any layout change the next save looked like an edit.
+- **The active tool keeps working after `getResult()`.** Exporting switched the tool off to hide its overlays and never switched it back on, so an inline editor that exported mid-session couldn't draw until another tool was picked.
 
 ### Added
+- Angular `RpImageEditorService.openMultiEditor(images, config?, startIndex?)` and React `useRpImageEditor().openMultiEditor(...)` wrap the new multi-image modal.
+- `commitAdjustments()` records programmatic `setAdjustment()` calls as one undo step.
 - **`openMultiEditorModal({ images, config, startIndex })`** edits several images in one editor. A thumbnail strip under the photo (with previous/next buttons) switches between them. Each image keeps its own edits and undo history and is loaded the first time it's opened. Apply resolves with `{ index, edited, result }` for every image (unedited ones are exported too, with `edited: false`). Close resolves with `null` and first asks "Discard changes to N images?" if anything was edited. New `multi` strings in all 15 languages (optional in `LocalePack`).
 - **Filter tiles show previews of your photo** (with its current crop, rotation and flip), computed with the same math as the filters.
 - **Accessibility (WCAG 2.2 AA, checked by axe-core in CI):** the modal is a labelled dialog, Tab stays inside it, focus returns to the opener on close, every control has a visible focus ring and an accessible name, sliders are labelled, and toggles expose `aria-pressed`. Honors `prefers-reduced-motion`.

@@ -89,6 +89,30 @@ export class HistoryModule {
   }
 
   /**
+   * Re-capture the newest entry after a pure layout change (the canvas was
+   * re-fitted, so every display coordinate moved). The logical state is the
+   * same, so this keeps the next save from looking like a change and
+   * leaving an undo step that does nothing. Callers must only use this
+   * when no edit is in progress.
+   */
+  refreshTop(): void {
+    if (this.isRestoring || this.undoStack.length === 0) return;
+    this.undoStack[this.undoStack.length - 1] = this.captureEntry();
+    this.prune();
+  }
+
+  /** Number of annotation objects in the newest entry. */
+  topAnnotationCount(): number {
+    const top = this.undoStack[this.undoStack.length - 1];
+    if (!top) return 0;
+    try {
+      return (JSON.parse(top.canvas).objects || []).filter((o: any) => o._rpAnnotation).length;
+    } catch {
+      return -1;
+    }
+  }
+
+  /**
    * Initialize history with the first state (original image)
    */
   initialize(): void {

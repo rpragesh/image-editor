@@ -181,6 +181,8 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     blur: 0,
   };
   private adjustDebounce: number | null = null;
+  /** Adjustments as of the last undo snapshot (see commitAdjustments). */
+  private committedAdjustments: ImageAdjustments = { brightness: 0, contrast: 0, saturation: 0, blur: 0 };
 
   // Undo/redo raster store. History entries reference source images by
   // id (see captureHistoryExtra) instead of Fabric embedding the base
@@ -802,6 +804,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   private afterHistoryRestore(): void {
     this.refreshBaseImageRef();
     this.calloutModule?.rehydrateFromCanvas();
+    this.refreshHistoryLayout();
     // The Filters / Adjust panels read getImageEffects() when rendered;
     // redraw an open one so it shows the restored preset and sliders.
     if (this.currentMode === 'filters' || this.currentMode === 'adjust') {
@@ -1136,6 +1139,24 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     }, 40);
   }
 
+  /**
+   * Apply any pending slider adjustment now and record it as an undo step
+   * (no-op when nothing changed since the last snapshot).
+   */
+  commitAdjustments(): void {
+    if (this.adjustDebounce !== null) {
+      window.clearTimeout(this.adjustDebounce);
+      this.adjustDebounce = null;
+    }
+    const last = JSON.stringify(this.committedAdjustments);
+    if (JSON.stringify(this.adjustments) === last) {
+      this.rebuildImageFilters(false);
+      return;
+    }
+    this.committedAdjustments = { ...this.adjustments };
+    this.rebuildImageFilters(true);
+  }
+
   /** Snapshot of the current filter + adjust state. */
   getImageEffects(): { preset: ImageFilterPreset; adjustments: ImageAdjustments } {
     return {
@@ -1148,6 +1169,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   resetImageEffects(save: boolean = true): void {
     this.activeFilterPreset = 'none';
     this.adjustments = { brightness: 0, contrast: 0, saturation: 0, blur: 0 };
+    this.committedAdjustments = { ...this.adjustments };
     this.rebuildImageFilters(save);
   }
 
@@ -1312,6 +1334,9 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       throw new Error('Editor not initialized');
     }
 
+    // A slider may still be mid-debounce; bake its value in.
+    if (this.adjustDebounce !== null) this.commitAdjustments();
+
     // Deactivate current mode to clean up overlays
     this.deactivateCurrentMode();
 
@@ -1455,6 +1480,12 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     // Restore callout controls (only for selected callouts)
     this.calloutModule?.showAllControls();
     this.fabricCanvas.renderAll();
+
+    // The export switched the active tool off to hide its overlays; switch
+    // it back on so editing can continue after a mid-session export.
+    if (!this.isDestroyed && this.currentMode !== 'move') {
+      this.setMode(this.currentMode);
+    }
 
     const result: RpEditorResult = {
       base64,
@@ -1863,6 +1894,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       : null;
     this.activeFilterPreset = extra.preset;
     this.adjustments = { ...extra.adjustments };
+    this.committedAdjustments = { ...extra.adjustments };
     if (this.hasImageEffects()) this.rebuildImageFilters(false);
   }
 
@@ -1981,12 +2013,29 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       }
     });
 
-    this.fabricCanvas.on('text:editing:exited', () => {
+    this.fabricCanvas.on('text:editing:exited', (e: any) => {
+      const tgt = e?.target as any;
+      // A text box left empty is invisible; don't keep it around.
+      if (tgt && tgt._rpType === 'text' && !String(tgt.text ?? '').trim()) {
+        // Fabric still uses the object after this event; remove it after.
+        // Until then, don't snapshot it (see object:modified below).
+        tgt._rpPendingRemoval = true;
+        setTimeout(() => {
+          if (this.isDestroyed || !this.fabricCanvas?.contains(tgt)) return;
+          this.fabricCanvas.remove(tgt);
+          this.fabricCanvas.requestRenderAll();
+        }, 0);
+        return;
+      }
+      // Text can grow past the image edge while typing; pull it back in
+      // before the snapshot so the edit is one undo step, not two.
+      this.constrainAnnotationToImageBounds(e?.target || null);
       this.historyModule?.saveState();
     });
 
     // Listen for object modifications
     this.fabricCanvas.on('object:modified', (e: any) => {
+      if (e?.target?._rpPendingRemoval) return;
       this.constrainAnnotationToImageBounds(e?.target || null);
       this.historyModule?.saveState();
     });
@@ -2131,6 +2180,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       onEraserSize: (size) => this.eraserModule?.setEraserWidth(size),
       onFilterPreset: (preset) => this.applyFilterPreset(preset),
       onAdjustChange: (key, value) => this.setAdjustment(key, value),
+      onAdjustCommit: () => this.commitAdjustments(),
       onResetEffects: () => this.resetImageEffects(true),
       getImageEffects: () => this.getImageEffects(),
       getFilterPreviews: (presets) => this.getFilterPreviews(presets),
@@ -3182,6 +3232,29 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
   }
 
   /**
+   * After a re-fit, bring the newest undo snapshot to the new layout, but
+   * only when nothing is mid-edit (otherwise the unsaved change would be
+   * folded into the "before" snapshot and could not be undone).
+   */
+  private refreshHistoryLayout(): void {
+    const canvas = this.fabricCanvas as any;
+    const history = this.historyModule;
+    if (!canvas || !history || this.isDestroyed) return;
+    const active = canvas.getActiveObject?.();
+    const busy =
+      this.currentMode === 'crop' ||
+      active?.isEditing ||
+      canvas._currentTransform ||
+      canvas._isCurrentlyDrawing ||
+      this.nudgeCommitTimer !== null ||
+      this.adjustDebounce !== null;
+    if (busy) return;
+    const annotations = canvas.getObjects().filter((o: any) => o._rpAnnotation).length;
+    if (annotations !== history.topAnnotationCount()) return;
+    history.refreshTop();
+  }
+
+  /**
    * Re-fit the base image to the current wrapper size and re-anchor all
    * annotations proportionally. Used both by the ResizeObserver (e.g.
    * entering/exiting fullscreen) and after undo/redo — where the state
@@ -3285,6 +3358,8 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
 
     this.fabricCanvas.renderAll();
     this.refreshGhostImage();
+
+    this.refreshHistoryLayout();
   }
 
   /**

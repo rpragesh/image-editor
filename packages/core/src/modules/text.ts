@@ -176,6 +176,8 @@ export class TextModule {
 
   private beginEditing(text: fabric.IText): void {
     text.enterEditing();
+    // Select the placeholder so the first keystroke replaces it.
+    text.selectAll();
 
     // Ensure keyboard focus lands in Fabric's hidden textarea, especially
     // after fullscreen transitions where browser focus can stay on toolbar buttons.
