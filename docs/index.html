@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>rp-image-editor - Lightweight Image Editor for Web and Mobile</title>
-  <meta name="description" content="rp-image-editor is a lightweight browser image editor for crop, draw, shapes, callouts, text, and mobile-friendly annotation workflows with PNG/JPEG/WebP export.">
+  <meta name="description" content="rp-image-editor is a lightweight browser image editor for crop, draw, shapes, callouts, text, and mobile-friendly annotation workflows, multi-image editing and PNG/JPEG export.">
   <meta name="keywords" content="rp-image-editor, image editor, image annotation, screenshot markup, javascript image editor, typescript image editor, crop draw text shapes callouts, mobile image editor, browser image editor, npm image editor, react image editor, angular image editor, vue image editor, ionic image editor, capacitor image editor">
   <meta name="author" content="Ragesh Pikalmunde">
   <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
@@ -2411,6 +2411,64 @@
         transform: none;
       }
     }
+
+    /* ---- 1.6 refresh ---- */
+    .feature-showcase__action { color: var(--brand-strong); }
+    .button-primary { background: var(--brand); }
+    .button-primary:hover, .button-primary:focus-visible { background: var(--brand-strong); }
+    .main-nav a.button-primary,
+    .main-nav a.button-primary:hover,
+    .main-nav a.button-primary:focus-visible { color: #ffffff; background: var(--brand); }
+    .main-nav a.button-primary:hover { background: var(--brand-strong); }
+    a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible {
+      outline: 3px solid #1d4ed8; outline-offset: 2px;
+    }
+    .nav-toggle { flex-direction: column; gap: 4px; }
+    .nav-toggle span, .nav-toggle::before, .nav-toggle::after { top: auto; }
+
+    .whats-new {
+      display: inline-flex; align-items: center; gap: 10px;
+      margin-bottom: 18px; padding: 6px 14px 6px 6px;
+      border: 1px solid var(--line); border-radius: 999px;
+      background: var(--surface); color: var(--text);
+      font-size: 14px; font-weight: 600; text-decoration: none;
+    }
+    .whats-new b { white-space: nowrap; }
+    @media (max-width: 480px) { .whats-new { font-size: 13px; } }
+    @media (max-width: 860px) {
+      .site-header { position: sticky; z-index: 100; }
+      .main-nav { z-index: 100; background: #f8faff; box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08); }
+    }
+    .whats-new b {
+      background: var(--brand); color: #fff; border-radius: 999px;
+      padding: 4px 10px; font-size: 12px; letter-spacing: .02em;
+    }
+    .whats-new:hover { border-color: var(--brand); }
+
+    .hero-editor { position: relative; height: 610px; background: #f3f4f7; }
+    .hero-editor .rp-ie-root { border-radius: 0; border: 0; }
+    .hero-editor-fallback {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      color: var(--text-muted); font-size: 14px;
+    }
+    .hero-editor-bar {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 12px 16px; border-top: 1px solid var(--line); font-size: 14px; color: var(--text-muted);
+    }
+    .hero-editor-bar button {
+      font: inherit; font-weight: 700; color: var(--brand-strong); background: none; border: 0; cursor: pointer; padding: 6px 4px;
+    }
+    .hero-static { display: none; }
+    @media (max-width: 899px) {
+      .hero-editor, .hero-editor-bar { display: none; }
+      .hero-static { display: block; }
+    }
+    .demo-buttons .demo-upload { white-space: nowrap; }
+    .feature-support--new { border-color: var(--brand); }
+    .feature-support--new .feature-support__title::after {
+      content: "New in 1.6"; margin-left: 8px; padding: 2px 8px; border-radius: 999px;
+      background: var(--brand-soft); color: var(--brand-strong); font-size: 11px; font-weight: 700;
+    }
   </style>
 </head>
 <body>
@@ -2445,9 +2503,10 @@
     <section class="hero section">
       <div class="container hero-layout">
         <div class="reveal">
+          <a class="whats-new" href="https://github.com/rpragesh/image-editor/blob/main/packages/core/CHANGELOG.md" target="_blank" rel="noopener"><b>New in 1.6</b>Redesigned editor + multi-image &rarr;</a>
           <p class="eyebrow">Open Source Image Editor</p>
           <h1>Powerful Image Editing for Modern Web &amp; Mobile Apps</h1>
-          <p class="hero-copy">A lightweight, framework-agnostic image editor for cropping, drawing, annotations, shapes, text, filters and more.</p>
+          <p class="hero-copy">A lightweight, framework-agnostic image editor for cropping, drawing, annotations, shapes, text, filters and more. Accessible (WCAG 2.2 AA), touch-friendly, and it edits whole batches of images.</p>
 
           <div class="hero-actions">
             <a class="button-link button-primary" href="#demo" id="heroTryDemo">Try Live Demo</a>
@@ -2465,45 +2524,33 @@
             <span class="hero-meta-pill">Open Source</span>
           </div>
 
-          <div class="badge-row" aria-label="Package badges">
-            <a href="https://www.npmjs.com/package/@rageshpikalmunde/rp-image-editor" target="_blank" rel="noopener">
-              <img src="https://img.shields.io/badge/npm-package-CB3837?style=flat-square" alt="NPM package">
-            </a>
-            <a href="https://www.npmjs.com/package/@rageshpikalmunde/rp-image-editor" target="_blank" rel="noopener">
-              <img src="https://img.shields.io/npm/v/@rageshpikalmunde/rp-image-editor.svg?style=flat-square" alt="NPM version">
-            </a>
-            <a href="https://github.com/rpragesh/image-editor/blob/main/LICENSE" target="_blank" rel="noopener">
-              <img src="https://img.shields.io/badge/license-MIT-3DA639?style=flat-square" alt="MIT License">
-            </a>
-          </div>
         </div>
 
-        <aside class="hero-product reveal" aria-label="Product preview">
+        <aside class="hero-product reveal" aria-label="Live editor">
           <div class="hero-product-window">
             <div class="hero-product-top">
               <div class="hero-window-dots" aria-hidden="true"><span></span><span></span><span></span></div>
-              <p class="hero-window-title">rp-image-editor live preview</p>
+              <p class="hero-window-title">The real editor &mdash; try it here</p>
             </div>
-            <a class="hero-product-link" href="#demo" id="heroPreviewLaunch" aria-label="Open live demo with sample image">
+            <div class="hero-editor" id="heroEditor">
+              <div class="hero-editor-fallback" id="heroEditorFallback">Loading the editor&hellip;</div>
+            </div>
+            <div class="hero-editor-bar">
+              <span>Pick a tool on the left and edit the photo.</span>
+              <button type="button" id="heroOpenModal">Open full screen &rarr;</button>
+            </div>
+            <a class="hero-product-link hero-static" href="#demo" id="heroPreviewLaunch" aria-label="Open the editor with the sample image">
               <div class="hero-product-media">
-                <img id="heroPreviewImage" alt="Preview image used in the live image editor" loading="lazy">
+                <img id="heroPreviewImage" alt="Sample photo used in the live editor" loading="lazy">
                 <div class="hero-product-overlay">
                   <div>
-                    <strong>Real editor demo</strong>
-                    <span>Click to launch with sample image</span>
+                    <strong>Try the real editor</strong>
+                    <span>Tap to open it with this photo</span>
                   </div>
                 </div>
               </div>
             </a>
-            <div class="hero-product-tools" aria-hidden="true">
-              <span>Crop</span>
-              <span>Draw</span>
-              <span>Shapes</span>
-              <span>Text</span>
-              <span>Callouts</span>
-            </div>
           </div>
-          <p class="hero-product-hint"><span>This preview uses the same sample asset as the interactive demo.</span><strong>Try Live Demo</strong></p>
         </aside>
       </div>
     </section>
@@ -2554,7 +2601,7 @@
         <div class="section-head reveal">
           <p class="section-kicker">Interactive Demo</p>
           <h2>Try the Editor</h2>
-          <p>Upload an image and experience the editor directly in your browser.</p>
+          <p>Open the sample photo, a batch of three, or your own images. Pick several files to get the thumbnail strip.</p>
         </div>
 
         <div class="demo-shell reveal">
@@ -2577,6 +2624,7 @@
 
               <div class="demo-buttons">
                 <button class="demo-button" id="trySampleBtn" type="button">Try with sample image</button>
+                <button class="demo-upload" id="tryMultiBtn" type="button">Try 3 images at once</button>
                 <button class="demo-upload" id="chooseImagesBtn" type="button">Choose image(s) to edit</button>
                 <input class="demo-input" id="imageInput" type="file" accept="image/*,.heic,.heif" multiple>
               </div>
@@ -2612,6 +2660,27 @@
               <label class="field" for="brushColorInput">
                 Default brush color
                 <input id="brushColorInput" type="color" value="#2f6fde">
+              </label>
+
+              <label class="field" for="languageSelect">
+                Language
+                <select id="languageSelect">
+                  <option value="en" selected>English</option>
+                  <option value="da">Dansk</option>
+                  <option value="de">Deutsch</option>
+                  <option value="es">Español</option>
+                  <option value="fr">Français</option>
+                  <option value="it">Italiano</option>
+                  <option value="nl">Nederlands</option>
+                  <option value="pl">Polski</option>
+                  <option value="pt">Português</option>
+                  <option value="sv">Svenska</option>
+                  <option value="tr">Türkçe</option>
+                  <option value="vi">Tiếng Việt</option>
+                  <option value="th">ไทย</option>
+                  <option value="ko">한국어</option>
+                  <option value="zh">中文</option>
+                </select>
               </label>
 
               <label class="field-inline" for="disableFiltersInput">
@@ -2726,37 +2795,37 @@
           </div>
 
           <div class="feature-support-grid">
-            <article class="feature-support">
-              <h3 class="feature-support__title"><span class="feature-support__icon" aria-hidden="true"></span>Text</h3>
-              <p>Layer labels and notes with adjustable font size and color for easy communication.</p>
+            <article class="feature-support feature-support--new">
+              <h3 class="feature-support__title"><span class="feature-support__icon" aria-hidden="true"></span>Multi-image</h3>
+              <p>Edit a batch in one editor: thumbnail strip, separate undo per image, and a prompt before discarding edits.</p>
+            </article>
+            <article class="feature-support feature-support--new">
+              <h3 class="feature-support__title"><span class="feature-support__icon" aria-hidden="true"></span>Accessible</h3>
+              <p>WCAG 2.2 AA: labelled controls, visible focus, full keyboard use, checked with axe-core on every build.</p>
             </article>
             <article class="feature-support">
-              <h3 class="feature-support__title"><span class="feature-support__icon" aria-hidden="true"></span>Eraser</h3>
-              <p>Remove unwanted strokes quickly to correct details without resetting your progress.</p>
+              <h3 class="feature-support__title"><span class="feature-support__icon" aria-hidden="true"></span>Filters &amp; Adjust</h3>
+              <p>Seven filters that preview your photo, plus brightness, contrast, saturation and blur.</p>
             </article>
             <article class="feature-support">
-              <h3 class="feature-support__title"><span class="feature-support__icon" aria-hidden="true"></span>Undo / Redo</h3>
-              <p>Step backward or forward through edits with predictable history controls.</p>
+              <h3 class="feature-support__title"><span class="feature-support__icon" aria-hidden="true"></span>Text &amp; Eraser</h3>
+              <p>Add labels in any colour and size; erase any annotation with a tap.</p>
             </article>
             <article class="feature-support">
-              <h3 class="feature-support__title"><span class="feature-support__icon" aria-hidden="true"></span>Save in Multiple Formats</h3>
-              <p>Export final images as PNG, JPEG, or WebP for every delivery channel.</p>
+              <h3 class="feature-support__title"><span class="feature-support__icon" aria-hidden="true"></span>Undo, Redo &amp; Keyboard</h3>
+              <p>Exact undo for every edit, and shortcuts for tools, zoom, rotate, nudge and delete.</p>
             </article>
             <article class="feature-support">
-              <h3 class="feature-support__title"><span class="feature-support__icon" aria-hidden="true"></span>Theme Customization</h3>
-              <p>Match your product with light and dark themes plus configurable color tokens.</p>
+              <h3 class="feature-support__title"><span class="feature-support__icon" aria-hidden="true"></span>Full-quality export</h3>
+              <p>PNG or JPEG at the photo&rsquo;s original resolution, as a File, Blob or Base64.</p>
             </article>
             <article class="feature-support">
-              <h3 class="feature-support__title"><span class="feature-support__icon" aria-hidden="true"></span>Multilingual Support</h3>
-              <p>Deliver a localized editor experience with built-in language packs.</p>
+              <h3 class="feature-support__title"><span class="feature-support__icon" aria-hidden="true"></span>Themes &amp; 15 languages</h3>
+              <p>Light and dark themes, your brand colours, and built-in translations you can override per string.</p>
             </article>
             <article class="feature-support">
-              <h3 class="feature-support__title"><span class="feature-support__icon" aria-hidden="true"></span>Modal + Embedded Modes</h3>
-              <p>Launch as a popup for quick tasks or mount inline for persistent editing flows.</p>
-            </article>
-            <article class="feature-support">
-              <h3 class="feature-support__title"><span class="feature-support__icon" aria-hidden="true"></span>Responsive Layout</h3>
-              <p>Maintain usability across desktop and mobile viewports without custom wrappers.</p>
+              <h3 class="feature-support__title"><span class="feature-support__icon" aria-hidden="true"></span>Modal, inline &amp; mobile</h3>
+              <p>Open as a full-screen modal or mount inline; on phones the tools move to a bottom bar with 44&nbsp;px targets.</p>
             </article>
           </div>
 
@@ -2819,14 +2888,6 @@
           <h2>Built for teams shipping image features</h2>
         </div>
 
-        <div class="why-highlight reveal">
-          <h3>Built for real image workflows</h3>
-          <p>From first upload to final export, rp-image-editor keeps every essential step in one consistent interface.</p>
-          <div class="why-flow" aria-hidden="true">
-            <span>Crop</span><i>→</i><span>Annotate</span><i>→</i><span>Edit</span><i>→</i><span>Export</span>
-          </div>
-        </div>
-
         <div class="why-reasons reveal">
           <article class="why-reason">
             <h3 class="why-reason-title"><span class="why-reason-icon why-reason-icon--oss" aria-hidden="true"></span>Open Source / MIT</h3>
@@ -2846,19 +2907,6 @@
           </article>
         </div>
 
-        <div class="why-choose reveal">
-          <h3>Why choose rp-image-editor?</h3>
-          <p>Basic croppers handle framing. rp-image-editor gives your users a complete browser workflow for review, markup, and export without switching tools.</p>
-          <div class="why-choose-stack" aria-label="Differentiator capabilities">
-            <span>Crop</span>
-            <span>Draw</span>
-            <span>Shapes</span>
-            <span>Callouts</span>
-            <span>Text</span>
-            <span>Mobile</span>
-            <span>Export</span>
-          </div>
-        </div>
       </div>
     </section>
 
@@ -2910,6 +2958,7 @@
             <button class="tab-button active" role="tab" aria-selected="true" aria-controls="tab-js" id="tab-btn-js" data-tab="js" type="button">JavaScript</button>
             <button class="tab-button" role="tab" aria-selected="false" aria-controls="tab-react" id="tab-btn-react" data-tab="react" type="button">React</button>
             <button class="tab-button" role="tab" aria-selected="false" aria-controls="tab-angular" id="tab-btn-angular" data-tab="angular" type="button">Angular</button>
+            <button class="tab-button" role="tab" aria-selected="false" aria-controls="tab-multi" id="tab-btn-multi" data-tab="multi" type="button">Multi-image</button>
           </div>
 
           <section class="tab-panel active" id="tab-js" role="tabpanel" aria-labelledby="tab-btn-js">
@@ -2973,6 +3022,24 @@ async function onFileSelected(file: File) {
 }</code></pre>
           </section>
 
+          <section class="tab-panel" id="tab-multi" role="tabpanel" aria-labelledby="tab-btn-multi">
+<pre><code>import { openMultiEditorModal } from '@rageshpikalmunde/rp-image-editor';
+
+const input = document.querySelector('#fileInput'); // &lt;input type="file" multiple&gt;
+
+input.addEventListener('change', async () =&gt; {
+  const results = await openMultiEditorModal({
+    images: Array.from(input.files),
+    config: { exportFormat: 'jpeg' }
+  });
+
+  // One entry per image; null if the user closed the editor.
+  for (const { index, edited, result } of results ?? []) {
+    if (edited) console.log(index, result.file);
+  }
+});</code></pre>
+          </section>
+
           <div class="code-actions">
             <a class="button-link button-primary" href="https://github.com/rpragesh/image-editor" target="_blank" rel="noopener">View on GitHub</a>
             <a class="button-link button-secondary" href="https://www.npmjs.com/package/@rageshpikalmunde/rp-image-editor" target="_blank" rel="noopener">View on NPM</a>
@@ -3011,21 +3078,6 @@ async function onFileSelected(file: File) {
 
     <section class="section">
       <div class="container">
-        <div class="workflow-strip reveal">
-          <p class="section-kicker">Product Workflow</p>
-          <div class="workflow-steps">
-            <article class="workflow-step"><strong>Upload</strong><p>Select or drop source images.</p></article>
-            <article class="workflow-step"><strong>Crop</strong><p>Frame content and normalize dimensions.</p></article>
-            <article class="workflow-step"><strong>Annotate</strong><p>Draw, shape, text, and callout overlays.</p></article>
-            <article class="workflow-step"><strong>Customize</strong><p>Apply filters and tuned theme settings.</p></article>
-            <article class="workflow-step"><strong>Export</strong><p>Return output as File, Blob, or Base64.</p></article>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="container">
         <div class="section-head reveal">
           <p class="section-kicker">Open Source</p>
           <h2>Built in the open</h2>
@@ -3049,7 +3101,7 @@ async function onFileSelected(file: File) {
         <div class="faq reveal">
           <details>
             <summary>What frameworks can I use with rp-image-editor?</summary>
-            <p>The package is framework-agnostic and documentation references JavaScript, React, Angular, Vue, Ionic, and Capacitor usage.</p>
+            <p>Any. The core package is plain JavaScript/TypeScript and works with Vue, Svelte, Ionic and Capacitor too. There are ready-made wrappers for React and Angular (15+).</p>
           </details>
           <details>
             <summary>Is rp-image-editor free?</summary>
@@ -3061,11 +3113,19 @@ async function onFileSelected(file: File) {
           </details>
           <details>
             <summary>Does it work on mobile?</summary>
-            <p>The editor supports touch interactions, including pinch zoom and drag behavior for mobile workflows.</p>
+            <p>Yes. On phones the tools move to a scrolling bar at the bottom, controls are 44&nbsp;px touch targets, and you can pinch to zoom. iPhone HEIC photos are converted automatically when <code>heic2any</code> is installed.</p>
           </details>
           <details>
             <summary>Can I customize the editor?</summary>
-            <p>Yes. Theme colors and several behavior options are configurable through the editor config.</p>
+            <p>Yes: theme colours (light or dark), labels in 15 languages or your own strings, which tools appear, crop ratios, filter presets and export format and quality.</p>
+          </details>
+          <details>
+            <summary>Can users edit several images at once?</summary>
+            <p>Yes. <code>openMultiEditorModal</code> opens a batch with a thumbnail strip. Each image keeps its own undo history, and Apply returns every image with an <code>edited</code> flag.</p>
+          </details>
+          <details>
+            <summary>Is it accessible?</summary>
+            <p>Yes. The editor meets WCAG 2.2 AA (checked with axe-core on every build): every control has a label and a visible focus ring, the modal traps focus, and everything works from the keyboard.</p>
           </details>
           <details>
             <summary>How do I install it?</summary>
@@ -3073,7 +3133,7 @@ async function onFileSelected(file: File) {
           </details>
           <details>
             <summary>Where can I find documentation?</summary>
-            <p>Use the package README in the GitHub repository for setup details and API examples.</p>
+            <p>The <a href="https://github.com/rpragesh/image-editor#readme">README</a> covers setup and options, and the <a href="https://rpragesh.github.io/image-editor/api/">API reference</a> lists every method and type.</p>
           </details>
         </div>
       </div>
@@ -3179,7 +3239,8 @@ async function onFileSelected(file: File) {
       selectedTheme: 'light',
       exportFormat: 'jpeg',
       brushColor: '#2f6fde',
-      disableFilters: false
+      disableFilters: false,
+      language: 'en'
     };
 
     const demoStatus = document.getElementById('demoStatus');
@@ -3208,13 +3269,12 @@ async function onFileSelected(file: File) {
         defaultTextColor: state.brushColor,
         defaultShapeColor: state.brushColor,
         disabledFeatures,
+        language: state.language,
         currentImageIndex: index,
         totalImages: total,
         theme: {
           ...themes[state.selectedTheme],
-          headerTitle: 'rp-image-editor Demo',
-          cancelButtonText: 'Close',
-          applyButtonText: 'Apply'
+          headerTitle: 'rp-image-editor Demo'
         }
       };
     }
@@ -3354,6 +3414,71 @@ async function onFileSelected(file: File) {
       state.brushColor = event.target.value;
       setStatus('Config updated: brush color changed.');
     });
+
+    document.getElementById('languageSelect').addEventListener('change', (event) => {
+      state.language = event.target.value;
+      setStatus('Config updated: language set to ' + event.target.selectedOptions[0].textContent + '.');
+    });
+
+    // Three variants of the sample photo, so the multi-image strip can be tried
+    // without picking files.
+    async function makeSampleBatch(file) {
+      const url = URL.createObjectURL(file);
+      try {
+        const img = new Image();
+        img.src = url;
+        await img.decode();
+        const variant = (draw) => new Promise((resolve) => {
+          const c = document.createElement('canvas');
+          c.width = img.naturalWidth;
+          c.height = img.naturalHeight;
+          draw(c.getContext('2d'), c.width, c.height);
+          c.toBlob((b) => resolve(b), 'image/jpeg', 0.9);
+        });
+        const mirrored = await variant((ctx, w) => { ctx.translate(w, 0); ctx.scale(-1, 1); ctx.drawImage(img, 0, 0); });
+        const mono = await variant((ctx) => { ctx.filter = 'grayscale(1) contrast(1.1)'; ctx.drawImage(img, 0, 0); });
+        return [file, new File([mirrored], 'sample-2.jpg', { type: 'image/jpeg' }), new File([mono], 'sample-3.jpg', { type: 'image/jpeg' })];
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    }
+
+    document.getElementById('tryMultiBtn').addEventListener('click', async () => {
+      try {
+        setStatus('Preparing 3 sample images...');
+        const files = await makeSampleBatch(await fetchSampleFile());
+        await runDemoBatch(files);
+      } catch (error) {
+        console.warn('[demo] multi-image sample unavailable', error);
+        setStatus('Sample images not available. Choose a few of your own images instead.');
+      }
+    });
+
+    // The real editor, mounted inline in the hero on wide screens. On phones the
+    // hero shows a photo that opens the full-screen editor instead, so the page
+    // still scrolls normally over it.
+    let heroEditor = null;
+    async function mountHeroEditor() {
+      const host = document.getElementById('heroEditor');
+      const fallback = document.getElementById('heroEditorFallback');
+      if (!host || heroEditor || !window.matchMedia('(min-width: 900px)').matches) return;
+      try {
+        const file = await fetchSampleFile();
+        heroEditor = new RpImageEditor.RpImageEditor(host, {
+          theme: { ...themes.light, headerTitle: 'Photo Editor' },
+          keyboardShortcutsScope: 'editor',
+          exportFormat: 'jpeg'
+        });
+        await heroEditor.loadImage(file);
+        if (fallback) fallback.remove();
+      } catch (error) {
+        console.warn('[demo] hero editor unavailable', error);
+        if (fallback) fallback.textContent = 'The editor preview could not load. Try the demo below.';
+      }
+    }
+    document.getElementById('heroOpenModal').addEventListener('click', openSampleDemo);
+    window.addEventListener('load', mountHeroEditor);
+    window.matchMedia('(min-width: 900px)').addEventListener?.('change', (e) => { if (e.matches) mountHeroEditor(); });
 
     document.getElementById('disableFiltersInput').addEventListener('change', (event) => {
       state.disableFilters = event.target.checked;
