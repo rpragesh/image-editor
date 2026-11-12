@@ -6,9 +6,13 @@ Use it to crop, rotate, zoom, draw, add text, place callouts and shapes, apply f
 
 ### 🚀 **[▶ Try the Live Demo →](https://rpragesh.github.io/image-editor/)**
 
+[![rp-image-editor: multi-image editing, crop, arrows and filters](https://rpragesh.github.io/image-editor/demo.gif)](https://rpragesh.github.io/image-editor/)
+
 > One click opens a live browser demo with a sample image already loaded. No signup, no upload. Test crop, annotation, text, shapes, filters, and export in seconds.
 
 [npm](https://www.npmjs.com/package/@rageshpikalmunde/rp-image-editor) · [GitHub](https://github.com/rpragesh/image-editor) · [API reference](https://rpragesh.github.io/image-editor/api/) · [Changelog](packages/core/CHANGELOG.md)
+
+Guides: [React image editor](https://rpragesh.github.io/image-editor/react-image-editor/) · [Angular image editor](https://rpragesh.github.io/image-editor/angular-image-editor/) · [Image annotation in JavaScript](https://rpragesh.github.io/image-editor/image-annotation/)
 
 ⚡ **Live examples on StackBlitz:** [React](https://stackblitz.com/github/rpragesh/image-editor/tree/main/examples/react) · [Angular](https://stackblitz.com/github/rpragesh/image-editor/tree/main/examples/angular) · [Plain HTML (CDN)](https://stackblitz.com/github/rpragesh/image-editor/tree/main/examples/vanilla-cdn). Sources are in [`examples/`](examples/).
 
@@ -216,6 +220,8 @@ Recent releases expose the following config keys:
 See [`packages/core/CHANGELOG.md`](packages/core/CHANGELOG.md) for the latest release notes.
 
 ## Upgrading to 1.6.0
+
+> **1.6.1** is a patch on top of 1.6.0 (docs, npm metadata, and new callouts are ready for typing). If you're already on 1.6.0, `npm update` is all you need.
 
 1.6.0 is a minor release: a redesigned, accessible editor UI and a new multi-image editor. **Your existing code keeps working** (no config keys were removed or renamed), but the editor looks different and a few behaviours changed, so check the list below before upgrading.
 

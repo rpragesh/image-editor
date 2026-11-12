@@ -11,7 +11,7 @@
     "@angular/compiler": "^17.3.12",
     "@angular/core": "^17.3.12",
     "@angular/platform-browser": "^17.3.12",
-    "@rageshpikalmunde/rp-image-editor": "^1.6.0",
+    "@rageshpikalmunde/rp-image-editor": "^1.6.1",
     "@rageshpikalmunde/rp-image-editor-angular": "^1.6.0",
     "rxjs": "~7.8.1",
     "tslib": "^2.6.2",

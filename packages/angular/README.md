@@ -2,7 +2,9 @@
 
 Angular wrapper for [`@rageshpikalmunde/rp-image-editor`](https://www.npmjs.com/package/@rageshpikalmunde/rp-image-editor), a browser image editor and annotator (crop, rotate, draw, text, shapes, callouts, filters, undo/redo, native-resolution export).
 
-[Live demo](https://rpragesh.github.io/image-editor/) · [Angular example on StackBlitz](https://stackblitz.com/github/rpragesh/image-editor/tree/main/examples/angular) · [API reference](https://rpragesh.github.io/image-editor/api/) · [Full docs](https://github.com/rpragesh/image-editor#readme)
+[Live demo](https://rpragesh.github.io/image-editor/) · [Angular guide](https://rpragesh.github.io/image-editor/angular-image-editor/) · [Angular example on StackBlitz](https://stackblitz.com/github/rpragesh/image-editor/tree/main/examples/angular) · [API reference](https://rpragesh.github.io/image-editor/api/) · [Full docs](https://github.com/rpragesh/image-editor#readme)
+
+[![rp-image-editor: multi-image editing, crop, arrows and filters](https://rpragesh.github.io/image-editor/demo.gif)](https://rpragesh.github.io/image-editor/)
 
 Requires **Angular 15 or newer**. Works with NgModules and standalone components, and with Ionic (optional).
 
@@ -74,3 +76,10 @@ Component API: inputs `image`, `config`; outputs `imageEdited`, `editorClosed`, 
 ## License
 
 MIT
+
+## Edit several images at once
+
+```ts
+const results = await this.editor.openMultiEditor(files, { exportFormat: 'jpeg' });
+// [{ index, edited, result }] for every image, or null if closed
+```

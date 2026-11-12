@@ -1,27 +1,31 @@
 {
   "name": "@rageshpikalmunde/rp-image-editor-angular",
-  "version": "1.6.0",
-  "description": "Angular wrapper for rp-image-editor with crop, annotation, filters, and native-resolution export support",
+  "version": "1.6.1",
+  "description": "Angular image editor and annotation component (rp-image-editor): crop, rotate, draw, text, shapes, callouts, filters and multi-image editing. Accessible and mobile-ready.",
   "scripts": {
     "build": "node scripts/build.js",
     "clean": "rm -rf dist",
     "prepublishOnly": "node -e \"console.error(\\\"Publish the built package instead: npm run build, then cd dist && npm publish\\\"); process.exit(1)\""
   },
   "keywords": [
-    "image-editor",
     "angular-image-editor",
     "angular-photo-editor",
+    "angular-image-crop",
+    "angular-image-annotation",
+    "image-editor",
+    "photo-editor",
     "image-annotation",
+    "image-cropper",
     "screenshot-annotation",
-    "crop",
-    "draw",
-    "shapes",
-    "callout",
+    "multi-image",
+    "image-filters",
+    "accessible",
     "fabricjs",
     "angular",
     "ionic",
     "ionic-angular",
-    "capacitor"
+    "capacitor",
+    "typescript"
   ],
   "author": "Ragesh Pikalmunde",
   "license": "MIT",
@@ -29,7 +33,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@rageshpikalmunde/rp-image-editor": "^1.6.0"
+    "@rageshpikalmunde/rp-image-editor": "^1.6.1"
   },
   "peerDependencies": {
     "@angular/core": ">=15.0.0",
@@ -41,5 +45,14 @@
       "optional": true
     }
   },
-  "sideEffects": false
+  "sideEffects": false,
+  "homepage": "https://rpragesh.github.io/image-editor/angular-image-editor/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rpragesh/image-editor.git",
+    "directory": "packages/angular"
+  },
+  "bugs": {
+    "url": "https://github.com/rpragesh/image-editor/issues"
+  }
 }

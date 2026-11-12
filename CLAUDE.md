@@ -42,6 +42,8 @@ Core's `build` also emits `dist/browser/rp-image-editor.min.js` (`scripts/build-
 
 `build:css` in core requires `dist/cjs` to exist — it `require`s the compiled `ui/styles.js` to emit `dist/styles/rp-image-editor.css` and writes `package.json` type markers into `dist/esm` and `dist/cjs`. Always run the full `npm run build`, not individual steps out of order.
 
+The site's static files live in `demo/` (source) and `build:demo` mirrors them to `docs/`: `index.html`, `social-card.png`, `demo.gif`, plus the search-landing guides (`react-image-editor/`, `angular-image-editor/`, `image-annotation/`) and `sitemap.xml`, which `scripts/site-pages.js` generates — edit that script, not the generated HTML.
+
 Pushing to `main` triggers `.github/workflows/deploy-demo.yml`, which builds core + demo and deploys `docs/` to GitHub Pages. `docs/` and `demo/` bundles are committed; rebuild them with `build:demo` when core changes.
 
 ## Core architecture (`packages/core/src`)

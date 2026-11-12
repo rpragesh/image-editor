@@ -67,5 +67,14 @@ if (mirroredSample) {
     + SAMPLE_CANDIDATES.join(', ') + '] in to enable the "Try with sample" button.');
 }
 
+// demo/ is the source for the site's static files; mirror them to docs/.
+for (const name of ['index.html', 'social-card.png', 'demo.gif']) {
+  const src = path.join(DEMO, name);
+  if (fs.existsSync(src)) fs.copyFileSync(src, path.join(DOCS, name));
+}
+
+// Search-landing pages (React / Angular / annotation guides) and sitemap.xml.
+require('./site-pages.js');
+
 console.log('Demo bundle built: docs/rp-image-editor.bundle.js');
 console.log('Demo bundle mirrored: demo/rp-image-editor.bundle.js');

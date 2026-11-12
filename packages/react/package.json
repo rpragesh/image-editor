@@ -1,7 +1,7 @@
 {
   "name": "@rageshpikalmunde/rp-image-editor-react",
-  "version": "1.6.0",
-  "description": "React wrapper for rp-image-editor with crop, annotation, filters, and native-resolution export support",
+  "version": "1.6.1",
+  "description": "React image editor and annotation component (rp-image-editor): crop, rotate, draw, text, shapes, callouts, filters and multi-image editing. Accessible and mobile-ready.",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
   "types": "dist/types/index.d.ts",
@@ -23,20 +23,24 @@
     "clean": "rm -rf dist"
   },
   "keywords": [
-    "image-editor",
     "react-image-editor",
     "react-photo-editor",
+    "react-image-crop",
+    "react-image-annotation",
+    "image-editor",
+    "photo-editor",
     "image-annotation",
+    "image-cropper",
     "screenshot-annotation",
-    "crop",
-    "draw",
-    "shapes",
-    "callout",
+    "multi-image",
+    "image-filters",
+    "accessible",
     "fabricjs",
     "react",
     "ionic",
     "ionic-react",
-    "capacitor"
+    "capacitor",
+    "typescript"
   ],
   "author": "Ragesh Pikalmunde",
   "license": "MIT",
@@ -44,7 +48,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@rageshpikalmunde/rp-image-editor": "^1.6.0"
+    "@rageshpikalmunde/rp-image-editor": "^1.6.1"
   },
   "peerDependencies": {
     "react": ">=17.0.0",
@@ -55,5 +59,14 @@
     "react-dom": "^18.2.0",
     "@types/react": "^18.2.0",
     "typescript": "~5.3.0"
+  },
+  "homepage": "https://rpragesh.github.io/image-editor/react-image-editor/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rpragesh/image-editor.git",
+    "directory": "packages/react"
+  },
+  "bugs": {
+    "url": "https://github.com/rpragesh/image-editor/issues"
   }
 }

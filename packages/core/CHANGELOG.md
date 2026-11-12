@@ -2,6 +2,18 @@
 
 All notable changes to `@rageshpikalmunde/rp-image-editor` will be documented in this file.
 
+## [1.6.1] — 2026-11-12
+
+Patch release: better npm listings and docs, and a small callout fix. No API changes.
+
+### Changed
+- **New callouts are ready for typing.** Placing a callout now selects its "Label" text, so typing replaces it (like a new Text box). Before, you had to double-click the label first.
+- npm descriptions and keywords rewritten for all three packages (the core description still mentioned the toolbar removed in 1.6.0). The React and Angular packages now link to their homepage, repository and issue tracker.
+- The React package now has a README and LICENSE (its npm page was empty).
+
+### Added
+- Guides on the demo site: [React image editor](https://rpragesh.github.io/image-editor/react-image-editor/), [Angular image editor](https://rpragesh.github.io/image-editor/angular-image-editor/) and [Image annotation in JavaScript](https://rpragesh.github.io/image-editor/image-annotation/), each with the live editor; plus a sitemap, social preview card and demo GIF.
+
 ## [1.6.0] — 2026-11-12
 
 Minor release: a redesigned, accessible editor UI and multi-image editing (`openMultiEditorModal`). Existing config keeps working; see "Upgrading to 1.6.0" in the README for behaviour changes (zoom is view-only, new layout, brighter default accent).

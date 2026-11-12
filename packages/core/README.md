@@ -5,12 +5,14 @@
 [![license](https://img.shields.io/npm/l/%40rageshpikalmunde%2Frp-image-editor.svg)](https://github.com/rpragesh/image-editor/blob/main/LICENSE)
 [![bundle size](https://img.shields.io/bundlephobia/minzip/%40rageshpikalmunde%2Frp-image-editor)](https://bundlephobia.com/package/@rageshpikalmunde/rp-image-editor)
 
-> An open-source, framework-agnostic **JavaScript image editor, image annotation, and screenshot markup plugin** built on [Fabric.js](http://fabricjs.com/). Crop, zoom, rotate, draw, add text, **shapes (circle / ellipse / square / arrow)**, callout annotations, erase, undo/redo — all in a clean, accessible modal UI that works on desktop, tablet and phone. **Always-on drag with a translucent ghost preview** keeps the image visible while panning and zooming. **Annotations are preserved across both crop and rotate** (no drift past 360°), exports run at the image's native resolution by default, multi-image flows can show a built-in `current/total` header counter, and themes auto-contrast so customized backgrounds always get a readable foreground. Works with **Angular**, **React**, **Vue**, **Ionic**, **Capacitor**, and plain JavaScript.
-> Use it for photo editing, image markup, screenshot annotation, mobile upload flows, and in-browser image review tools without sending images to a backend editor.
+> An open-source **image editor and annotation tool for JavaScript, React and Angular**, built on [Fabric.js](http://fabricjs.com/). Crop, rotate, draw, add text, arrows, shapes and callouts, apply filters, and **edit several images at once**. Accessible (WCAG 2.2 AA), mobile-ready, 15 languages, and exports at the original resolution. Works with Angular, React, Vue, Ionic, Capacitor and plain JavaScript.
+> Use it for photo editing, screenshot markup, document annotation and image upload flows, entirely in the browser.
 
 ### 🚀 **[▶ Try the Live Demo →](https://rpragesh.github.io/image-editor/)**
 
-📚 [API reference](https://rpragesh.github.io/image-editor/api/) · ⚡ Live examples on StackBlitz: [React](https://stackblitz.com/github/rpragesh/image-editor/tree/main/examples/react) · [Angular](https://stackblitz.com/github/rpragesh/image-editor/tree/main/examples/angular) · [Plain HTML (CDN)](https://stackblitz.com/github/rpragesh/image-editor/tree/main/examples/vanilla-cdn)
+[![rp-image-editor: multi-image editing, crop, arrows and filters](https://rpragesh.github.io/image-editor/demo.gif)](https://rpragesh.github.io/image-editor/)
+
+📚 [API reference](https://rpragesh.github.io/image-editor/api/) · Guides: [React image editor](https://rpragesh.github.io/image-editor/react-image-editor/) · [Angular image editor](https://rpragesh.github.io/image-editor/angular-image-editor/) · [Image annotation in JavaScript](https://rpragesh.github.io/image-editor/image-annotation/) · ⚡ Live examples on StackBlitz: [React](https://stackblitz.com/github/rpragesh/image-editor/tree/main/examples/react) · [Angular](https://stackblitz.com/github/rpragesh/image-editor/tree/main/examples/angular) · [Plain HTML (CDN)](https://stackblitz.com/github/rpragesh/image-editor/tree/main/examples/vanilla-cdn)
 
 > One click opens a live browser demo with a sample image already loaded. No signup, no upload. Draw, crop, rotate, add callouts, apply filters, and test export quality right in your browser.
 
@@ -460,6 +462,8 @@ const result = await openEditorModal({
 Contributions are welcome! Please open an issue or submit a pull request on [GitHub](https://github.com/rpragesh/image-editor).
 
 ## Upgrading to 1.6.0
+
+> **1.6.1** is a patch on top of 1.6.0 (docs, npm metadata, and new callouts are ready for typing). If you're already on 1.6.0, `npm update` is all you need.
 
 1.6.0 is a minor release: a redesigned, accessible editor UI and a new multi-image editor. **Your existing code keeps working** (no config keys were removed or renamed), but the editor looks different and a few behaviours changed, so check the list below before upgrading.
 

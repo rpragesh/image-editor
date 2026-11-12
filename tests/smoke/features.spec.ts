@@ -166,6 +166,12 @@ test('Callout: click places a callout that is exported', async ({ page }) => {
   const p = await at(page, 0.7, 0.6);
   await page.mouse.click(p.x, p.y);
   await page.waitForTimeout(200);
+  // The label is ready for typing, and typing replaces the placeholder.
+  await page.keyboard.type('Look here');
+  const label = await page.evaluate(() =>
+    (window as any).harness.editor.fabricCanvas.getObjects().find((o: any) => o.calloutRole === 'label')?.text,
+  );
+  expect(label).toBe('Look here');
   await page.evaluate(() => {
     const c = (window as any).harness.editor.fabricCanvas;
     c.getActiveObject()?.exitEditing?.();

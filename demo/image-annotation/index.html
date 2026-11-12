@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JavaScript Image Annotation Library – Arrows, Text, Callouts | rp-image-editor</title>
+  <meta name="description" content="Annotate images in the browser with plain JavaScript: arrows, shapes, text, callouts and freehand drawing, plus crop and filters. Open source, no framework required, CDN build available.">
+  <link rel="canonical" href="https://rpragesh.github.io/image-editor/image-annotation/">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://rpragesh.github.io/image-editor/image-annotation/">
+  <meta property="og:title" content="JavaScript Image Annotation Library – Arrows, Text, Callouts | rp-image-editor">
+  <meta property="og:description" content="Annotate images in the browser with plain JavaScript: arrows, shapes, text, callouts and freehand drawing, plus crop and filters. Open source, no framework required, CDN build available.">
+  <meta property="og:image" content="https://rpragesh.github.io/image-editor/social-card.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://rpragesh.github.io/image-editor/social-card.png">
+  <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"rp-image-editor","description":"Annotate images in the browser with plain JavaScript: arrows, shapes, text, callouts and freehand drawing, plus crop and filters. Open source, no framework required, CDN build available.","url":"https://rpragesh.github.io/image-editor/image-annotation/","codeRepository":"https://github.com/rpragesh/image-editor","programmingLanguage":["TypeScript","JavaScript"],"runtimePlatform":"Web browser","license":"https://opensource.org/licenses/MIT","version":"1.6.1"},{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Which annotation tools are included?","acceptedAnswer":{"@type":"Answer","text":"Freehand draw, eraser, text, arrows, lines, rectangles, squares, circles, ellipses and callouts (a label with a pointer), each with colour and size settings and full undo/redo."}},{"@type":"Question","name":"Is the exported image full resolution?","acceptedAnswer":{"@type":"Answer","text":"Yes. Exports are PNG or JPEG at the original image size, with every annotation drawn in."}},{"@type":"Question","name":"Can I use it without React or Angular?","acceptedAnswer":{"@type":"Answer","text":"Yes. The core is plain JavaScript/TypeScript, and a single-file CDN build exposes a global RpImageEditor."}}]}]</script>
+  <style>
+    :root { --text:#14213d; --muted:#4a5568; --line:#d9e2f0; --brand:#2f6fde; --brand-strong:#1f57bb; --bg:#f6f9ff; --card:#fff; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color:var(--text); background:var(--bg); line-height:1.6; }
+    a { color: var(--brand-strong); }
+    a:focus-visible, button:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
+    .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+    header { border-bottom:1px solid var(--line); background:#fff; }
+    header .wrap { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:60px; flex-wrap:wrap; }
+    header a { text-decoration:none; font-weight:700; }
+    nav { display:flex; gap:16px; flex-wrap:wrap; font-size:14px; }
+    h1 { font-size: clamp(32px, 5vw, 48px); line-height:1.1; margin: 40px 0 12px; }
+    h2 { font-size: 24px; margin: 40px 0 12px; }
+    .lead { font-size: 18px; color: var(--muted); max-width: 760px; }
+    .editor { height: 560px; border:1px solid var(--line); border-radius: 16px; overflow:hidden; background:#f3f4f7; margin: 24px 0 8px; position:relative; }
+    .editor .rp-ie-root { border:0; border-radius:0; }
+    .editor-note { font-size:14px; color:var(--muted); display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+    .btn { display:inline-block; background:var(--brand); color:#fff; font-weight:700; padding:12px 18px; border-radius:10px; text-decoration:none; border:0; font:inherit; cursor:pointer; }
+    .btn:hover { background: var(--brand-strong); }
+    pre { background:#0f172a; color:#e2e8f0; padding:16px; border-radius:12px; overflow:auto; font-size:14px; line-height:1.5; }
+    .install { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+    .install code { background:#0f172a; color:#e2e8f0; padding:10px 14px; border-radius:10px; font-size:14px; overflow-wrap:anywhere; }
+    .features { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px; padding:0; list-style:none; }
+    .features li { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+    .features strong { display:block; }
+    details { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 16px; margin:8px 0; }
+    summary { font-weight:700; cursor:pointer; }
+    footer { margin:56px 0 0; padding:24px 0 40px; border-top:1px solid var(--line); font-size:14px; color:var(--muted); }
+    .editor--phone { height: auto; padding: 32px 16px; display: flex; justify-content: center; background: #fff url('../sample.png') center / cover; }
+    .editor--phone .btn { box-shadow: 0 8px 24px rgba(15,23,42,.35); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <a href="https://rpragesh.github.io/image-editor/">rp-image-editor</a>
+      <nav aria-label="Guides">
+        <a href="https://rpragesh.github.io/image-editor/react-image-editor/">React image editor</a>
+        <a href="https://rpragesh.github.io/image-editor/angular-image-editor/">Angular image editor</a>
+        <a href="https://rpragesh.github.io/image-editor/api/">API reference</a>
+        <a href="https://github.com/rpragesh/image-editor">GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <main class="wrap">
+    <h1>Image annotation in JavaScript</h1>
+    <p class="lead">Mark up screenshots, documents and photos in the browser: arrows, rectangles and circles, text, speech-bubble callouts and freehand drawing. Annotations stay attached to the image through crop, rotate and zoom, and export at full resolution.</p>
+
+    <div class="editor" id="editor" aria-label="Live editor demo"></div>
+    <p class="editor-note"><span>This is the real editor (v1.6.1). Pick a tool and try it.</span><a href="https://rpragesh.github.io/image-editor/#demo">More demos, including multi-image &rarr;</a></p>
+
+    <h2>Install</h2>
+    <div class="install"><code>npm install @rageshpikalmunde/rp-image-editor</code></div>
+
+    <h2>Usage</h2>
+    <pre tabindex="0" aria-label="Code example"><code>&lt;!-- No build step: load the CDN bundle --&gt;
+&lt;script src="https://unpkg.com/@rageshpikalmunde/rp-image-editor@1/dist/browser/rp-image-editor.min.js"&gt;&lt;/script&gt;
+&lt;input type="file" id="file" accept="image/*"&gt;
+&lt;script&gt;
+  document.getElementById('file').addEventListener('change', async (e) =&gt; {
+    const result = await RpImageEditor.openEditorModal({
+      image: e.target.files[0],
+      config: { defaultBrushColor: '#e11d48' },
+    });
+    if (result) document.body.append(Object.assign(new Image(), { src: result.base64 }));
+  });
+&lt;/script&gt;</code></pre>
+    <p>Need annotations on a page instead of a popup? Create <code>new RpImageEditor.RpImageEditor(container, config)</code> and call <code>getResult()</code> when you save.</p>
+
+    <h2>What you get</h2>
+    <ul class="features">
+      <li><strong>Crop, rotate, flip</strong>Aspect-ratio presets, rule-of-thirds guide, keyboard nudging.</li>
+      <li><strong>Annotate</strong>Draw, text, arrows, shapes and callouts that stay attached through crop and rotate.</li>
+      <li><strong>Filters &amp; adjust</strong>Seven filters with live previews, plus brightness, contrast, saturation and blur.</li>
+      <li><strong>Multi-image</strong>Edit a batch with a thumbnail strip and per-image undo.</li>
+      <li><strong>Accessible</strong>WCAG 2.2 AA, full keyboard support, focus management.</li>
+      <li><strong>Mobile-ready</strong>Bottom tool bar, 44&nbsp;px targets, pinch zoom, HEIC support.</li>
+      <li><strong>15 languages</strong>Built-in translations, every string overridable, light and dark themes.</li>
+      <li><strong>Full-quality export</strong>PNG or JPEG at the original resolution, as File, Blob or base64.</li>
+    </ul>
+
+    <h2>Questions</h2>
+    <details><summary>Which annotation tools are included?</summary><p>Freehand draw, eraser, text, arrows, lines, rectangles, squares, circles, ellipses and callouts (a label with a pointer), each with colour and size settings and full undo/redo.</p></details>
+    <details><summary>Is the exported image full resolution?</summary><p>Yes. Exports are PNG or JPEG at the original image size, with every annotation drawn in.</p></details>
+    <details><summary>Can I use it without React or Angular?</summary><p>Yes. The core is plain JavaScript/TypeScript, and a single-file CDN build exposes a global <code>RpImageEditor</code>.</p></details>
+
+    <p style="margin-top:32px"><a class="btn" href="https://rpragesh.github.io/image-editor/#demo">Try the full demo</a> &nbsp; <a href="https://www.npmjs.com/package/@rageshpikalmunde/rp-image-editor">npm</a> · <a href="https://github.com/rpragesh/image-editor">GitHub</a> · <a href="https://rpragesh.github.io/image-editor/api/">API reference</a></p>
+  </main>
+  <footer>
+    <div class="wrap">rp-image-editor is open source under the MIT license. Built on Fabric.js.</div>
+  </footer>
+  <script src="../rp-image-editor.bundle.js"></script>
+  <script>
+    (async () => {
+      const host = document.getElementById('editor');
+      const sample = async () => (await fetch('../sample.png')).blob();
+      // Phones get a button that opens the full-screen editor, so the page
+      // still scrolls normally (an inline canvas would capture the swipe).
+      if (!window.matchMedia('(min-width: 900px)').matches) {
+        host.classList.add('editor--phone');
+        host.innerHTML = '<button type="button" class="btn">Open the editor with a sample photo</button>';
+        host.querySelector('button').addEventListener('click', async () => {
+          RpImageEditor.openEditorModal({ image: await sample(), config: { theme: { variant: 'light' } } });
+        });
+        return;
+      }
+      try {
+        const editor = new RpImageEditor.RpImageEditor(host, {
+          theme: { variant: 'light', headerTitle: 'Photo Editor' },
+          keyboardShortcutsScope: 'editor',
+        });
+        await editor.loadImage(await sample());
+      } catch (e) {
+        host.textContent = 'The live editor could not load here. Try the main demo.';
+      }
+    })();
+  </script>
+</body>
+</html>

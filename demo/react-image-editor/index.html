@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>React Image Editor Component (Open Source) – rp-image-editor</title>
+  <meta name="description" content="Open-source React image editor: crop, rotate, draw, add text, shapes and callouts, apply filters and edit several images at once. TypeScript, accessible, mobile-ready.">
+  <link rel="canonical" href="https://rpragesh.github.io/image-editor/react-image-editor/">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://rpragesh.github.io/image-editor/react-image-editor/">
+  <meta property="og:title" content="React Image Editor Component (Open Source) – rp-image-editor">
+  <meta property="og:description" content="Open-source React image editor: crop, rotate, draw, add text, shapes and callouts, apply filters and edit several images at once. TypeScript, accessible, mobile-ready.">
+  <meta property="og:image" content="https://rpragesh.github.io/image-editor/social-card.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://rpragesh.github.io/image-editor/social-card.png">
+  <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"rp-image-editor","description":"Open-source React image editor: crop, rotate, draw, add text, shapes and callouts, apply filters and edit several images at once. TypeScript, accessible, mobile-ready.","url":"https://rpragesh.github.io/image-editor/react-image-editor/","codeRepository":"https://github.com/rpragesh/image-editor","programmingLanguage":["TypeScript","JavaScript"],"runtimePlatform":"Web browser","license":"https://opensource.org/licenses/MIT","version":"1.6.1"},{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Does it work with Next.js?","acceptedAnswer":{"@type":"Answer","text":"Yes. The editor uses the DOM and canvas, so load it on the client (for example inside useEffect or with next/dynamic and ssr: false)."}},{"@type":"Question","name":"Can users edit several images at once?","acceptedAnswer":{"@type":"Answer","text":"Yes: openMultiEditor(files) shows a thumbnail strip, keeps separate undo history per image and returns every image with an edited flag."}},{"@type":"Question","name":"Is it typed?","acceptedAnswer":{"@type":"Answer","text":"Yes. The packages are written in TypeScript and ship their type definitions."}}]}]</script>
+  <style>
+    :root { --text:#14213d; --muted:#4a5568; --line:#d9e2f0; --brand:#2f6fde; --brand-strong:#1f57bb; --bg:#f6f9ff; --card:#fff; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color:var(--text); background:var(--bg); line-height:1.6; }
+    a { color: var(--brand-strong); }
+    a:focus-visible, button:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
+    .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+    header { border-bottom:1px solid var(--line); background:#fff; }
+    header .wrap { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:60px; flex-wrap:wrap; }
+    header a { text-decoration:none; font-weight:700; }
+    nav { display:flex; gap:16px; flex-wrap:wrap; font-size:14px; }
+    h1 { font-size: clamp(32px, 5vw, 48px); line-height:1.1; margin: 40px 0 12px; }
+    h2 { font-size: 24px; margin: 40px 0 12px; }
+    .lead { font-size: 18px; color: var(--muted); max-width: 760px; }
+    .editor { height: 560px; border:1px solid var(--line); border-radius: 16px; overflow:hidden; background:#f3f4f7; margin: 24px 0 8px; position:relative; }
+    .editor .rp-ie-root { border:0; border-radius:0; }
+    .editor-note { font-size:14px; color:var(--muted); display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+    .btn { display:inline-block; background:var(--brand); color:#fff; font-weight:700; padding:12px 18px; border-radius:10px; text-decoration:none; border:0; font:inherit; cursor:pointer; }
+    .btn:hover { background: var(--brand-strong); }
+    pre { background:#0f172a; color:#e2e8f0; padding:16px; border-radius:12px; overflow:auto; font-size:14px; line-height:1.5; }
+    .install { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+    .install code { background:#0f172a; color:#e2e8f0; padding:10px 14px; border-radius:10px; font-size:14px; overflow-wrap:anywhere; }
+    .features { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px; padding:0; list-style:none; }
+    .features li { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+    .features strong { display:block; }
+    details { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 16px; margin:8px 0; }
+    summary { font-weight:700; cursor:pointer; }
+    footer { margin:56px 0 0; padding:24px 0 40px; border-top:1px solid var(--line); font-size:14px; color:var(--muted); }
+    .editor--phone { height: auto; padding: 32px 16px; display: flex; justify-content: center; background: #fff url('../sample.png') center / cover; }
+    .editor--phone .btn { box-shadow: 0 8px 24px rgba(15,23,42,.35); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <a href="https://rpragesh.github.io/image-editor/">rp-image-editor</a>
+      <nav aria-label="Guides">
+        <a href="https://rpragesh.github.io/image-editor/angular-image-editor/">Angular image editor</a>
+        <a href="https://rpragesh.github.io/image-editor/image-annotation/">Image annotation in JavaScript</a>
+        <a href="https://rpragesh.github.io/image-editor/api/">API reference</a>
+        <a href="https://github.com/rpragesh/image-editor">GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <main class="wrap">
+    <h1>React image editor</h1>
+    <p class="lead">Add cropping, annotation and filters to your React app with one hook. The editor opens as an accessible full-screen modal and gives you back a File you can upload.</p>
+
+    <div class="editor" id="editor" aria-label="Live editor demo"></div>
+    <p class="editor-note"><span>This is the real editor (v1.6.1). Pick a tool and try it.</span><a href="https://rpragesh.github.io/image-editor/#demo">More demos, including multi-image &rarr;</a></p>
+
+    <h2>Install</h2>
+    <div class="install"><code>npm install @rageshpikalmunde/rp-image-editor @rageshpikalmunde/rp-image-editor-react</code></div>
+
+    <h2>Usage</h2>
+    <pre tabindex="0" aria-label="Code example"><code>import { useRpImageEditor } from '@rageshpikalmunde/rp-image-editor-react';
+
+export function AvatarUpload() {
+  const { openEditor, openMultiEditor } = useRpImageEditor();
+
+  async function onFile(e: React.ChangeEvent&lt;HTMLInputElement&gt;) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const result = await openEditor(file, { exportFormat: 'jpeg' });
+    if (result) upload(result.file); // File, Blob and base64 are all returned
+  }
+
+  return &lt;input type="file" accept="image/*" onChange={onFile} /&gt;;
+}</code></pre>
+    <p>Prefer it inline? Render <code>&lt;RpImageEditorComponent image={file} onImageEdited={save} /&gt;</code> instead of the modal. Works with Next.js (load it client-side), Vite, CRA and Ionic React.</p>
+
+    <h2>What you get</h2>
+    <ul class="features">
+      <li><strong>Crop, rotate, flip</strong>Aspect-ratio presets, rule-of-thirds guide, keyboard nudging.</li>
+      <li><strong>Annotate</strong>Draw, text, arrows, shapes and callouts that stay attached through crop and rotate.</li>
+      <li><strong>Filters &amp; adjust</strong>Seven filters with live previews, plus brightness, contrast, saturation and blur.</li>
+      <li><strong>Multi-image</strong>Edit a batch with a thumbnail strip and per-image undo.</li>
+      <li><strong>Accessible</strong>WCAG 2.2 AA, full keyboard support, focus management.</li>
+      <li><strong>Mobile-ready</strong>Bottom tool bar, 44&nbsp;px targets, pinch zoom, HEIC support.</li>
+      <li><strong>15 languages</strong>Built-in translations, every string overridable, light and dark themes.</li>
+      <li><strong>Full-quality export</strong>PNG or JPEG at the original resolution, as File, Blob or base64.</li>
+    </ul>
+
+    <h2>Questions</h2>
+    <details><summary>Does it work with Next.js?</summary><p>Yes. The editor uses the DOM and canvas, so load it on the client (for example inside <code>useEffect</code> or with <code>next/dynamic</code> and <code>ssr: false</code>).</p></details>
+    <details><summary>Can users edit several images at once?</summary><p>Yes: <code>openMultiEditor(files)</code> shows a thumbnail strip, keeps separate undo history per image and returns every image with an <code>edited</code> flag.</p></details>
+    <details><summary>Is it typed?</summary><p>Yes. The packages are written in TypeScript and ship their type definitions.</p></details>
+
+    <p style="margin-top:32px"><a class="btn" href="https://rpragesh.github.io/image-editor/#demo">Try the full demo</a> &nbsp; <a href="https://www.npmjs.com/package/@rageshpikalmunde/rp-image-editor">npm</a> · <a href="https://github.com/rpragesh/image-editor">GitHub</a> · <a href="https://rpragesh.github.io/image-editor/api/">API reference</a></p>
+  </main>
+  <footer>
+    <div class="wrap">rp-image-editor is open source under the MIT license. Built on Fabric.js.</div>
+  </footer>
+  <script src="../rp-image-editor.bundle.js"></script>
+  <script>
+    (async () => {
+      const host = document.getElementById('editor');
+      const sample = async () => (await fetch('../sample.png')).blob();
+      // Phones get a button that opens the full-screen editor, so the page
+      // still scrolls normally (an inline canvas would capture the swipe).
+      if (!window.matchMedia('(min-width: 900px)').matches) {
+        host.classList.add('editor--phone');
+        host.innerHTML = '<button type="button" class="btn">Open the editor with a sample photo</button>';
+        host.querySelector('button').addEventListener('click', async () => {
+          RpImageEditor.openEditorModal({ image: await sample(), config: { theme: { variant: 'light' } } });
+        });
+        return;
+      }
+      try {
+        const editor = new RpImageEditor.RpImageEditor(host, {
+          theme: { variant: 'light', headerTitle: 'Photo Editor' },
+          keyboardShortcutsScope: 'editor',
+        });
+        await editor.loadImage(await sample());
+      } catch (e) {
+        host.textContent = 'The live editor could not load here. Try the main demo.';
+      }
+    })();
+  </script>
+</body>
+</html>

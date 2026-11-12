@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@rageshpikalmunde/rp-image-editor": "^1.6.0",
+    "@rageshpikalmunde/rp-image-editor": "^1.6.1",
     "@rageshpikalmunde/rp-image-editor-react": "^1.6.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

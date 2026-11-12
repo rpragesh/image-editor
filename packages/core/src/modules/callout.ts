@@ -772,6 +772,10 @@ export class CalloutModule {
 
     // Signal a single logical create operation after all parts are on-canvas.
     this.canvas.fire('rp:callout:created', { calloutId: id });
+
+    // Start typing straight away: the label text is selected, so the first
+    // keystroke replaces the placeholder (same as a new Text box).
+    this.enterLabelEditing(handle);
   }
 
   /**

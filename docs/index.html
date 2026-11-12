@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>rp-image-editor - Lightweight Image Editor for Web and Mobile</title>
-  <meta name="description" content="rp-image-editor is a lightweight browser image editor for crop, draw, shapes, callouts, text, and mobile-friendly annotation workflows, multi-image editing and PNG/JPEG export.">
+  <title>rp-image-editor – Open-Source Image Editor &amp; Annotation Tool for JavaScript, React and Angular</title>
+  <meta name="description" content="Free, open-source image editor for the web: crop, rotate, draw, add text, arrows, shapes and callouts, apply filters and edit several images at once. Works with JavaScript, React, Angular, Vue and Ionic. Accessible and mobile-ready.">
   <meta name="keywords" content="rp-image-editor, image editor, image annotation, screenshot markup, javascript image editor, typescript image editor, crop draw text shapes callouts, mobile image editor, browser image editor, npm image editor, react image editor, angular image editor, vue image editor, ionic image editor, capacitor image editor">
   <meta name="author" content="Ragesh Pikalmunde">
   <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
@@ -13,16 +13,18 @@
 
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://rpragesh.github.io/image-editor/">
-  <meta property="og:title" content="rp-image-editor - Lightweight Image Editor for Web and Mobile">
-  <meta property="og:description" content="Lightweight browser image editor for crop, draw, shapes, callouts, text, and touch-friendly annotation workflows.">
+  <meta property="og:title" content="rp-image-editor – Open-Source Image Editor &amp; Annotation Tool for JavaScript, React and Angular">
+  <meta property="og:description" content="Free, open-source image editor for the web: crop, rotate, draw, add text, arrows, shapes and callouts, apply filters and edit several images at once. Works with JavaScript, React, Angular, Vue and Ionic. Accessible and mobile-ready.">
   <meta property="og:site_name" content="rp-image-editor">
-  <meta property="og:image" content="https://rpragesh.github.io/image-editor/sample.png">
+  <meta property="og:image" content="https://rpragesh.github.io/image-editor/social-card.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="rp-image-editor demo with image editing and annotation tools">
 
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="rp-image-editor - Lightweight Image Editor for Web and Mobile">
-  <meta name="twitter:description" content="Crop, draw, shape, callout, text, and export images in a mobile-friendly browser editor.">
-  <meta name="twitter:image" content="https://rpragesh.github.io/image-editor/sample.png">
+  <meta name="twitter:title" content="rp-image-editor – Open-Source Image Editor &amp; Annotation Tool for JavaScript, React and Angular">
+  <meta name="twitter:description" content="Free, open-source image editor for the web: crop, rotate, draw, add text, arrows, shapes and callouts, apply filters and edit several images at once. Works with JavaScript, React, Angular, Vue and Ionic. Accessible and mobile-ready.">
+  <meta name="twitter:image" content="https://rpragesh.github.io/image-editor/social-card.png">
 
   <script type="application/ld+json">
     {
@@ -35,7 +37,10 @@
       "url": "https://rpragesh.github.io/image-editor/",
       "downloadUrl": "https://www.npmjs.com/package/@rageshpikalmunde/rp-image-editor",
       "codeRepository": "https://github.com/rpragesh/image-editor",
-      "description": "A lightweight browser image editor and annotation toolkit with crop, draw, shapes, callouts, text, and export workflows.",
+      "description": "Free, open-source image editor for the web: crop, rotate, draw, add text, arrows, shapes and callouts, apply filters and edit several images at once. Works with JavaScript, React, Angular, Vue and Ionic. Accessible and mobile-ready.",
+      "softwareVersion": "1.6.0",
+      "screenshot": "https://rpragesh.github.io/image-editor/social-card.png",
+      "programmingLanguage": "TypeScript",
       "offers": {
         "@type": "Offer",
         "price": "0",
@@ -1466,7 +1471,7 @@
     .annotation-mark--callout {
       left: 14%;
       top: 58%;
-      background: #f9150e;
+      background: #d91c12;
       color: #ffffff;
       border-radius: 12px;
       font-size: 27px;
@@ -1483,7 +1488,7 @@
       position: absolute;
       left: 18px;
       bottom: -36px;
-      border-top: 40px solid #f9150e;
+      border-top: 40px solid #d91c12;
       border-right: 28px solid transparent;
       transform: skewX(-13deg);
     }
@@ -2962,7 +2967,7 @@
           </div>
 
           <section class="tab-panel active" id="tab-js" role="tabpanel" aria-labelledby="tab-btn-js">
-<pre><code>import { openEditorModal } from '@rageshpikalmunde/rp-image-editor';
+<pre tabindex="0" aria-label="Code example"><code>import { openEditorModal } from '@rageshpikalmunde/rp-image-editor';
 
 const fileInput = document.querySelector('#fileInput');
 
@@ -2986,7 +2991,7 @@ fileInput.addEventListener('change', async (event) => {
           </section>
 
           <section class="tab-panel" id="tab-react" role="tabpanel" aria-labelledby="tab-btn-react">
-<pre><code>import { openEditorModal } from '@rageshpikalmunde/rp-image-editor';
+<pre tabindex="0" aria-label="Code example"><code>import { openEditorModal } from '@rageshpikalmunde/rp-image-editor';
 
 function ImageUploader() {
   const handleFile = async (event) => {
@@ -3008,7 +3013,7 @@ function ImageUploader() {
           </section>
 
           <section class="tab-panel" id="tab-angular" role="tabpanel" aria-labelledby="tab-btn-angular">
-<pre><code>import { openEditorModal } from '@rageshpikalmunde/rp-image-editor';
+<pre tabindex="0" aria-label="Code example"><code>import { openEditorModal } from '@rageshpikalmunde/rp-image-editor';
 
 async function onFileSelected(file: File) {
   const result = await openEditorModal({
@@ -3023,7 +3028,7 @@ async function onFileSelected(file: File) {
           </section>
 
           <section class="tab-panel" id="tab-multi" role="tabpanel" aria-labelledby="tab-btn-multi">
-<pre><code>import { openMultiEditorModal } from '@rageshpikalmunde/rp-image-editor';
+<pre tabindex="0" aria-label="Code example"><code>import { openMultiEditorModal } from '@rageshpikalmunde/rp-image-editor';
 
 const input = document.querySelector('#fileInput'); // &lt;input type="file" multiple&gt;
 
@@ -3168,6 +3173,9 @@ input.addEventListener('change', async () =&gt; {
         <a href="https://rpragesh.github.io/image-editor/api/" target="_blank" rel="noopener">API reference</a>
         <a href="https://github.com/rpragesh/image-editor/tree/main/examples" target="_blank" rel="noopener">Examples</a>
         <a href="https://rpragesh.github.io/image-editor/">Demo</a>
+        <a href="react-image-editor/">React image editor</a>
+        <a href="angular-image-editor/">Angular image editor</a>
+        <a href="image-annotation/">Image annotation in JavaScript</a>
       </div>
     </div>
   </footer>
