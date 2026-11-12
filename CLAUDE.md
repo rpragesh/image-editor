@@ -12,7 +12,7 @@ npm-workspaces monorepo for `@rageshpikalmunde/rp-image-editor`, a browser image
 
 The wrappers depend on core by its published npm name/version; they only construct `RpImageEditor` or call `openEditorModal`.
 
-The Angular wrapper is built with **ng-packagr** (Angular Package Format, Ivy partial compilation; supports Angular 15+), not `tsc`, because tsc-compiled decorators fail in AOT apps with "JIT compiler unavailable". Its toolchain (Angular 15 compiler + TypeScript 4.9) lives in `packages/angular/tools/` with its own lockfile, **outside the workspace**, because the repo uses TypeScript 5.x. `packages/angular/scripts/build.js` runs `npm ci` there on first build. ng-packagr writes `packages/angular/dist/package.json`, so the Angular package is **published from `dist`** (`npm publish packages/angular/dist`). Core and React are published from their package folders.
+The Angular wrapper is built with **ng-packagr** (Angular Package Format, Ivy partial compilation; supports Angular 15+), not `tsc`, because tsc-compiled decorators fail in AOT apps with "JIT compiler unavailable". Its toolchain (Angular 15 compiler + TypeScript 4.9) lives in `packages/angular/tools/` with its own lockfile, **outside the workspace**, because the repo uses TypeScript 5.x. `packages/angular/scripts/build.js` runs `npm ci` there on first build. ng-packagr writes `packages/angular/dist/package.json`, so the Angular package is **published from `dist`** (`cd packages/angular/dist && npm publish`; running `npm publish ./dist` from `packages/angular` trips its `prepublishOnly` guard). Core and React are published from their package folders.
 
 ## Commands
 

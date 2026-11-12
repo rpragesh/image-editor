@@ -5,7 +5,7 @@
   "scripts": {
     "build": "node scripts/build.js",
     "clean": "rm -rf dist",
-    "prepublishOnly": "node -e \"console.error(\\\"Publish the built package instead: npm run build && npm publish ./dist\\\"); process.exit(1)\""
+    "prepublishOnly": "node -e \"console.error(\\\"Publish the built package instead: npm run build, then cd dist && npm publish\\\"); process.exit(1)\""
   },
   "keywords": [
     "image-editor",
