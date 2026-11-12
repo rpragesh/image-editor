@@ -291,7 +291,7 @@ test('Flip vertical moves a top annotation to the bottom', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test('Zoom in, pan and draw; back at 100% the export is full size with the stroke in place', async ({ page }) => {
+test('Zoom in, pan and draw: export is always the whole image with the stroke in place', async ({ page }) => {
   const errors = await setup(page);
   await btn(page, /^Zoom In/).click();
   await btn(page, /^Zoom In/).click();
@@ -308,10 +308,14 @@ test('Zoom in, pan and draw; back at 100% the export is full size with the strok
 
   await tool(page, 'Draw').click();
   await drag(page, [0.6, 0.5], [0.8, 0.5]);
-  // Existing behaviour: while zoomed in, Apply exports the visible part.
-  const zoomed = await exportAndCount(page);
-  expect(zoomed.width).toBeLessThan(800);
-  expect(zoomed.green).toBeGreaterThan(50);
+  // Zoom is view-only: even while zoomed in, the whole image is exported.
+  const zoomed = await exportAndCount(page, [0.55, 0.4, 0.85, 0.6]);
+  expect([zoomed.width, zoomed.height]).toEqual([800, 600]);
+  expect(zoomed.green).toBeGreaterThan(100);
+  // Edges that are scrolled out of view are still in the export.
+  for (const [fx, fy, color] of [[0.02, 0.02, [255, 0, 0]], [0.98, 0.98, [0, 0, 255]]] as const) {
+    expect((await pixel(page, fx, fy)).slice(0, 3), `pixel ${fx},${fy}`).toEqual(color);
+  }
 
   await page.locator('#host button').first().focus();
   await page.keyboard.press('0'); // fit = 100%

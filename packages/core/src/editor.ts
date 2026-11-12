@@ -1390,44 +1390,18 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
       imgDisplayH = (this.baseImage.height || imgDisplayH) * scaleY;
     }
 
-    // Calculate the visible region based on current zoom/pan viewport
-    const canvasW = this.fabricCanvas.getWidth();
-    const canvasH = this.fabricCanvas.getHeight();
-    const vpt = currentVPT || [1, 0, 0, 1, 0, 0];
-    const zoom = currentZoom || 1;
-
-    // Map screen corners to image-space using inverse viewport transform
-    const invVpt = fabric.util.invertTransform(vpt as any);
-    const tl = fabric.util.transformPoint(new fabric.Point(0, 0), invVpt as any);
-    const br = fabric.util.transformPoint(new fabric.Point(canvasW, canvasH), invVpt as any);
-
-    // Clamp visible region to image bounds
-    const visLeft = Math.max(tl.x, imgLeft);
-    const visTop = Math.max(tl.y, imgTop);
-    const visRight = Math.min(br.x, imgLeft + imgDisplayW);
-    const visBottom = Math.min(br.y, imgTop + imgDisplayH);
-    const visWidth = Math.max(0, visRight - visLeft);
-    const visHeight = Math.max(0, visBottom - visTop);
-
-    // If zoom is 1× and no pan, export the full image region (backwards-compatible).
-    // Also fall back to the full image bounds if the user has panned/zoomed the
-    // image completely outside the visible canvas — otherwise the intersection is
-    // empty and we would produce a 0×0 offscreen canvas → 0-byte File on Apply.
-    const isDefaultView = zoom === 1 && vpt[4] === 0 && vpt[5] === 0;
-    const hasVisibleIntersection = visWidth > 0 && visHeight > 0;
-    const useFullImageBounds = isDefaultView || !hasVisibleIntersection;
-    const exportLeft = useFullImageBounds ? imgLeft : visLeft;
-    const exportTop = useFullImageBounds ? imgTop : visTop;
-    const exportW = useFullImageBounds ? imgDisplayW : visWidth;
-    const exportH = useFullImageBounds ? imgDisplayH : visHeight;
+    // Zoom and pan only change the view: always export the whole image.
+    const exportLeft = imgLeft;
+    const exportTop = imgTop;
+    const exportW = imgDisplayW;
+    const exportH = imgDisplayH;
 
     // Reset viewport for clean rendering — we handle the offset manually
     this.fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
     this.fabricCanvas.setZoom(1);
 
-    // Use an offscreen canvas to render ONLY the visible image region.
-    // Guard against sub-pixel dimensions (e.g. extreme zoom-out or degenerate
-    // state) — a 0×0 canvas would produce a 0-byte blob.
+    // Render the image region onto an offscreen canvas. Guard against
+    // sub-pixel dimensions — a 0×0 canvas would produce a 0-byte blob.
     const offW = Math.max(1, Math.round(exportW * multiplierX));
     const offH = Math.max(1, Math.round(exportH * multiplierY));
     const offscreen = document.createElement('canvas');
@@ -1446,7 +1420,7 @@ export class RpImageEditor extends EventEmitter<RpEditorEvents> {
     this.fabricCanvas.renderAll();
 
     // Render the Fabric canvas onto the offscreen canvas, offset so only
-    // the visible image region is captured.
+    // the image region is captured.
     offCtx.save();
     offCtx.scale(multiplierX, multiplierY);
     offCtx.translate(-exportLeft, -exportTop);

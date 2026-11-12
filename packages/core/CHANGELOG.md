@@ -10,6 +10,7 @@ All notable changes to `@rageshpikalmunde/rp-image-editor` will be documented in
 - **Default accent is now a brighter blue** (`#2f6feb`, was navy `#083a81`) so Apply and the active tool stand out. Themes that set `accent`, `toolbarActiveBackground` or `applyButtonBackground` are unaffected.
 - **Header subtitle only shows when you set one** (`theme.headerSubtitle` or `labels.headerSubtitle`); the generic "Edit your image with ease" tagline is no longer shown by default. The placeholder logo badge only shows when `headerLogo` is set or `showHeaderBadge: true`.
 - Crop box restyled: white frame and handles, rule-of-thirds guides (previously not drawn), and the area being kept stays bright while the rest dims.
+- **Zoom is view-only: Apply always exports the whole image.** Before, applying while zoomed in exported only the part visible on screen (zoom acted as a crop). Use Crop to cut the image; if you relied on the old behaviour, crop before applying.
 - **Zoom can't go below 100%** (the image fitted to the stage). The zoom menu offers 100% (Fit), 150%, 200%, 300% and 400%; `setZoom()` clamps to the same range.
 - Rotating or flipping keeps you in the current tool (it used to drop back to Select), and Crop remembers the chosen aspect ratio.
 

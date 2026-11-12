@@ -19,7 +19,7 @@
 | Feature | Description |
 |---|---|
 | ✂️ **Crop** | Free crop and aspect-ratio locked crop. Initial ratio chip matches the actual rectangle; switching ratios (e.g. 4:3 ↔ 16:9) refits into the same 80% image-bounds envelope so sizes stay consistent. Annotations are preserved across crops. |
-| 🔍 **Zoom** | Zoom in (100%–500%) with buttons, wheel or pinch; 100% fits the image to the stage |
+| 🔍 **Zoom** | Zoom in (100%–500%) with buttons, wheel or pinch; 100% fits the image to the stage. Zoom only changes the view — Apply always exports the whole image |
 | 🖐️ **Pan/Drag** | Always-on drag — no need to enable a tool. |
 | 🔄 **Rotate** | Rotate left/right by 90° steps. Annotations are preserved across rotations and stay locked to the underlying pixels (no drift past 360°). Fast path skips PNG re-encoding so large 10–15 MB+ images rotate quickly; a loader overlay is shown during heavy renders. |
 | ✏️ **Freehand Draw** | Configurable brush color & width |
