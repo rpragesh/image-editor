@@ -2,7 +2,9 @@
 
 All notable changes to `@rageshpikalmunde/rp-image-editor` will be documented in this file.
 
-## [Unreleased] — 1.6.0
+## [1.6.0] — 2026-11-12
+
+Minor release: a redesigned, accessible editor UI and multi-image editing (`openMultiEditorModal`). Existing config keeps working; see "Upgrading to 1.6.0" in the README for behaviour changes (zoom is view-only, new layout, brighter default accent).
 
 ### Changed
 - **Redesigned editor UI.** Every control now lives in one place: the right-hand rail and the bottom "Quick Actions" bar are gone. Undo, redo, reset and zoom moved to the top bar, Close moved to the top-left, and rotate / flip moved into the Crop panel. The settings panel only appears for tools that have settings, so Select mode gives the photo the full width. The canvas no longer has a double frame.

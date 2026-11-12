@@ -73,7 +73,7 @@ A self-contained build (Fabric.js included, styles injected at runtime) exposes 
 </script>
 ```
 
-The bundle is ~500 KB minified (~145 KB gzipped). It is also on jsDelivr (`https://cdn.jsdelivr.net/npm/@rageshpikalmunde/rp-image-editor@1/dist/browser/rp-image-editor.min.js`). Pin an exact version (e.g. `@1.5.13`) in production. Everything the npm package exports is available on the global, e.g. `new RpImageEditor.RpImageEditor(container, config)`.
+The bundle is ~540 KB minified (~150 KB gzipped). It is also on jsDelivr (`https://cdn.jsdelivr.net/npm/@rageshpikalmunde/rp-image-editor@1/dist/browser/rp-image-editor.min.js`). Pin an exact version (e.g. `@1.6.0`) in production. Everything the npm package exports is available on the global, e.g. `new RpImageEditor.RpImageEditor(container, config)`.
 
 ## Quick Start
 
@@ -459,62 +459,52 @@ const result = await openEditorModal({
 
 Contributions are welcome! Please open an issue or submit a pull request on [GitHub](https://github.com/rpragesh/image-editor).
 
-## Upgrading to 1.5.13
+## Upgrading to 1.6.0
 
-**Nothing in your existing code has to change.** 1.5.13 is a backward-compatible patch release, and the editor itself is unchanged. It fixes the framework wrappers. The Angular wrapper now works in production (AOT) builds without loading `@angular/compiler`, and `<rp-image-editor>` works in AOT templates. The React `RpImageEditorComponent` now calls `onImageEdited` when Apply is clicked. The release also adds a `<script>`-tag/CDN build, an [API reference](https://rpragesh.github.io/image-editor/api/) and [live examples](https://github.com/rpragesh/image-editor/tree/main/examples). From 1.5.12 you also have exact undo/redo for crop, rotate, flip and filters.
+1.6.0 is a minor release: a redesigned, accessible editor UI and a new multi-image editor. **Your existing code keeps working** (no config keys were removed or renamed), but the editor looks different and a few behaviours changed, so check the list below before upgrading.
 
-**Angular users, check two things:**
-- The wrapper now needs **Angular 15 or newer**.
-- On **Angular 17+ with the esbuild `application` builder**, add `"externalDependencies": ["jsdom", "canvas"]` to `angular.json` (see [Bundler notes](https://github.com/rpragesh/image-editor/blob/main/packages/core/README.md#bundler-notes)).
-
-If you added `import '@angular/compiler'` only to make the wrapper run, you can remove it now.
-
-### 1. Bump the version
+### 1. Bump the versions
 
 ```bash
-npm install @rageshpikalmunde/rp-image-editor@^1.5.13
-# and if you use the framework wrappers (they depend on core ^1.5.13):
-npm install @rageshpikalmunde/rp-image-editor-react@^1.5.13
-npm install @rageshpikalmunde/rp-image-editor-angular@^1.5.13
+npm install @rageshpikalmunde/rp-image-editor@^1.6.0
+# and if you use the framework wrappers (they depend on core ^1.6.0):
+npm install @rageshpikalmunde/rp-image-editor-react@^1.6.0
+npm install @rageshpikalmunde/rp-image-editor-angular@^1.6.0
 ```
 
-### 2. Existing integrations keep working unchanged
+### 2. What changes for your users
 
-There are no new editor APIs or config keys in 1.5.13. React's `onImageEdited` now shows the editor's Apply button, as it was documented to; if you don't want that button, don't pass the prop. From 1.5.11 you also have the optional `keyboardShortcutsScope: 'editor'`, which makes shortcuts react only while focus is inside the editor (the default `'global'` keeps the current behavior), and the Angular wrapper no longer requires `@ionic/angular` to be installed. The broader 1.5.x additions below remain fully optional, and your existing config shape does not need to change.
+- **New layout.** One tool rail on the left (a scrolling bar at the bottom on phones). The settings panel only shows for tools that have settings. Undo, redo, reset, zoom and Apply are in the top bar, and Close is top-left. Rotate and flip moved into the Crop panel. The right-hand rail and the bottom "Quick Actions" bar are gone.
+- **Zoom only changes the view.** Apply always exports the whole image. Before, applying while zoomed in exported only the visible part. If your users relied on that, ask them to use Crop. Zoom also can't go below 100% (the image fitted to the stage).
+- **Brighter default accent** (`#2f6feb`, was `#083a81`). Themes that set `accent`, `toolbarActiveBackground` or `applyButtonBackground` are unaffected.
+- **No default subtitle or logo badge.** The header subtitle only shows if you set `theme.headerSubtitle` or `labels.headerSubtitle`. The placeholder logo badge only shows with `headerLogo` or `showHeaderBadge: true`.
+- **Accessibility:** WCAG 2.2 AA (checked with axe-core), full keyboard support, focus kept inside the modal and returned to the opener on close.
+- **Fixes:** Adjust sliders can be undone, text undoes in one step, typing replaces the "Text" placeholder, and the crop dimming stays aligned with the crop box.
 
-Add any subset of the new keys to your existing `config` object. You do **not** need to remove or restructure anything you already pass:
+If you style the editor with your own CSS that targets internal `.rp-ie-*` class names, re-check it: the shell markup changed.
+
+### 3. New and optional: edit several images at once
+
+```typescript
+import { openMultiEditorModal } from '@rageshpikalmunde/rp-image-editor';
+
+const results = await openMultiEditorModal({ images: files, config });
+// results: [{ index, edited, result }] for every image, or null if closed
+```
+
+A thumbnail strip switches images, each image keeps its own undo history, and Close asks before discarding edits. Angular: `RpImageEditorService.openMultiEditor(images, config)`. React: `useRpImageEditor().openMultiEditor(images, config)`. If you currently loop over `openEditorModal` for a batch, that loop still works.
+
+All 1.5.x options still work unchanged. For example:
 
 ```typescript
 await openEditorModal({
   image: file,
   config: {
-    // ...everything you already had in 1.4.x still works, unchanged...
-
-    // Optional image counter for multi-image flows
-    currentImageIndex: 2,
-    totalImages: 5,
-
-    // Localize the UI to any of 15 bundled languages
-    language: 'de',
-
-    // Per-key label overrides (rebrand, or translate to a language not bundled)
+    language: 'de',                          // 15 bundled languages
     labels: { tool: { callout: 'Annotation' } },
-
-    // Whitelist / reorder the filter tiles, and rename them
     filterPresets: ['none', 'grayscale', 'vintage'],
-    filterPresetLabels: { grayscale: 'B&W' },
-
-    // Defaults for newly-placed callouts
-    calloutDefaults: { text: 'Note', fontSize: 18, maxChars: 60 },
-
-    // Empty-state copy (drop-zone title/subtitle). Pass '' to hide the subtitle.
-    strings: {
-      emptyStateTitle: 'Drop a photo here',
-      emptyStateSubtitle: '',
-    },
-
-    // Header subtitle (below the header title). Pass '' to hide the row.
-    theme: { headerSubtitle: 'Edit and annotate' },
+    keyboardShortcutsScope: 'editor',        // shortcuts only while focus is in the editor
+    disabledFeatures: ['filters'],
   },
 });
 ```
@@ -535,12 +525,12 @@ await openEditorModal({
 
 ### Rolling back
 
-1.5.13 is additive. No public data or storage format changed, so you can downgrade at any time with no code changes (Angular apps on 1.5.12 need `import '@angular/compiler'` in `main.ts` again):
+No stored data format changed, so you can go back at any time with no code changes:
 
 ```bash
-npm install @rageshpikalmunde/rp-image-editor@1.5.12
-npm install @rageshpikalmunde/rp-image-editor-react@1.5.12
-npm install @rageshpikalmunde/rp-image-editor-angular@1.5.12
+npm install @rageshpikalmunde/rp-image-editor@1.5.13
+npm install @rageshpikalmunde/rp-image-editor-react@1.5.13
+npm install @rageshpikalmunde/rp-image-editor-angular@1.5.13
 ```
 
 ## License
