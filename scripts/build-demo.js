@@ -68,7 +68,10 @@ if (mirroredSample) {
 }
 
 // demo/ is the source for the site's static files; mirror them to docs/.
-for (const name of ['index.html', 'social-card.png', 'demo.gif']) {
+// Search-engine verification files (Google Search Console: google*.html,
+// Bing: BingSiteAuth.xml) are dropped into demo/ and published as-is.
+const verification = fs.readdirSync(DEMO).filter((f) => /^google[0-9a-f]+\.html$/.test(f) || f === 'BingSiteAuth.xml');
+for (const name of ['index.html', 'social-card.png', 'demo.gif', ...verification]) {
   const src = path.join(DEMO, name);
   if (fs.existsSync(src)) fs.copyFileSync(src, path.join(DOCS, name));
 }
